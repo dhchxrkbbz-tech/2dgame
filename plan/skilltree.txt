@@ -1,0 +1,501 @@
+Ashenfall – Complete Game Design & Dev Plan
+
+Inspirációs alap:
+
+Stardew Valley – kamera és világ felfedezés
+
+Diablo II – combat és loot
+
+World of Warcraft – progression és class design
+
+1. Skill Tree Design (3 Class)
+Assassin Skill Tree
+Branch 1 – Shadow
+
+Stealth és mobilitás.
+
+Skills:
+
+Shadow Step
+
+Smoke Bomb
+
+Backstab
+
+Shadow Clone
+
+Ultimate:
+Nightfall (AoE burst)
+
+Progression logika:
+
+mobility → stealth → burst damage
+Branch 2 – Poison
+
+DOT build.
+
+Skills:
+
+Poison Daggers
+
+Venom Cloud
+
+Toxic Strike
+
+Infection Spread
+
+Ultimate:
+Plague Storm
+
+Branch 3 – Blood
+
+High risk DPS.
+
+Skills:
+
+Blood Slash
+
+Lifesteal Aura
+
+Frenzy
+
+Blood Pact
+
+Ultimate:
+Crimson Rage
+
+Tank Skill Tree
+Branch 1 – Guardian
+
+Shield gameplay.
+
+Skills:
+
+Shield Block
+
+Taunt
+
+Shield Slam
+
+Fortify
+
+Ultimate:
+Bulwark
+
+Branch 2 – Warbringer
+
+Aggro + AoE.
+
+Skills:
+
+War Cry
+
+Ground Slam
+
+Chain Pull
+
+Rage Burst
+
+Ultimate:
+Battlefield Control
+
+Branch 3 – Paladin Path
+
+Support tank.
+
+Skills:
+
+Holy Shield
+
+Light Heal
+
+Blessing Aura
+
+Radiant Strike
+
+Ultimate:
+Divine Protection
+
+Mage / Healer Skill Tree
+Branch 1 – Arcane
+
+Damage.
+
+Skills:
+
+Arcane Bolt
+
+Arcane Orb
+
+Mana Burst
+
+Teleport
+
+Ultimate:
+Arcane Collapse
+
+Branch 2 – Frost
+
+Crowd control.
+
+Skills:
+
+Ice Lance
+
+Blizzard
+
+Frost Nova
+
+Ice Barrier
+
+Ultimate:
+Frozen Realm
+
+Branch 3 – Holy
+
+Healing.
+
+Skills:
+
+Heal
+
+Chain Heal
+
+Protective Shield
+
+Purify
+
+Ultimate:
+Sanctuary
+
+2. Procedural World Generation Algorithm
+
+Cél:
+Kontinens generálás.
+
+Map generálás pipeline
+continent seed
+→ biome placement
+→ terrain noise
+→ points of interest
+→ dungeon spawn
+→ roads
+Biome rendszer
+
+Biomes:
+
+cursed forest
+
+plague lands
+
+mountains
+
+ruins
+
+dark swamp
+
+Algoritmus:
+
+Perlin Noise
++
+temperature map
++
+corruption map
+Dungeon spawn logika
+
+Dungeon generálás:
+
+biome difficulty
++
+distance from start
++
+player level
+3. Boss Design Document
+Boss Tier rendszer
+
+Tier 1
+Mini boss
+
+Tier 2
+Dungeon boss
+
+Tier 3
+World boss
+
+Tier 4
+Raid boss
+
+Példa boss
+Necromancer King
+
+Abilities:
+
+summon undead
+
+curse field
+
+bone storm
+
+revive minions
+
+Mechanic:
+
+phase 1: summon
+phase 2: curse map
+phase 3: rage mode
+Abyss Dragon
+
+Mechanics:
+
+fire breath
+
+map destruction
+
+aerial phase
+
+meteor attack
+
+Raid mechanika:
+players must split roles.
+
+4. Economy System (MMO-style)
+Gazdaság alap
+
+Currencies:
+
+gold
+
+dark essence
+
+relic fragments
+
+Resource Flow
+gather
+→ craft
+→ trade
+→ upgrade
+Trade System
+
+Lehet:
+
+player trading
+
+marketplace
+
+NPC shops
+
+Inflation Control
+
+Mechanikák:
+
+repair cost
+
+crafting cost
+
+upgrade cost
+
+rare drop rate
+
+5. Networking Architecture (Godot)
+Multiplayer Model
+
+Host-client.
+
+Host
+ ├ world
+ ├ AI
+ ├ loot
+ └ sync
+
+Clients:
+
+input
+
+animation
+
+UI
+
+Sync rendszer
+
+Sync:
+
+Player
+Enemy
+Projectiles
+Loot
+
+Nem sync:
+
+particles
+
+UI
+
+Netcode stratégia
+
+Fontos:
+
+client prediction
+lag compensation
+entity authority
+
+Host authoritative model.
+
+6. Enemy AI System
+
+Enemy típusok:
+
+1
+Melee
+
+2
+Ranged
+
+3
+Caster
+
+4
+Elite
+
+5
+Boss
+
+AI logika
+detect player
+→ choose target
+→ attack pattern
+→ retreat
+7. Dungeon Generation
+
+Dungeon pipeline:
+
+layout generator
+→ room types
+→ enemy spawn
+→ boss room
+→ loot placement
+
+Room types:
+
+combat
+
+puzzle
+
+treasure
+
+boss
+
+8. Loot System
+
+Drop rendszer.
+
+enemy tier
++
+player luck
++
+region difficulty
+
+Loot típusok:
+
+gear
+
+crafting material
+
+gems
+
+relics
+
+9. Gem System
+
+Gem típusok:
+
+Damage
+Crit
+Lifesteal
+Elemental
+Defense
+Utility
+
+Socket tier
+
+Item:
+
+0–4 socket
+
+Legendary:
+
+special gems
+10. Full Godot Architecture
+core
+combat
+classes
+items
+professions
+world
+dungeons
+multiplayer
+ui
+ai
+11. 6 hónapos Indie Fejlesztési Roadmap
+Month 1
+
+Core systems
+
+movement
+
+combat
+
+enemy AI
+
+camera
+
+Month 2
+
+Gameplay
+
+loot system
+
+items
+
+leveling
+
+skills
+
+Month 3
+
+World
+
+procedural map
+
+biomes
+
+exploration
+
+Month 4
+
+Multiplayer
+
+lobby
+
+sync
+
+coop play
+
+Month 5
+
+Content
+
+dungeons
+
+bosses
+
+professions
+
+Month 6
+
+Polish
+
+balancing
+
+UI
+
+optimization

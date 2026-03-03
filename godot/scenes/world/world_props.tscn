@@ -1,0 +1,11 @@
+[gd_scene format=3 uid="uid://world_props_scene"]
+
+[node name="WorldProps" type="Node2D"]
+
+[node name="Trees" type="Node2D" parent="."]
+
+[node name="Rocks" type="Node2D" parent="."]
+
+[node name="Bushes" type="Node2D" parent="."]
+
+[node name="Misc" type="Node2D" parent="."]

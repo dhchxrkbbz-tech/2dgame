@@ -1,0 +1,797 @@
+================================================================================
+  ASHENFALL – 04. GAZDASÁGI RENDSZER – TELJES IMPLEMENTÁCIÓS TERV
+================================================================================
+
+  Motor: Godot 4.x (GDScript)
+  Stílus: 2D top-down pixel art
+  AI Asset Pipeline: Stable Diffusion + ComfyUI + LoRA + Aseprite
+
+================================================================================
+  TARTALOMJEGYZÉK
+================================================================================
+
+  1. Rendszer áttekintés
+  2. Valuta rendszer (3 currency)
+  3. Resource flow (gather → craft → trade → upgrade)
+  4. Gathering rendszer
+  5. Crafting rendszer
+  6. NPC Shop rendszer
+  7. Player Trading / Marketplace
+  8. Upgrade rendszer
+  9. Infláció kontrol mechanikák
+  10. Profession rendszer (gazdasági vonatkozás)
+  11. Godot implementáció
+  12. AI-generált gazdasági UI elemek
+  13. AI-generált NPC-k és shop sprite-ok
+  14. AI-generált item ikonok
+  15. Kapcsolódó rendszerek
+
+================================================================================
+  1. RENDSZER ÁTTEKINTÉS
+================================================================================
+
+  Az Ashenfall gazdasági rendszere MMO-inspirált, de indie léptékben.
+  Célja: a játékos folyamatos haladás-érzést kapjon, legyen motiváció
+  farmolni, craftolni és kereskedni.
+
+  Három pénznem, több forrás, több elnyelő (sink) → egyensúlyban
+  tartott gazdaság.
+
+  Fő ciklusok:
+    Farming: ellenség ölés → gold + material → craft/shop
+    Gathering: resource node-ok → crafting material
+    Dungeon: boss kill → rare material + gold → high-end craft
+    Trading: player↔player vagy marketplace → piaci árak
+
+================================================================================
+  2. VALUTA RENDSZER
+================================================================================
+
+  2.1 Gold (fő valuta)
+  ──────────────────
+
+    Szerzés:
+      - Ellenség ölés (2-50 gold tier függő)
+      - Quest jutalom (50-500 gold)
+      - Item eladás NPC-nek
+      - Dungeon jutalom (100-1000 gold)
+      - Marketplace eladás
+
+    Felhasználás:
+      - NPC shop vásárlás
+      - Repair cost (gear)
+      - Crafting fee
+      - Upgrade cost (enchant, reroll)
+      - Fast travel fee
+      - Skill reset fee (drága: 500+ gold)
+      - Marketplace listing fee
+
+    Level-enkénti gold szerzés becslés:
+      Level 1-10: ~50 gold/óra
+      Level 11-25: ~200 gold/óra
+      Level 26-40: ~500 gold/óra
+      Level 41-50: ~1000 gold/óra
+
+  2.2 Dark Essence (prémium valuta)
+  ──────────────────
+
+    Szerzés (NINCS valódi pénzért – nem P2W):
+      - Boss kill (10-50 DE)
+      - Weekly challenge jutalom (20-100 DE)
+      - Rare chest-ekből (5-15 DE)
+      - Achievement jutalom (egyszer: 10-50 DE)
+      - World event jutalom (20-30 DE)
+
+    Felhasználás:
+      - Legendary crafting receptek
+      - Gem enchanting (magas szintű)
+      - Cosmetic shop (skins, pets, effects)
+      - Stash bővítés (extra tárhelyem)
+      - Respec/skill reset (olcsóbb mint gold-dal)
+
+    Ez a "keményebb" valuta – lassabban szerezhető, értékesebb dolgokra kell.
+
+  2.3 Relic Fragments (endgame valuta)
+  ──────────────────
+
+    Szerzés:
+      - Tier 3-4 boss kill (5-20 RF)
+      - Raid completion (20-50 RF)
+      - Weekly raid reset jutalom
+
+    Felhasználás:
+      - Legendary gear megvásárlása Relic Vendor-tól
+      - Legendary gem upgrade
+      - Endgame enchanting
+      - Heirloom crafting (alt character boost item-ek)
+
+    Ez a legritkább valuta – végcél tartalom.
+
+================================================================================
+  3. RESOURCE FLOW
+================================================================================
+
+  3.1 Teljes gazdasági flow diagram
+  ──────────────────
+
+    FORRÁSOK (input):
+    ┌─────────────────────────────────────────────────┐
+    │  Enemy kill → Gold + Drop material              │
+    │  Gathering node → Crafting material             │
+    │  Boss kill → Gold + Rare mat + Dark Essence     │
+    │  Quest → Gold + EXP + Item                      │
+    │  Dungeon chest → Gold + Material + Gem          │
+    │  World event → Dark Essence + Material          │
+    └─────────────────────────────────────────────────┘
+             │
+             ▼
+    FELDOLGOZÁS (processing):
+    ┌─────────────────────────────────────────────────┐
+    │  Crafting Station → Gear, Potion, Consumable    │
+    │  Enchanting Table → Stat boost, Gem socket      │
+    │  NPC Shop → Buy/Sell                            │
+    │  Marketplace → Player trading                   │
+    └─────────────────────────────────────────────────┘
+             │
+             ▼
+    ELNYELŐK (sinks):
+    ┌─────────────────────────────────────────────────┐
+    │  Repair cost (gold sink)                        │
+    │  Craft fee (gold + material sink)               │
+    │  Upgrade fail (material sink)                   │
+    │  Fast travel fee (gold sink)                    │
+    │  Marketplace tax (gold sink, 5-10%)             │
+    │  Consumable use (material sink)                 │
+    │  Enchant cost (Dark Essence sink)               │
+    └─────────────────────────────────────────────────┘
+
+  3.2 Sink/Source egyensúly cél
+  ──────────────────
+    A játékos átlag gold-ja NE nőjön korlátlanul.
+    Cél: a költések kb. 60-70%-át felemésszék a bevételnek.
+    Ez fenntartja a motivációt (van miért farmolni) de nem frusztráló.
+
+================================================================================
+  4. GATHERING RENDSZER
+================================================================================
+
+  4.1 Resource node típusok
+  ──────────────────
+
+    ┌──────────────────┬─────────────────┬──────────────┬──────────────┐
+    │ Node típus       │ Biome           │ Yield        │ Respawn      │
+    ├──────────────────┼─────────────────┼──────────────┼──────────────┤
+    │ Fa (Wood)        │ Forest, Meadow  │ 3-8 wood     │ 5 perc       │
+    │ Kő (Stone)       │ Mountains, Ruins│ 3-8 stone    │ 5 perc       │
+    │ Érc (Ore)        │ Mountains       │ 2-5 ore      │ 8 perc       │
+    │ Herb             │ Meadow, Swamp   │ 1-4 herb     │ 3 perc       │
+    │ Crystal          │ Frozen, Dungeon │ 1-3 crystal  │ 10 perc      │
+    │ Dark Root        │ Cursed Forest   │ 1-3 dark root│ 8 perc       │
+    │ Bone             │ Plague Lands    │ 2-5 bone     │ 5 perc       │
+    │ Ember Coal       │ Ashlands        │ 2-4 ember    │ 8 perc       │
+    └──────────────────┴─────────────────┴──────────────┴──────────────┘
+
+  4.2 Gathering mechanika
+  ──────────────────
+    - Játékos odamegy a node-hoz → interact (E gomb)
+    - Rövid channel (1-3s, progressbar)
+    - Animáció: karakter gathering motion (chop, mine, pick)
+    - Node eltűnik / "kimerült" sprite-ra vált
+    - X perc múlva respawn (multiplayer: shared cooldown)
+
+  4.3 Gathering tool bonus
+  ──────────────────
+    Jobb tool = gyorsabb gathering + több yield:
+      Basic tool: 1× speed, 1× yield
+      Iron tool: 1.3× speed, 1.2× yield
+      Steel tool: 1.5× speed, 1.5× yield
+      Legendary tool: 2.0× speed, 2.0× yield, rare extra drop
+
+================================================================================
+  5. CRAFTING RENDSZER
+================================================================================
+
+  5.1 Crafting station-ök
+  ──────────────────
+
+    ┌───────────────────┬──────────────────────────┬────────────────────┐
+    │ Station           │ Craftolható              │ Helyszín           │
+    ├───────────────────┼──────────────────────────┼────────────────────┤
+    │ Anvil (kovács)    │ Fegyverek, páncélok      │ Városban           │
+    │ Alchemy Table     │ Potion-ök, mérgek, buff  │ Városban           │
+    │ Enchanting Table  │ Enchant, gem berakás     │ Városban (ritka)   │
+    │ Workbench         │ Tool-ok, alap item-ek    │ Városban, falvakban│
+    │ Rune Altar        │ Rune crafting (endgame)  │ Dungeon / Raid     │
+    └───────────────────┴──────────────────────────┴────────────────────┘
+
+  5.2 Crafting recept struktúra
+  ──────────────────
+
+    class CraftingRecipe extends Resource:
+        var recipe_name: String
+        var result_item: ItemData
+        var ingredients: Array[IngredientSlot]  # item_id + count
+        var gold_cost: int
+        var crafting_time: float  # másodperc
+        var required_station: StationType
+        var required_skill_level: int  # profession szint
+        var success_rate: float  # 0.5 – 1.0 (50%-100%)
+
+  5.3 Crafting példák
+  ──────────────────
+
+    Iron Sword:
+      Ingredients: Iron Ore ×5, Wood ×2
+      Gold: 50
+      Station: Anvil
+      Time: 3s
+      Success: 100%
+
+    Health Potion:
+      Ingredients: Red Herb ×3, Crystal Vial ×1
+      Gold: 20
+      Station: Alchemy Table
+      Time: 2s
+      Success: 100%
+
+    Enchanted Shadow Blade (Epic):
+      Ingredients: Dark Steel ×10, Dark Root ×5, Shadow Gem ×1
+      Gold: 500
+      Dark Essence: 20
+      Station: Anvil + Enchanting Table
+      Time: 8s
+      Success: 75%
+
+    Legendary Ashen Armor (Legendary):
+      Ingredients: Dragon Scale ×5, Ashen Core ×2, Relic Fragment ×10
+      Gold: 2000
+      Dark Essence: 50
+      Station: Rune Altar
+      Time: 15s
+      Success: 60% (fail = material elvész)
+
+  5.4 Crafting skill progression
+  ──────────────────
+    Minél többet craftolsz, annál magasabb a crafting skilld:
+      Level 1-10: Basic receptek
+      Level 11-20: Uncommon receptek
+      Level 21-30: Rare receptek
+      Level 31-40: Epic receptek
+      Level 41-50: Legendary receptek (részben)
+
+    Skill XP: sikeres craft = XP, magasabb tier = több XP
+
+================================================================================
+  6. NPC SHOP RENDSZER
+================================================================================
+
+  6.1 Shop típusok
+  ──────────────────
+
+    General Store:
+      - Basic gear (Common)
+      - Potion-ök
+      - Tool-ok
+      - Visszavásárlás: eladott item ár 50%-áért
+
+    Blacksmith:
+      - Fegyverek (Common-Uncommon)
+      - Páncélok (Common-Uncommon)
+      - Repair szolgáltatás
+
+    Alchemist:
+      - Potion-ök (normál + speciális)
+      - Méreg coat (fegyverre)
+      - Buff scroll-ok
+
+    Enchanter:
+      - Enchant szolgáltatás (fee + material)
+      - Gem eltávolítás (fee)
+      - Stat reroll (drága)
+
+    Relic Vendor (endgame):
+      - Legendary item-ek Relic Fragment-ért
+      - Weekly rotating stock (4-6 item, hetente változik)
+      - Heirloom item-ek
+
+  6.2 NPC ár kalkuláció
+  ──────────────────
+    Buy price: base_price × 1.0
+    Sell price: base_price × 0.35 (35%-ot kapsz vissza)
+    
+    Ez szándékos gold sink – ne legyen érdemes mindent eladni.
+    Jobb opció: marketplace-en eladni más játékosnak.
+
+  6.3 Shop inventory refresh
+  ──────────────────
+    Normál shop: statikus készlet (mindig ugyanaz)
+    Relic Vendor: hetente változó (weekly reset)
+    Traveling Merchant (random event): ritka item-ek, random megjelenés
+
+================================================================================
+  7. PLAYER TRADING / MARKETPLACE
+================================================================================
+
+  7.1 Direkt trading
+  ──────────────────
+    - 2 játékos közel egymáshoz → Trade Request
+    - Trading UI: mindketten berakják az item-eket + gold-ot
+    - Mindketten "Accept" → trade végrehajtás
+    - Anti-scam: 3s confirmation delay "Biztosan?" kérdéssel
+
+  7.2 Marketplace (Auction House)
+  ──────────────────
+    - Városban elérhető NPC-n keresztül
+    - Listing: item feltevése eladásra + ár megadása
+    - Listing fee: 2% az áskált ár-ból (gold sink)
+    - Transaction fee: 5% a végleges árból (gold sink)
+    - Listing időkorlát: 48 óra, utána visszakerül a postába
+    - Szűrők: item típus, rarity, stat, ár tartomány
+    - Rendezés: ár, dátum, rarity
+
+  7.3 Marketplace adatstruktúra
+  ──────────────────
+
+    class MarketplaceListing:
+        var listing_id: String
+        var seller_id: String
+        var item: ItemData
+        var price: int
+        var currency: CurrencyType  # gold / dark_essence
+        var listed_at: int  # unix timestamp
+        var expires_at: int
+        var status: ListingStatus  # ACTIVE, SOLD, EXPIRED, CANCELLED
+
+  7.4 Marketplace UI
+  ──────────────────
+    Szűrő panel (bal):
+      - Kategória (weapon, armor, material, gem, consumable)
+      - Rarity (Common – Legendary)
+      - Szint tartomány
+      - Ár tartomány
+      - Keresés név alapján
+
+    Találati lista (közép):
+      - Item ikon + név + rarity szín
+      - Seller név
+      - Ár
+      - Időkorlát
+      - "Buy" gomb
+
+    Saját listing-ek (jobb/tab):
+      - Aktív eladások listája
+      - Bevétel összesítő
+      - "Cancel" gomb
+
+================================================================================
+  8. UPGRADE RENDSZER
+================================================================================
+
+  8.1 Gear enhancement (+1 – +10)
+  ──────────────────
+    Bármely gear item erősíthető +1-től +10-ig:
+      +1 – +5: 100% siker, növekvő cost
+      +6 – +8: 80% → 60% → 40% siker
+      +9: 20% siker
+      +10: 10% siker
+
+    Fail esetén: item NEM törik el, de a material elvész.
+
+    Enhancement cost:
+      +1: 50 gold + 5 material
+      +5: 300 gold + 25 material
+      +10: 2000 gold + 100 material + 10 Dark Essence
+
+    Stat bonus / enhancement level:
+      +1: +3% all stats
+      +5: +15% all stats + glow effect
+      +10: +30% all stats + special glow + "Perfected" prefix
+
+  8.2 Enchanting
+  ──────────────────
+    Stat hozzáadás / módosítás gear-hez:
+      - Enchant slot: 1-2 item-enként
+      - Enchant opciók: fix listából random kiválasztás
+      - Reroll: ugyanaz a slot, új random enchant (gold cost)
+      
+    Enchant példák:
+      +10% Crit Chance
+      +5% Lifesteal
+      +15 Armor
+      +20% DOT damage
+      +8% Movement Speed
+      +10% Cooldown Reduction
+
+  8.3 Gem socketing
+  ──────────────────
+    Részletek: lásd 09_gem_system_plan.txt
+    Ide vonatkozó gazdasági hatás:
+      - Gem berakás: 100 gold fee
+      - Gem eltávolítás: 200 gold fee (gem megmarad)
+      - Gem upgrade: gem + gem → magasabb tier gem (material + gold)
+
+================================================================================
+  9. INFLÁCIÓ KONTROL MECHANIKÁK
+================================================================================
+
+  9.1 Gold sink-ek összefoglalás
+  ──────────────────
+
+    ┌──────────────────────┬─────────────────┬───────────────────┐
+    │ Sink típus           │ Átlag cost       │ Gyakoriság       │
+    ├──────────────────────┼─────────────────┼───────────────────┤
+    │ Repair cost          │ 10-200 gold      │ Minden halál után│
+    │ Crafting fee         │ 20-2000 gold     │ Gyakori          │
+    │ Enhancement cost     │ 50-2000 gold     │ Közepes          │
+    │ Enchant cost         │ 100-500 gold     │ Közepes          │
+    │ Fast travel fee      │ 20-100 gold      │ Gyakori          │
+    │ Marketplace tax      │ 2-10% tranzakció │ Gyakori          │
+    │ Skill reset          │ 500-2000 gold    │ Ritka            │
+    │ NPC buy price        │ 1× base          │ Állandó          │
+    │ Stash expansion      │ 200+ gold        │ Egyszer          │
+    │ Consumable use       │ Material sink    │ Állandó          │
+    └──────────────────────┴─────────────────┴───────────────────┘
+
+  9.2 Anti-inflation szabályok
+  ──────────────────
+    - NPC sell price csak 35% → nem éri meg NPC-nek eladni
+    - Repair cost skálázik gear quality-vel
+    - Enhancement fail = material megsemmisülés
+    - Marketplace tax mindig érvényes
+    - Rare drop rate alacsony → ne árassza el a piacot
+    - Gold drop cap / play session (opcionális, anti-bot)
+
+  9.3 Gold egyensúly monitoring
+  ──────────────────
+    Fejlesztés alatt: tracking tool
+      - Átlag gold/játékos/szint
+      - Gold influx (szerzés) vs efflux (költés) arány
+      - Marketplace ár trendek
+      - Adjustable: NPC árak, drop rate-ek server-side
+
+================================================================================
+  10. PROFESSION RENDSZER (gazdasági vonatkozás)
+================================================================================
+
+  10.1 Profession típusok
+  ──────────────────
+
+    Gathering professions:
+      - Mining (érc, kő, kristály)
+      - Herbalism (herb, dark root)
+      - Woodcutting (fa)
+      - Scavenging (bone, ember, misc)
+
+    Crafting professions:
+      - Blacksmithing (fegyver, páncél)
+      - Alchemy (potion, méreg, buff)
+      - Enchanting (enchant, gem, rune)
+      - Engineering (tool, gadget, trap)
+
+  10.2 Profession level-ek
+  ──────────────────
+    Level 1-50 (megegyezik a karakter max szinttel)
+    XP szerzés: sikeres gather/craft
+    Magasabb level = jobb receptek, több yield, gyorsabb munka
+
+  10.3 Gazdasági hatás
+  ──────────────────
+    A profession rendszer gazdasági értéket ad:
+    - Specializáció: nem tudsz mindenben maxot → trade szükséges
+    - A player korlátozva van 2 gathering + 2 crafting profession-re
+    - Ez ösztönzi a player trading-et és a marketplace használatot
+
+================================================================================
+  11. GODOT IMPLEMENTÁCIÓ
+================================================================================
+
+  11.1 Node struktúra
+  ──────────────────
+
+    EconomyManager (Node) [Autoload Singleton]
+    ├── CurrencyManager (Node)
+    │   ├── GoldTracker
+    │   ├── DarkEssenceTracker
+    │   └── RelicFragmentTracker
+    ├── InventoryManager (Node)
+    │   ├── PlayerInventory (Resource)
+    │   ├── Stash (Resource)
+    │   └── EquipmentSlots (Resource)
+    ├── CraftingManager (Node)
+    │   ├── RecipeDatabase (Resource)
+    │   └── CraftingQueue (Node)
+    ├── ShopManager (Node)
+    │   ├── NPCShopData (Resource × N)
+    │   └── RelicVendorData (Resource, weekly rotate)
+    ├── MarketplaceManager (Node)
+    │   ├── ListingDatabase
+    │   ├── TransactionLog
+    │   └── SearchEngine
+    ├── UpgradeManager (Node)
+    │   ├── EnhancementSystem
+    │   ├── EnchantingSystem
+    │   └── GemSocketSystem
+    └── ProfessionManager (Node)
+        ├── GatheringSkills
+        └── CraftingSkills
+
+  11.2 Script struktúra
+  ──────────────────
+
+    scripts/economy/
+    ├── economy_manager.gd        # Fő singleton
+    ├── currency_manager.gd       # Valuta kezelés (add, remove, check)
+    ├── inventory_manager.gd      # Item-ek tárolás, rendezés
+    ├── item_data.gd              # Resource: item alap adatok
+    ├── crafting_manager.gd       # Crafting logika
+    ├── crafting_recipe.gd        # Resource: recept adatok
+    ├── shop_manager.gd           # NPC shop kezelés
+    ├── shop_data.gd              # Resource: shop inventory
+    ├── marketplace_manager.gd    # Marketplace logika
+    ├── marketplace_listing.gd    # Listing adatok
+    ├── upgrade_manager.gd        # Enhancement + enchant
+    ├── profession_manager.gd     # Profession XP + level
+    └── gathering_node.gd         # Gathering node component
+
+    ui/economy/
+    ├── inventory_ui.gd + .tscn
+    ├── shop_ui.gd + .tscn
+    ├── crafting_ui.gd + .tscn
+    ├── marketplace_ui.gd + .tscn
+    ├── trade_ui.gd + .tscn
+    ├── upgrade_ui.gd + .tscn
+    └── currency_display.gd + .tscn  # HUD currency kijelző
+
+  11.3 Inventory rendszer
+  ──────────────────
+
+    Inventory méret: 30 slot (alapból), bővíthető 60-ig
+    Stash méret: 50 slot (városban elérhető)
+    Stack limit: consumable/material → 99, gear → 1
+
+    class InventorySlot:
+        var item: ItemData  # null = üres
+        var count: int
+        var slot_index: int
+
+    Drag & drop UI:
+      - Item icon húzása slot-ok között
+      - Jobb klikk: use / equip / drop / split stack
+      - Tooltip: item stat-ok megjelenítése
+
+================================================================================
+  12. AI-GENERÁLT GAZDASÁGI UI ELEMEK
+================================================================================
+
+  12.1 Tool Stack
+  ──────────────
+    Stable Diffusion + ComfyUI
+    LoRA: "ashenfall_ui" stílus (dark fantasy, pixel art UI)
+    Post-process: Aseprite pixel cleanup
+
+  12.2 UI panel-ek
+  ──────────────
+
+    Inventory háttér:
+      Méret: 400×600px (UI panel)
+      Prompt: "pixel art RPG inventory panel, dark leather background,
+              ornate golden border, medieval dark fantasy style,
+              item grid slots visible"
+
+    Shop panel:
+      Méret: 600×500px
+      Prompt: "pixel art RPG shop interface, wooden counter,
+              item display shelves, medieval market stall,
+              dark fantasy ornate design"
+
+    Marketplace panel:
+      Méret: 800×600px
+      Prompt: "pixel art auction house interface, dark fantasy,
+              scrolls and listings, ornate wooden board,
+              medieval trading post"
+
+    Crafting panel:
+      Méret: 500×500px
+      Prompt: "pixel art crafting station interface, anvil/forge theme,
+              material slots, progress bar area, dark fantasy RPG"
+
+  12.3 UI elemek (egyedi sprite-ok)
+  ──────────────
+
+    Inventory slot keret: 40×40px
+      Prompt: "pixel art inventory slot, dark metal border,
+              square frame, RPG style, 40x40"
+      Variánsok: üres, filled, selected, locked
+
+    Currency ikonok: 24×24px
+      Gold: "pixel art gold coin icon, shiny, detailed, 24x24"
+      Dark Essence: "pixel art dark purple crystal icon, glowing, 24x24"
+      Relic Fragment: "pixel art ancient relic fragment, stone piece, 24x24"
+
+    Rarity keret szín:
+      Common: szürke
+      Uncommon: zöld
+      Rare: kék
+      Epic: lila
+      Legendary: narancs/arany (izzó animáció, 4 frame)
+
+    Gombok: 80×30px
+      "Buy", "Sell", "Craft", "Enhance", "Trade"
+      Prompt: "pixel art RPG button, dark fantasy, [text],
+              golden border, dark background, 80x30"
+
+================================================================================
+  13. AI-GENERÁLT NPC-K ÉS SHOP SPRITE-OK
+================================================================================
+
+  13.1 NPC portrait-ok
+  ──────────────────
+
+    Méret: 96×96px (shop UI-ban megjelenik)
+    Stílus: pixel art portrait, dark fantasy
+
+    NPC típusok + prompt-ok:
+
+    General Store Keeper:
+      "pixel art NPC portrait, friendly merchant, hooded figure,
+       apron, warm colors, dark fantasy RPG, 96x96"
+
+    Blacksmith:
+      "pixel art NPC portrait, muscular blacksmith, leather apron,
+       hammer, soot-covered face, dark fantasy, 96x96"
+
+    Alchemist:
+      "pixel art NPC portrait, mysterious alchemist, goggles,
+       potion bottles, green and purple tones, dark fantasy, 96x96"
+
+    Enchanter:
+      "pixel art NPC portrait, wise enchanter, glowing eyes,
+       arcane symbols, blue and gold robes, dark fantasy, 96x96"
+
+    Relic Vendor:
+      "pixel art NPC portrait, ancient collector, hooded,
+       glowing relics, mysterious, dark tones, dark fantasy, 96x96"
+
+    Traveling Merchant:
+      "pixel art NPC portrait, wandering trader, heavy backpack,
+       exotic goods, scarves, weathered face, dark fantasy, 96x96"
+
+  13.2 NPC world sprite-ok
+  ──────────────────
+
+    Méret: 32×48px (megegyezik a player sprite mérettel)
+    Animáció: idle (4 frame, 1.0s loop)
+    Interactable jelzés: felkiáltójel vagy "E" ikon felette
+
+    AI generálás: ugyanaz a pipeline mint a karakter sprite-oknál
+    (lásd 01_skill_tree_plan.txt 9. szekció)
+
+  13.3 Shop épület sprite-ok
+  ──────────────────
+
+    Méret: 64×96 – 96×128px (2-3 tile magas épületek)
+    
+    Prompt template:
+      "pixel art [shop_type] building, top-down RPG, 2D sprite,
+       dark fantasy medieval, [specific_details], [size] pixels"
+
+    Blacksmith building:
+      "pixel art blacksmith forge building, anvil visible,
+       chimney with smoke, dark stone, top-down RPG, 96x128"
+
+    Alchemy shop:
+      "pixel art alchemy shop, potion bottles in window,
+       green smoke, wooden building, top-down RPG, 80x112"
+
+    General store:
+      "pixel art general store, open front, barrels and crates,
+       wooden building with sign, top-down RPG, 80x112"
+
+  13.4 Crafting station sprite-ok
+  ──────────────────
+
+    Anvil: 32×32, interaktív → glow overlay amikor közel vagy
+    Alchemy Table: 48×32, üvegek animáció (3 frame buborékolás)
+    Enchanting Table: 48×48, rúnák izzás animáció (4 frame)
+    Workbench: 48×32
+
+    AI prompt: "pixel art [station] sprite, top-down RPG,
+               dark fantasy, detailed, transparent background, [size]"
+
+================================================================================
+  14. AI-GENERÁLT ITEM IKONOK
+================================================================================
+
+  14.1 Weapon ikonok
+  ──────────────────
+
+    Méret: 32×32px (inventory slot-ban jelenik meg)
+    Stílus: részletes pixel art, rarity-hoz illő szín/glow
+
+    Típusok + darabszám:
+      Sword: 5 variáns × 5 rarity = 25 (vagy rarity overlay)
+      Dagger: 5 × 5 = 25
+      Staff: 5 × 5 = 25
+      Shield: 5 × 5 = 25
+      Mace: 5 × 5 = 25
+
+    Optimalizáció: 5 base design × rarity overlay (szín tint + glow)
+    → Valójában: 25 base + shader overlay = keveesebb AI generálás szükséges
+
+    AI prompt (weapon):
+      "pixel art [weapon_type] icon, dark fantasy RPG, 32x32,
+       detailed, [material], transparent background"
+      
+      Példa: "pixel art iron sword icon, dark fantasy RPG, 32x32,
+              detailed, grey steel blade, leather grip, transparent bg"
+
+  14.2 Armor ikonok
+  ──────────────────
+
+    Típusok:
+      Helm: 5 variáns × overlay
+      Chest: 5 variáns
+      Boots: 5 variáns
+      Gloves: 5 variáns
+      Ring: 3 variáns
+      Amulet: 3 variáns
+
+    AI prompt: "pixel art [armor_piece] icon, dark fantasy RPG,
+               32x32, detailed, [material_description], transparent bg"
+
+  14.3 Consumable ikonok
+  ──────────────────
+
+    Health Potion (piros): 3 méret variáns (small/med/large)
+    Mana Potion (kék): 3 méret
+    Buff Scroll: 4 típus (damage, defense, speed, crit)
+    Poison Coat: 3 típus (basic, enhanced, deadly)
+    Food: 5 variáns
+
+    AI prompt: "pixel art [item] icon, 32x32, RPG game,
+               [color_description], transparent background"
+
+  14.4 Crafting material ikonok
+  ──────────────────
+
+    Minden material-hoz 1 ikon (32×32):
+      Wood log, Stone chunk, Iron ore, Copper ore,
+      Red herb, Blue herb, Dark root, Crystal,
+      Bone, Ember coal, Leather, Cloth,
+      Dragon scale, Ashen core, Dark steel, stb.
+
+    Batch generálás:
+      1. ComfyUI workflow: material prompt lista
+      2. Batch 30-as csoportokban
+      3. Kiválogatás + cleanup Aseprite-ban
+
+  14.5 Rarity vizuális rendszer
+  ──────────────────
+
+    Common: nincs extra effect
+    Uncommon: halvány zöld glow border (shader)
+    Rare: kék glow border + kis sparkle particle
+    Epic: lila glow border + intenzívebb particle
+    Legendary: arany glow border + folyamatos particle anim (4 frame)
+
+    Implementáció: Godot ShaderMaterial a rarity overlay-hez
+    → Egy base ikon + shader = minden rarity lefedve (kevesebb asset)
+
+================================================================================
+  15. KAPCSOLÓDÓ RENDSZEREK
+================================================================================
+
+  Ez a modul kapcsolódik:
+    → 01_skill_tree_plan.txt – Skill reset cost
+    → 02_procedural_world_plan.txt – Gathering node spawn a világban
+    → 03_boss_design_plan.txt – Boss loot → gazdaság input
+    → 05_networking_plan.txt – Marketplace & trade multiplayer sync
+    → 06_enemy_ai_plan.txt – Enemy tier → gold/material drop
+    → 07_dungeon_generation_plan.txt – Dungeon chest loot
+    → 08_loot_system_plan.txt – Loot rarity & stat generation
+    → 09_gem_system_plan.txt – Gem socketing cost
+    → 10_godot_architecture_plan.txt – Economy modul elhelyezés
+
+================================================================================
+  VÉGE – 04_economy_system_plan.txt
+================================================================================

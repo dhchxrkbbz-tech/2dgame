@@ -1,0 +1,903 @@
+================================================================================
+  ASHENFALL – 08. LOOT SYSTEM – TELJES IMPLEMENTÁCIÓS TERV
+================================================================================
+
+  Motor: Godot 4.x (GDScript)
+  Stílus: 2D top-down pixel art
+  AI Asset Pipeline: Stable Diffusion + ComfyUI + LoRA + Aseprite
+
+================================================================================
+  TARTALOMJEGYZÉK
+================================================================================
+
+  1. Rendszer áttekintés
+  2. Item rarity rendszer
+  3. Gear slot-ok és típusok
+  4. Stat rendszer (item stat-ok)
+  5. Affix rendszer (random stat rolling)
+  6. Drop formula
+  7. Loot table struktúra
+  8. Enemy tier → loot mapping
+  9. Boss loot (garantált + random)
+  10. Dungeon chest loot
+  11. Crafting material drop
+  12. Set item-ek
+  13. Unique / Legendary item-ek
+  14. Item level és requirement
+  15. Személyes loot (multiplayer)
+  16. Loot filter rendszer
+  17. Inventory és stash
+  18. Godot implementáció
+  19. AI-generált item sprite-ok
+  20. AI-generált item ikonok rarity-szín overlay-jel
+  21. Kapcsolódó rendszerek
+
+================================================================================
+  1. RENDSZER ÁTTEKINTÉS
+================================================================================
+
+  Diablo II / Path of Exile inspirációjú loot rendszer.
+  Random stat rolling – nincs két azonos item.
+  Rarity rendszer 5 szinttel.
+  Személyes loot (multiplayer-ben mindenki a sajátját látja).
+
+  Item-ek száma:
+    Gear típusok: ~15 slot × 5-10 base item / slot = ~100 base item
+    Crafting material: ~30 típus
+    Consumable: ~15 típus
+    Gem: ~20 típus (lásd 09_gem_system_plan.txt)
+    Set item: ~8 set × 4-5 darab = ~35 set item
+    Unique/Legendary: ~30 egyedi item
+
+================================================================================
+  2. ITEM RARITY RENDSZER
+================================================================================
+
+  ┌──────────┬────────────┬──────────────────┬───────────┬───────────────┐
+  │ Rarity   │ Szín       │ Affix count      │ Drop %    │ Stat quality  │
+  ├──────────┼────────────┼──────────────────┼───────────┼───────────────┤
+  │ Common   │ Fehér      │ 0                │ 60%       │ Alap          │
+  │ Uncommon │ Zöld       │ 1 prefix/suffix  │ 25%       │ +10-20%       │
+  │ Rare     │ Kék        │ 2-3 affix        │ 12%       │ +20-40%       │
+  │ Epic     │ Lila       │ 3-4 affix        │ 2.8%      │ +40-60%       │
+  │ Legendary│ Narancs    │ 4 + unique bonus │ 0.2%      │ +60-100%      │
+  └──────────┴────────────┴──────────────────┴───────────┴───────────────┘
+
+  Set item: Zöld keret + szett jelzés (külön kategória, epic szintű stat)
+
+================================================================================
+  3. GEAR SLOT-OK ÉS TÍPUSOK
+================================================================================
+
+  3.1 Gear slot-ok
+  ──────────────────
+
+    ┌──────┬──────────────────┬─────────────────────────────────────────┐
+    │ Slot │ Név              │ Példa item-ek                          │
+    ├──────┼──────────────────┼─────────────────────────────────────────┤
+    │  1   │ Weapon (Main)    │ Sword, Dagger, Staff, Mace, Bow        │
+    │  2   │ Off-hand         │ Shield, Tome, Quiver, Dagger           │
+    │  3   │ Helmet           │ Leather Hood, Iron Helm, Wizard Hat    │
+    │  4   │ Chest Armor      │ Robe, Chain Mail, Plate Armor          │
+    │  5   │ Gloves           │ Cloth Gloves, Gauntlets                │
+    │  6   │ Boots            │ Sandals, Greaves, Shadow Boots         │
+    │  7   │ Belt             │ Leather Belt, Chain Belt               │
+    │  8   │ Amulet           │ Pendant, Necklace, Talisman            │
+    │  9   │ Ring 1           │ Gold Ring, Crystal Ring                 │
+    │ 10   │ Ring 2           │ (ugyanaz mint Ring 1)                  │
+    │ 11   │ Cape/Cloak       │ Traveler's Cloak, Shadow Cloak         │
+    └──────┴──────────────────┴─────────────────────────────────────────┘
+
+  3.2 Weapon típusok class-onként
+  ──────────────────
+
+    Assassin:
+      Daggers (dual wield) – gyors, alacsony per-hit damage
+      Short Sword – kiegyensúlyozott
+      Claws – speciális, poison bonus
+
+    Tank:
+      Sword + Shield – balanced defense
+      Mace + Shield – stun bonus
+      Two-Handed Axe – nagy damage, lassú
+
+    Mage/Healer:
+      Staff – spell damage bonus
+      Wand + Tome – balanced
+      Crystal Orb – healing bonus
+
+  3.3 Armor típusok class-onként
+  ──────────────────
+
+    Light Armor (Assassin):
+      Kevesebb armor, +dodge chance, +speed
+      Vizuál: bőr, sötét szövet
+
+    Heavy Armor (Tank):
+      Sok armor, -speed, +HP
+      Vizuál: fém, lánc, lemez
+
+    Cloth Armor (Mage/Healer):
+      Minimális armor, +mana, +spell power
+      Vizuál: köntös, talár
+
+================================================================================
+  4. STAT RENDSZER (ITEM STAT-OK)
+================================================================================
+
+  4.1 Primary stat-ok (base stat – mindig van)
+  ──────────────────
+
+    Weapon:
+      Physical Damage: X-Y (min-max range)
+      Attack Speed: hits/sec
+      Weapon Type DPS = (min+max)/2 × attack_speed
+
+    Armor:
+      Armor Value: flat damage reduction
+      
+    Közös:
+      Item Level: meghatározza a stat range-eket
+
+  4.2 Secondary stat-ok (affix-ekből jönnek)
+  ──────────────────
+
+    Offensive:
+      +X Physical Damage
+      +X% Damage
+      +X% Critical Chance
+      +X% Critical Damage
+      +X% Attack Speed
+      +X% Elemental Damage (Fire/Ice/Poison)
+      +X% Skill Damage
+
+    Defensive:
+      +X Max HP
+      +X% Max HP
+      +X Armor
+      +X% Dodge Chance
+      +X HP Regeneration
+      +X% Damage Reduction
+
+    Utility:
+      +X% Movement Speed
+      +X% Gold Find
+      +X% Magic Find (loot rarity bonus)
+      +X% XP Gain
+      +X Mana / Max Mana
+      +X% Cooldown Reduction
+
+    Class-specific:
+      +X% Poison Damage (Assassin)
+      +X% Shield Block Chance (Tank)
+      +X% Heal Effectiveness (Healer)
+      +X% Lifesteal (Assassin Blood)
+
+================================================================================
+  5. AFFIX RENDSZER (RANDOM STAT ROLLING)
+================================================================================
+
+  5.1 Affix típusok
+  ──────────────────
+
+    PREFIX: az item neve előtt jelenik meg
+      "Blazing Sword" → +Fire Damage prefix
+      "Sturdy Armor" → +Armor prefix
+
+    SUFFIX: az item neve után
+      "Sword of the Bear" → +HP suffix
+      "Armor of Haste" → +Speed suffix
+
+    Maximumok rarity szerint:
+      Common: 0 affix
+      Uncommon: 1 (prefix VAGY suffix)
+      Rare: 1 prefix + 1-2 suffix (vagy fordítva)
+      Epic: 2 prefix + 1-2 suffix
+      Legendary: 2 prefix + 2 suffix + 1 unique property
+
+  5.2 Affix pool (példák)
+  ──────────────────
+
+    PREFIX pool:
+    ┌──────────────────┬──────────────────────┬──────────────────┐
+    │ Prefix           │ Stat                 │ Range (iLvl 1→50)│
+    ├──────────────────┼──────────────────────┼──────────────────┤
+    │ Blazing          │ +Fire Damage         │ 3-5 → 20-35     │
+    │ Frozen           │ +Ice Damage          │ 3-5 → 20-35     │
+    │ Toxic            │ +Poison Damage       │ 3-5 → 20-35     │
+    │ Sturdy           │ +Armor               │ 2-4 → 15-25     │
+    │ Vicious          │ +Physical Damage     │ 2-5 → 15-30     │
+    │ Arcane           │ +Spell Damage        │ 3-6 → 18-30     │
+    │ Heavy            │ +Max HP              │ 5-10 → 40-80    │
+    │ Quick            │ +Attack Speed %      │ 3-5% → 12-20%   │
+    │ Vampiric         │ +Lifesteal %         │ 1-2% → 5-10%    │
+    │ Blessed          │ +Heal Effectiveness  │ 3-5% → 15-25%   │
+    └──────────────────┴──────────────────────┴──────────────────┘
+
+    SUFFIX pool:
+    ┌──────────────────┬──────────────────────┬──────────────────┐
+    │ Suffix           │ Stat                 │ Range (iLvl 1→50)│
+    ├──────────────────┼──────────────────────┼──────────────────┤
+    │ of the Bear      │ +Max HP              │ 5-10 → 40-80    │
+    │ of the Fox       │ +Dodge %             │ 1-2% → 5-10%    │
+    │ of the Eagle     │ +Crit Chance %       │ 1-2% → 4-8%     │
+    │ of the Tiger     │ +Crit Damage %       │ 5-10% → 20-40%  │
+    │ of Haste         │ +Move Speed %        │ 2-3% → 8-15%    │
+    │ of Fortune       │ +Gold Find %         │ 5-10% → 20-50%  │
+    │ of Discovery     │ +Magic Find %        │ 3-5% → 12-25%   │
+    │ of Vitality      │ +HP Regen            │ 1-2 → 5-12      │
+    │ of Wisdom        │ +XP Gain %           │ 2-5% → 10-20%   │
+    │ of Protection    │ +Damage Reduction %  │ 1-2% → 5-12%    │
+    └──────────────────┴──────────────────────┴──────────────────┘
+
+  5.3 Stat rolling algoritmus
+  ──────────────────
+
+    func roll_item(base_item: BaseItem, rarity: Rarity, item_level: int) -> Item:
+        var item = Item.new()
+        item.base = base_item
+        item.rarity = rarity
+        item.item_level = item_level
+
+        # Base stat-ok (item level alapján)
+        item.base_stats = roll_base_stats(base_item, item_level)
+
+        # Affix-ek kiválasztása
+        var num_prefix = get_prefix_count(rarity)
+        var num_suffix = get_suffix_count(rarity)
+
+        var available_prefixes = AFFIX_POOL.prefixes.duplicate()
+        var available_suffixes = AFFIX_POOL.suffixes.duplicate()
+
+        for i in num_prefix:
+            var prefix = available_prefixes.pick_random()
+            available_prefixes.erase(prefix)
+            var value = roll_affix_value(prefix, item_level)
+            item.affixes.append({"affix": prefix, "value": value})
+
+        for i in num_suffix:
+            var suffix = available_suffixes.pick_random()
+            available_suffixes.erase(suffix)
+            var value = roll_affix_value(suffix, item_level)
+            item.affixes.append({"affix": suffix, "value": value})
+
+        # Legendary unique property
+        if rarity == Rarity.LEGENDARY:
+            item.unique_property = get_legendary_property(base_item)
+
+        item.generate_name()
+        return item
+
+    func roll_affix_value(affix: Affix, item_level: int) -> float:
+        var min_val = lerp(affix.min_range.x, affix.min_range.y, item_level / 50.0)
+        var max_val = lerp(affix.max_range.x, affix.max_range.y, item_level / 50.0)
+        return randf_range(min_val, max_val)
+
+================================================================================
+  6. DROP FORMULA
+================================================================================
+
+  6.1 Alap drop formula
+  ──────────────────
+
+    drop_chance = base_drop_rate × (1 + player_magic_find / 100)
+
+    Enemy drop esély:
+      Normál enemy: 30% esély bármit droppolni
+      Elite enemy: 80% esély + garantált 1 item
+      Boss: 100% + garantált 2-5 item (tier-függő)
+
+  6.2 Rarity roll
+  ──────────────────
+
+    Ha egy item droppol → rarity roll:
+
+    func roll_rarity(base_chances: Dictionary, magic_find: float) -> Rarity:
+        var mf_mult = 1.0 + magic_find / 100.0
+        var weights = {
+            Rarity.COMMON: base_chances.common,
+            Rarity.UNCOMMON: base_chances.uncommon * mf_mult,
+            Rarity.RARE: base_chances.rare * mf_mult,
+            Rarity.EPIC: base_chances.epic * mf_mult * mf_mult,
+            Rarity.LEGENDARY: base_chances.legendary * mf_mult * mf_mult * mf_mult,
+        }
+        return weighted_random(weights)
+
+    Magic Find hatás:
+      0% MF: alap esélyek
+      50% MF: uncommon×1.5, rare×1.5, epic×2.25, legendary×3.375
+      100% MF: uncommon×2, rare×2, epic×4, legendary×8
+      200% MF: uncommon×3, rare×3, epic×9, legendary×27
+
+    Megjegyzés: Legendary cap – max 5% esély (bármekkora MF)
+
+  6.3 Drop level
+  ──────────────────
+    Droppolt item level = enemy_level + randi_range(-2, +2)
+    Ez határozza meg a stat range-eket (magasabb = jobb stat-ok).
+    Item requirement level = item_level - 3 (min 1)
+
+================================================================================
+  7. LOOT TABLE STRUKTÚRA
+================================================================================
+
+  7.1 LootTable Resource
+  ──────────────────
+
+    class_name LootTable extends Resource
+
+    @export var entries: Array[LootEntry]
+    @export var guaranteed_drops: Array[LootEntry]  # mindig droppol
+    @export var drop_count_range: Vector2i = Vector2i(0, 3)
+    @export var gold_range: Vector2i = Vector2i(5, 20)
+
+    class LootEntry:
+        var item_pool: ItemPool  # milyen item típusból
+        var weight: float        # relatív esély
+        var min_rarity: Rarity   # minimum rarity
+        var quantity_range: Vector2i = Vector2i(1, 1)
+
+  7.2 ItemPool típusok
+  ──────────────────
+
+    WEAPON_POOL: fegyverek (szűrhető class-ra)
+    ARMOR_POOL: páncélok (szűrhető class-ra)
+    ACCESSORY_POOL: gyűrű, amulett, öv, köpeny
+    CONSUMABLE_POOL: potion-ök, scroll-ok
+    MATERIAL_POOL: crafting alapanyagok
+    GEM_POOL: drágakövek
+    RELIC_POOL: relic fragment currency
+
+================================================================================
+  8. ENEMY TIER → LOOT MAPPING
+================================================================================
+
+  ┌─────────────────┬──────────┬────────────────────────────────────────────┐
+  │ Enemy Tier      │ Drop cnt │ Rarity weights                            │
+  ├─────────────────┼──────────┼────────────────────────────────────────────┤
+  │ Normal Melee    │ 0-1      │ C:70 U:22 R:7 E:0.9 L:0.1                │
+  │ Normal Ranged   │ 0-1      │ C:70 U:22 R:7 E:0.9 L:0.1                │
+  │ Normal Caster   │ 0-1      │ C:65 U:25 R:8 E:1.8 L:0.2                │
+  │ Elite           │ 1-2      │ C:30 U:40 R:22 E:7 L:1                   │
+  │ Rare (named)    │ 2-3      │ C:10 U:30 R:40 E:17 L:3                  │
+  │ Mini Boss (T1)  │ 2-4      │ C:5 U:25 R:40 E:25 L:5                   │
+  │ Dungeon Boss(T2)│ 3-5      │ C:0 U:15 R:40 E:35 L:10                  │
+  │ World Boss (T3) │ 4-6      │ C:0 U:5 R:30 E:45 L:20                   │
+  │ Raid Boss (T4)  │ 5-8      │ C:0 U:0 R:20 E:50 L:30                   │
+  └─────────────────┴──────────┴────────────────────────────────────────────┘
+
+  Megjegyzés: gold drop is tier-rel arányos.
+
+================================================================================
+  9. BOSS LOOT (GARANTÁLT + RANDOM)
+================================================================================
+
+  9.1 Boss loot struktúra
+  ──────────────────
+
+    Minden boss-nak van:
+      - Garantált drop: 1-2 speciális item (boss-specifikus loot pool)
+      - Random drop: 1-4 item a normál loot table-ből (magasabb rarity)
+      - Gold: boss tier × 100 + random
+      - Dark Essence: boss tier × 10 + random
+      - First kill bonus: extra legendary chance (+10%)
+
+  9.2 Boss-specifikus loot pool (példák)
+  ──────────────────
+
+    Necromancer King (T2):
+      "Necro Crown" – Helmet, Epic, +Summon Damage, +Dark Resist
+      "Bone Staff" – Weapon, Epic, +Spell Damage, chance to Summon Skeleton on Kill
+      "Necromancer's Robe" – Chest, Rare-Epic, +Max Mana, +Cooldown Reduction
+
+    Abyss Dragon (T3):
+      "Dragon Scale Armor" – Chest, Legendary, massive armor + fire immune
+      "Dragon Fang" – Weapon, Epic-Legendary, +Fire Damage, AoE cleave
+      "Wing Fragment" – Material, használható legendary craft-hoz
+
+    Ashen God (T4 – Final Boss):
+      "Ashen Crown" – Legendary Helmet, best-in-slot stats
+      "God Slayer" – Legendary Weapon, unique on-kill effect
+      "Ashen Relic" – Unique item, endgame progression
+
+================================================================================
+  10. DUNGEON CHEST LOOT
+================================================================================
+
+  A chest-ek loottable-jét a dungeon difficulty határozza meg.
+  Lásd 07_dungeon_generation_plan.txt 9. fejezet (chest típusok).
+
+  ┌────────────────┬──────────────────────────────────────────────────────┐
+  │ Chest típus    │ Tartalom                                           │
+  ├────────────────┼──────────────────────────────────────────────────────┤
+  │ Common (fa)    │ 1-3 item (C:60 U:30 R:9 E:1) + 10-30 gold         │
+  │ Uncommon (vas) │ 1-2 item (C:30 U:40 R:25 E:5) + 20-50 gold + mat │
+  │ Rare (arany)   │ 1 item (C:5 U:25 R:45 E:20 L:5) + 50-100 gold    │
+  │ Boss chest     │ 2-3 item (C:0 U:10 R:40 E:35 L:15) + 100-300 gold│
+  │ Secret room    │ 1-2 item (C:0 U:10 R:35 E:40 L:15) + unique mat  │
+  └────────────────┴──────────────────────────────────────────────────────┘
+
+================================================================================
+  11. CRAFTING MATERIAL DROP
+================================================================================
+
+  11.1 Material rarity
+  ──────────────────
+
+    Common material: fa, kő, szövet, bőr
+      Drop: bármely enemy (40% esély, 1-3 db)
+
+    Uncommon material: vas, ezüst, mágikus por, special fabric
+      Drop: elit+ enemy (30% esély, 1-2 db)
+
+    Rare material: arany, mithril, dragonscale, moonstone
+      Drop: boss (50% esély, 1 db) + rare node (gathering)
+
+    Epic material: void crystal, phoenix feather, titan ore
+      Drop: world/raid boss only (30% esély)
+
+    Legendary material: god essence, primordial fragment
+      Drop: final boss (20% esély) + speciális event
+
+  11.2 Biome-specifikus material
+  ──────────────────
+
+    Minden biome-nak van egyedi anyaga:
+      Cursed Forest: Cursed Wood, Shadow Silk
+      Dark Swamp: Swamp Moss, Poison Gland
+      Ruins: Ancient Stone, Soul Fragment
+      Mountains: Mountain Crystal, Raw Ore
+      Frozen Wastes: Frost Shard, Yeti Fur
+      Ashlands: Obsidian Chunk, Ember Core
+      Plague Lands: Plague Sample, Death Bone
+
+    Biome-specifikus anyag = biome-specifikus crafting recipe-ekhez kell
+
+================================================================================
+  12. SET ITEM-EK
+================================================================================
+
+  12.1 Set rendszer
+  ──────────────────
+    Set = 4-5 item ami együtt extra bónus ad.
+    Set item-ek külön-külön is jók (epic szintű stat-ok).
+    Set bónusz: 2 darab → kis bónusz, 4+ darab → nagy bónusz.
+
+  12.2 Set-ek listája
+  ──────────────────
+
+    ── ASSASSIN SET-EK ──
+
+    "Shadow's Embrace" (Shadow Branch):
+      Helmet, Chest, Gloves, Boots, Weapon
+      2pc: +15% Stealth Duration
+      4pc: Shadow Step no cooldown for 3s after killing an enemy
+      5pc: +30% Damage from Stealth
+
+    "Venomweave" (Poison Branch):
+      Helmet, Chest, Gloves, Belt, Weapon
+      2pc: +20% Poison Damage
+      4pc: Poison spreads to nearby enemies (3 tile)
+      5pc: Poison ticks deal damage based on enemy max HP (2%)
+
+    "Bloodbound" (Blood Branch):
+      Chest, Gloves, Boots, Ring, Weapon
+      2pc: +10% Lifesteal
+      4pc: Below 30% HP → +50% Damage
+      5pc: Killing an enemy while below 30% HP → full heal
+
+    ── TANK SET-EK ──
+
+    "Bulwark's Pride" (Guardian Branch):
+      Helmet, Chest, Gloves, Boots, Shield
+      2pc: +20% Block Chance
+      4pc: Blocking an attack reflects 30% damage
+      5pc: +50% Max HP, take 10% less damage
+
+    "Warlord's Fury" (Warbringer Branch):
+      Helmet, Chest, Belt, Boots, Weapon
+      2pc: +15% AoE Damage
+      4pc: War Cry also taunts and stuns for 1s
+      5pc: Ground Slam creates fire trail (DOT)
+
+    "Divine Light" (Paladin Branch):
+      Helmet, Chest, Gloves, Amulet, Shield
+      2pc: +15% Heal Effectiveness
+      4pc: Blessing Aura range doubled
+      5pc: Divine Protection also heals for 20% max HP
+
+    ── MAGE/HEALER SET-EK ──
+
+    "Arcane Dominion" (Arcane Branch):
+      Helmet, Chest, Ring, Boots, Weapon
+      2pc: +15% Spell Damage
+      4pc: Teleport leaves behind Arcane explosion
+      5pc: Arcane Collapse cooldown -50%
+
+    "Frozen Heart" (Frost Branch):
+      Helmet, Chest, Gloves, Belt, Weapon
+      2pc: +20% Frost Damage
+      4pc: Enemies frozen by Frost Nova take +30% damage
+      5pc: Blizzard now follows the player
+
+    Set drop: boss loot table-ben set item pool (class-specifikus)
+    Set darab drop esély: 10% boss kill → set item drop
+
+================================================================================
+  13. UNIQUE / LEGENDARY ITEM-EK
+================================================================================
+
+  13.1 Legendary item-ek
+  ──────────────────
+    Fix stat-ok (nem random) + egyedi effekt.
+    Mindig a legjobb base stat-ok.
+    Maximum 1 legendary equipped per slot.
+
+    Példák:
+
+    "Nightfall Dagger" (Assassin Weapon):
+      +35 Physical Damage
+      +15% Attack Speed
+      +10% Critical Chance
+      UNIQUE: "Critical hits have 20% chance to reset all cooldowns"
+
+    "Aegis of the Fallen" (Tank Shield):
+      +50 Armor
+      +30% Block Chance
+      +200 Max HP
+      UNIQUE: "When HP drops below 20%, become invulnerable for 3s (90s cd)"
+
+    "Staff of Eternity" (Mage Weapon):
+      +40 Spell Damage
+      +20% Cooldown Reduction
+      +100 Max Mana
+      UNIQUE: "Spells have 10% chance to cast twice at no mana cost"
+
+    "Ring of Sacrifice" (Any Class Ring):
+      +10% All Damage
+      +5% Lifesteal
+      +50 Max HP
+      UNIQUE: "Take 50% more damage but deal 50% more damage"
+
+    "Boots of the Wind" (Any Class Boots):
+      +20% Movement Speed
+      +10% Dodge Chance
+      UNIQUE: "Dodging an attack grants +30% move speed for 2s"
+
+  13.2 World drop legendary-k
+  ──────────────────
+    30 legendary item összesen
+    Bármely monster-ből droppolhat (nagyon ritka: 0.1-0.2%)
+    Boss-ból nagyobb eséllyel (1-5% boss tier-től függően)
+
+================================================================================
+  14. ITEM LEVEL ÉS REQUIREMENT
+================================================================================
+
+  Item Level (iLvl):
+    Meghatározza a base stat-ok és affix value range-eket.
+    iLvl range: 1-50 (level cap)
+
+  Requirement Level (reqLvl):
+    reqLvl = max(1, iLvl - 3)
+    A játékosnak legalább ennyi level kell a használathoz.
+
+  Class restriction:
+    Egyes item-ek class-specifikusak (weapon, set item, legendary)
+    Class-specific: "Requires: Assassin"
+    Universal: bárki használhatja (ring, amulet, belt, cloak)
+
+================================================================================
+  15. SZEMÉLYES LOOT (MULTIPLAYER)
+================================================================================
+
+  Személyes loot (Personal Loot):
+    Minden játékos saját loot-ot lát/kap.
+    Más játékos lootja NEM látható.
+
+  Implementáció:
+    1. Enemy meghal → host generál loot MINDEN játékosnak külön-külön
+    2. Loot RPC: csak az adott játékosnak küldés
+    3. Loot pickup: only owner can pick up
+
+  Trade:
+    Játékosok trade ablakban cserélhetnek item-eket.
+    Trade ablak: mindkét fél "Accept" → csere (lásd 04_economy_system_plan.txt).
+
+  Boss loot:
+    Boss is személyes loot – mindenki kap (nem versenyeznek).
+    Boss chest: külön, nem személyes (first come first served → NEM – személyes is!)
+
+================================================================================
+  16. LOOT FILTER RENDSZER
+================================================================================
+
+  16.1 Filter opciók
+  ──────────────────
+    A játékos beállíthatja, mit lát / kap notification-t:
+
+    Rarity filter:
+      Show Common: ON/OFF (default: ON early, OFF later)
+      Show Uncommon: ON/OFF
+      Show Rare: ON/OFF
+      Show Epic: ON/OFF (always ON)
+      Show Legendary: ON/OFF (always ON)
+
+    Type filter:
+      Show Weapons: ON/OFF
+      Show Armor: ON/OFF
+      Show Materials: ON/OFF
+      Show Consumables: ON/OFF
+      Show Gold: ON/OFF
+
+    Auto-pickup:
+      Gold: auto pickup (always)
+      Materials: auto pickup ON/OFF
+      Consumables: auto pickup ON/OFF
+
+  16.2 Vizuális jelzés
+  ──────────────────
+    Droppolt item a földön:
+      Common: fehér text, kis sprite, halvány
+      Uncommon: zöld text, normál sprite
+      Rare: kék text, enyhe glow
+      Epic: lila text, erős glow, particle
+      Legendary: narancs text, nagy glow, csillag particle, hang effekt
+
+    Minimap jelzés: epic+ item pötty a minimap-on
+
+================================================================================
+  17. INVENTORY ÉS STASH
+================================================================================
+
+  17.1 Inventory
+  ──────────────────
+    Méret: 6 × 8 = 48 slot (grid-based)
+    Minden item 1 slot (nem Diablo-style méret)
+    Equipped gear: külön slot-ok (11 db, lásd 3.1)
+    Quick slot: 4 slot potion/consumable-nak
+
+  17.2 Stash
+  ──────────────────
+    NPC stash (Safe Room és világ városban):
+      Alap: 2 tab × 48 slot = 96 slot
+      Bővíthető: +1 tab gold-ért (max 6 tab = 288 slot)
+      Tab ár: 500, 1000, 2000, 4000 gold
+
+  17.3 Item tooltip
+  ──────────────────
+    Tooltip tartalom:
+      Item név (rarity szín)
+      Item típus | Slot
+      ─────────────
+      Base stat-ok
+      ─────────────
+      Affix stat-ok (zöld szöveg)
+      ─────────────
+      Set bónusz (ha set item, zöld szöveg, aktív bónusz kijelölve)
+      ─────────────
+      Unique property (narancs szöveg, ha legendary)
+      ─────────────
+      Socket-ok: [gem] [gem] [üres] (ha van)
+      ─────────────
+      "Requires Level XX"
+      "Requires: [Class]" (ha class-specific)
+      ─────────────
+      Sell price: XX gold
+
+================================================================================
+  18. GODOT IMPLEMENTÁCIÓ
+================================================================================
+
+  18.1 Script struktúra
+  ──────────────────
+
+    scripts/items/
+    ├── item_base.gd               # Alap Item class
+    ├── item_data.gd               # Resource: base item adatok
+    ├── item_instance.gd           # Egy konkrét item (stat-okkal)
+    ├── item_generator.gd          # Item rolling / generálás
+    ├── rarity.gd                  # Rarity enum és helper
+    ├── affix_pool.gd              # Resource: affix-ek adatbázis
+    ├── affix.gd                   # Egy affix struktúra
+    ├── loot_table.gd              # Resource: loot table
+    ├── loot_dropper.gd            # Loot drop logika (enemy-hez)
+    ├── loot_manager.gd            # Global loot management
+    ├── drop_display.gd            # Földön lévő loot megjelenítés
+    ├── set_item_data.gd           # Resource: set item definíciók
+    ├── legendary_data.gd          # Resource: legendary item-ek
+    ├── inventory.gd               # Inventory management
+    ├── stash.gd                   # Stash management
+    ├── equipment.gd               # Equipped gear management
+    ├── item_tooltip.gd            # Tooltip UI generálás
+    └── loot_filter.gd             # Loot filter beállítások
+
+  18.2 Node struktúra (Loot kijelzés)
+  ──────────────────
+
+    DroppedItem (Node2D)
+    ├── ItemSprite (Sprite2D) → item ikon
+    ├── GlowEffect (PointLight2D) → rarity glow
+    ├── RarityParticle (GPUParticles2D) → epic+ particle
+    ├── NameLabel (Label) → item név + rarity szín
+    ├── PickupArea (Area2D) → felvétel terület
+    └── AudioStreamPlayer2D → legendary drop hang
+
+  18.3 ItemInstance struktúra
+  ──────────────────
+
+    class_name ItemInstance extends Resource
+
+    var uuid: String                    # egyedi azonosító
+    var base_item: ItemData             # alap item referencia
+    var item_level: int
+    var rarity: Rarity
+    var affixes: Array[AffixInstance]   # rolled affix-ek + value-k
+    var sockets: Array[Gem]            # behelyezett gem-ek
+    var unique_property: UniqueProperty # legendary-nál
+    var set_id: String                 # set item-nél
+    var enhancement_level: int = 0     # +0 → +10 upgrade
+
+    func get_total_stat(stat_type: StatType) -> float:
+        var total = base_item.get_base_stat(stat_type, item_level)
+        for affix in affixes:
+            if affix.stat_type == stat_type:
+                total += affix.value
+        for gem in sockets:
+            if gem and gem.stat_type == stat_type:
+                total += gem.value
+        total *= (1 + enhancement_level * 0.05)  # +5% per enhancement
+        return total
+
+    func generate_name() -> String:
+        var name = ""
+        for affix in affixes:
+            if affix.is_prefix:
+                name += affix.display_name + " "
+        name += base_item.display_name
+        for affix in affixes:
+            if not affix.is_prefix:
+                name += " " + affix.display_name
+        return name
+
+================================================================================
+  19. AI-GENERÁLT ITEM SPRITE-OK
+================================================================================
+
+  19.1 Item sprite méretek
+  ──────────────────
+    Inventory ikon: 32×32px
+    Droppolt item (föld): 16×16px
+    Tooltip nagy kép: 64×64px (opcionális)
+
+  19.2 Item kategóriák és mennyiség
+  ──────────────────
+
+    Weapons: ~20 base weapon × 3 class = ~60 sprite
+    Armor: ~15 base armor × 3 class = ~45 sprite
+    Accessories: ~15 sprite (rings, amulets, cloaks, belts)
+    Consumables: ~15 sprite (potions, scrolls)
+    Materials: ~30 sprite
+    Gems: ~20 sprite (lásd 09_gem_system_plan.txt)
+    Összesen: ~185 item sprite
+
+  19.3 AI weapon sprite generálás
+  ──────────────────
+
+    Prompt: "pixel art [weapon_type], 32x32 icon, top-down RPG,
+            dark fantasy, [material], [style], transparent background,
+            item icon, clean outline"
+
+    Példák:
+      "pixel art iron dagger, 32x32 icon, top-down RPG,
+       dark fantasy, steel blade, leather handle,
+       transparent background, item icon"
+
+      "pixel art crystal staff, 32x32 icon, top-down RPG,
+       dark fantasy, purple crystal on top, wooden shaft,
+       magical glow, transparent background"
+
+      "pixel art tower shield, 32x32 icon, top-down RPG,
+       dark fantasy, iron bound, wooden, emblem center,
+       transparent background, item icon"
+
+  19.4 AI armor sprite generálás
+  ──────────────────
+
+    Prompt: "pixel art [armor_type], 32x32 icon, RPG inventory,
+            dark fantasy, [material], [class_style],
+            transparent background, item icon"
+
+    Példák:
+      "pixel art leather hood, assassin gear, 32x32 icon,
+       dark fantasy, black leather, shadow theme,
+       transparent background"
+
+      "pixel art plate helmet, tank warrior gear, 32x32 icon,
+       dark fantasy, heavy iron, visor, transparent background"
+
+  19.5 AI material sprite generálás
+  ──────────────────
+
+    Prompt: "pixel art crafting material, [material_name],
+            32x32 icon, RPG item, transparent background,
+            [description]"
+
+    Példák:
+      "pixel art obsidian chunk, 32x32 icon, RPG item,
+       dark glossy rock, transparent background"
+
+      "pixel art phoenix feather, 32x32 icon, RPG item,
+       glowing orange-red feather, magical, transparent background"
+
+================================================================================
+  20. AI-GENERÁLT ITEM IKONOK RARITY-SZÍN OVERLAY-JEL
+================================================================================
+
+  20.1 Rarity vizuális rendszer
+  ──────────────────
+
+    Egy base item sprite + rarity overlay shader:
+      Common: nincs extra (tiszta sprite)
+      Uncommon: halvány zöld border glow
+      Rare: kék border glow
+      Epic: lila border glow + enyhe particle
+      Legendary: narancs border glow + erős particle + csillag
+
+  20.2 Rarity border shader
+  ──────────────────
+
+    shader_type canvas_item;
+    uniform vec4 rarity_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+    uniform float border_width = 1.0;
+    uniform float glow_intensity = 0.5;
+    uniform float pulse_speed = 1.5;
+
+    void fragment() {
+        vec4 color = texture(TEXTURE, UV);
+        float pulse = sin(TIME * pulse_speed) * 0.2 + 0.8;
+
+        // Edge detection for border
+        float alpha_sum = 0.0;
+        for (int x = -1; x <= 1; x++) {
+            for (int y = -1; y <= 1; y++) {
+                vec2 offset = vec2(float(x), float(y)) * TEXTURE_PIXEL_SIZE * border_width;
+                alpha_sum += texture(TEXTURE, UV + offset).a;
+            }
+        }
+
+        if (color.a < 0.1 && alpha_sum > 0.0) {
+            // Border pixel
+            COLOR = rarity_color * pulse * glow_intensity;
+        } else {
+            COLOR = color;
+        }
+    }
+
+  20.3 Rarity szín konstansok
+  ──────────────────
+
+    const RARITY_COLORS = {
+        Rarity.COMMON: Color(0.8, 0.8, 0.8, 1.0),      # szürke-fehér
+        Rarity.UNCOMMON: Color(0.2, 0.9, 0.2, 1.0),     # zöld
+        Rarity.RARE: Color(0.2, 0.4, 1.0, 1.0),         # kék
+        Rarity.EPIC: Color(0.7, 0.2, 0.9, 1.0),         # lila
+        Rarity.LEGENDARY: Color(1.0, 0.6, 0.0, 1.0),    # narancs
+    }
+
+================================================================================
+  21. KAPCSOLÓDÓ RENDSZEREK
+================================================================================
+
+  Ez a modul kapcsolódik:
+    → 01_skill_tree_plan.txt – Skill damage vs enemy armor/loot
+    → 04_economy_system_plan.txt – Gold drop, crafting, enhancement
+    → 05_networking_plan.txt – Személyes loot sync
+    → 06_enemy_ai_plan.txt – Enemy tier loot table
+    → 07_dungeon_generation_plan.txt – Dungeon chest loot
+    → 09_gem_system_plan.txt – Gem drop és socket rendszer
+    → 10_godot_architecture_plan.txt – Item modul helye
+
+================================================================================
+  VÉGE – 08_loot_system_plan.txt
+================================================================================

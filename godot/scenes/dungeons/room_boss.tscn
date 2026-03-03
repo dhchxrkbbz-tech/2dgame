@@ -1,0 +1,29 @@
+[gd_scene format=3 uid="uid://room_boss_scene"]
+
+[node name="RoomBoss" type="Node2D"]
+
+[node name="TileMap" type="TileMapLayer" parent="."]
+
+[node name="BossSpawn" type="Marker2D" parent="."]
+position = Vector2(0, -32)
+
+[node name="PlayerSpawns" type="Node2D" parent="."]
+
+[node name="PlayerSpawn1" type="Marker2D" parent="PlayerSpawns"]
+position = Vector2(-32, 48)
+
+[node name="PlayerSpawn2" type="Marker2D" parent="PlayerSpawns"]
+position = Vector2(32, 48)
+
+[node name="PlayerSpawn3" type="Marker2D" parent="PlayerSpawns"]
+position = Vector2(-64, 48)
+
+[node name="PlayerSpawn4" type="Marker2D" parent="PlayerSpawns"]
+position = Vector2(64, 48)
+
+[node name="ArenaWalls" type="Node2D" parent="."]
+
+[node name="Doors" type="Node2D" parent="."]
+
+[node name="LootSpawn" type="Marker2D" parent="."]
+position = Vector2(0, 0)

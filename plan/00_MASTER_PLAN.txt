@@ -1,0 +1,977 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║                    A S H E N F A L L  –  M A S T E R  P L A N               ║
+║                                                                              ║
+║              2D Top-Down Dark Fantasy Action RPG – Teljes Játékterv          ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Készítés dátuma: 2026. március 3.
+  Motor: Godot 4.x (GDScript)
+  Stílus: 2D top-down pixel art (32×32 tile, 32×48 karakter)
+  AI Asset Pipeline: Stable Diffusion XL + ComfyUI + LoRA + Aseprite
+  Fejlesztő: 1 fő (solo dev)
+  Tervezett fejlesztési idő: 6 hónap (26 hét)
+  Platform: Windows (később Linux, Steam, esetleg Android)
+
+  Inspirációs alapok:
+    Stardew Valley → kamera, világ felfedezés, exploration érzet
+    Diablo II → combat, loot rendszer, affix-ek, endgame grind
+    World of Warcraft → class design, progression, raid mechanika
+    Path of Exile → gem rendszer, skill tree mélység
+
+================================================================================
+                         TARTALOMJEGYZÉK
+================================================================================
+
+  I.    JÁTÉK VÍZIÓJA ÉS ÖSSZEFOGLALÓ
+  II.   RENDSZER TÉRKÉP (SYSTEM MAP)
+  III.  RENDSZEREK KÖZÖTTI FÜGGŐSÉGEK (DEPENDENCY GRAPH)
+  IV.   11 MODUL ÖSSZEFOGLALÓ
+  V.    TELJES TECHNIKAI SPECIFIKÁCIÓ
+  VI.   CONTENT INVENTÁR (SZÁMSZERŰSÍTVE)
+  VII.  AI ASSET PIPELINE ÖSSZEFOGLALÓ
+  VIII. FEJLESZTÉSI ROADMAP ÖSSZEFOGLALÓ
+  IX.   MILESTONE DEFINÍCIÓK
+  X.    KOCKÁZATKEZELÉS ÉS PRIORITÁSOK
+  XI.   REFERENCIA: DETAIL PLAN FILE-OK
+
+================================================================================
+  I. JÁTÉK VÍZIÓJA ÉS ÖSSZEFOGLALÓ
+================================================================================
+
+  1.1 Egymondatos pitch
+  ──────────────────
+    "Egy sötét fantasy pixel art ARPG ahol 1-4 játékos fedez fel egy
+    procedurálisan generált világot, fejleszti karakterét 3 osztály
+    egyikében, és raid bossokat győz le – teljesen AI-generált
+    vizuális stílussal."
+
+  1.2 Fő élmény pillérek
+  ──────────────────
+
+    ┌─────────────────────┬──────────────────────────────────────────────┐
+    │ Pillér              │ Leírás                                      │
+    ├─────────────────────┼──────────────────────────────────────────────┤
+    │ BUILD CRAFTING      │ 3 osztály × 3 branch, 45 skill, gem-ek,    │
+    │                     │ affix-ek → végtelen karakter variáció       │
+    ├─────────────────────┼──────────────────────────────────────────────┤
+    │ EXPLORATION          │ Procedurális kontinens, 8 biome, rejtett   │
+    │                     │ dungeon-ök, titkos szobák, világesemények   │
+    ├─────────────────────┼──────────────────────────────────────────────┤
+    │ LOOT HUNT           │ Random stat rolling, 5 rarity, set item-ek,│
+    │                     │ legendary-k → "just one more run" motiváció │
+    ├─────────────────────┼──────────────────────────────────────────────┤
+    │ CO-OP CHALLENGE     │ 4 fős co-op, raid bossok, role-ok         │
+    │                     │ (DPS/Tank/Healer), koordináció szükséges    │
+    └─────────────────────┴──────────────────────────────────────────────┘
+
+  1.3 Játékos ciklus (Core Loop)
+  ──────────────────
+
+    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
+    │  EXPLORE │ →  │   FIGHT  │ →  │   LOOT   │ →  │  UPGRADE │
+    │  világ,  │    │  enemy,  │    │  gear,   │    │  skill,  │
+    │  dungeon │    │  boss    │    │  gem,    │    │  craft,  │
+    └──────────┘    └──────────┘    │  gold    │    │  gem     │
+         ↑                          └──────────┘    └──────────┘
+         │                                               │
+         └───────────────────────────────────────────────┘
+                        ERŐSEBB → NEHEZEBB TERÜLET
+
+  1.4 Célközönség
+  ──────────────────
+    Elsődleges: ARPG rajongók (Diablo, PoE, Last Epoch játékosok)
+    Másodlagos: Co-op rajongók (Terraria, Valheim típusú együtt játék)
+    Harmadlagos: Pixel art / indie rajongók
+
+  1.5 Session struktúra
+  ──────────────────
+    Rövid session (30 perc): 1-2 dungeon run, pár item upgrade
+    Közepes session (1-2 óra): biome exploration, boss kill, crafting
+    Hosszú session (3+ óra): raid boss, marketplace, alt karakter
+
+================================================================================
+  II. RENDSZER TÉRKÉP (SYSTEM MAP)
+================================================================================
+
+  A játék 11 fő rendszerből áll. Mindegyik egy saját detail plan file-ban
+  van dokumentálva. Az alábbi diagram mutatja az összes rendszert és
+  kapcsolatukat:
+
+  ┌───────────────────────────────────────────────────────────────────────┐
+  │                        ASHENFALL RENDSZER TÉRKÉP                    │
+  │                                                                      │
+  │                        ┌──────────────────┐                          │
+  │                        │  10. GODOT ARCH  │                          │
+  │                        │  (Alap struktúra)│                          │
+  │                        └────────┬─────────┘                          │
+  │                                 │                                     │
+  │           ┌─────────────────────┼─────────────────────┐              │
+  │           │                     │                     │              │
+  │  ┌────────▼────────┐  ┌────────▼────────┐  ┌────────▼────────┐     │
+  │  │  01. SKILL TREE │  │  02. PROC WORLD │  │  05. NETWORKING │     │
+  │  │  (3 class, 45   │  │  (biome-ok,     │  │  (host-client,  │     │
+  │  │   skill)        │  │   világ gen.)   │  │   co-op sync)   │     │
+  │  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘     │
+  │           │                    │                     │              │
+  │           │           ┌───────┼──────────┐           │              │
+  │           │           │       │          │           │              │
+  │  ┌────────▼────────┐  │  ┌────▼───────┐  │  ┌───────▼────────┐    │
+  │  │  08. LOOT SYS   │  │  │ 07. DUNGEON│  │  │  06. ENEMY AI  │    │
+  │  │  (gear, rarity, │  │  │ (BSP gen,  │  │  │  (BT, pack,   │    │
+  │  │   affix, set)   │  │  │  room, trap│  │  │   elite, 40+) │    │
+  │  └────────┬────────┘  │  └────┬───────┘  │  └───────┬────────┘    │
+  │           │           │       │          │          │              │
+  │  ┌────────▼────────┐  │  ┌────▼──────────▼──────────▼────────┐    │
+  │  │  09. GEM SYS    │  │  │       03. BOSS DESIGN             │    │
+  │  │  (6 gem, socket,│  │  │  (13 boss, 4 tier, phase, loot)  │    │
+  │  │   legendary)    │  │  └───────────────────────────────────┘    │
+  │  └────────┬────────┘  │                                           │
+  │           │           │                                           │
+  │  ┌────────▼───────────▼─────────┐                                 │
+  │  │  04. ECONOMY SYSTEM          │                                 │
+  │  │  (gold, crafting, marketplace│                                 │
+  │  │   profession, inflation ctrl)│                                 │
+  │  └──────────────────────────────┘                                 │
+  │                                                                    │
+  │  ┌──────────────────────────────┐                                  │
+  │  │  11. ROADMAP                 │                                  │
+  │  │  (6 hónap, milestone-ok)    │                                  │
+  │  └──────────────────────────────┘                                  │
+  └───────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+  III. RENDSZEREK KÖZÖTTI FÜGGŐSÉGEK (DEPENDENCY GRAPH)
+================================================================================
+
+  3.1 Implementációs sorrend (mi mire épül)
+  ──────────────────
+
+  Layer 0 – ALAP (előfeltétel nélkül):
+    [10] Godot Architecture → projekt struktúra, autoload-ok, event bus
+    [AI] LoRA training → stílusos sprite generálás alapja
+
+  Layer 1 – CORE (Layer 0 kell hozzá):
+    [01] Skill Tree → igényli: Godot Arch (player entity, combat system)
+    [02] Procedural World → igényli: Godot Arch (chunk system, tilemap)
+    [06] Enemy AI → igényli: Godot Arch (entity base, pathfinding)
+
+  Layer 2 – GAMEPLAY (Layer 0 + 1 kell hozzá):
+    [08] Loot System → igényli: Skill Tree (stat rendszer), Enemy AI (drop)
+    [07] Dungeon Gen → igényli: Proc World (biome), Enemy AI (spawn)
+    [03] Boss Design → igényli: Enemy AI (BT), Skill Tree (damage calc)
+
+  Layer 3 – DEPTH (Layer 0-2 kell hozzá):
+    [09] Gem System → igényli: Loot System (item socket), Economy (gold)
+    [04] Economy → igényli: Loot (item value), Boss (rare drops)
+
+  Layer 4 – MULTIPLAYER (minden másra épül):
+    [05] Networking → igényli: MINDEN korábbi rendszer (sync-elni kell)
+
+  Layer 5 – META:
+    [11] Roadmap → ütemezi az összes fenti rendszer implementálását
+
+  3.2 Függőségi mátrix
+  ──────────────────
+
+    "X" = közvetlen függőség, "~" = laza kapcsolat
+
+    RENDSZER →         01  02  03  04  05  06  07  08  09  10
+    01 Skill Tree       -           ~           ~       ~   X
+    02 Proc World           -                   X           X
+    03 Boss Design     X       -       ~   X   X   X       X
+    04 Economy         ~       ~   -       ~       X   X   X
+    05 Networking      X   X   X   X   -   X   X   X   X   X
+    06 Enemy AI        X   ~           ~   -           ~   X
+    07 Dungeon Gen         X   X       ~   X   -   X       X
+    08 Loot System     X       X   ~       X       -   ~   X
+    09 Gem System      ~       ~   X           ~   X   -   X
+    10 Godot Arch                                          -
+
+  3.3 Kritikus útvonal (Critical Path)
+  ──────────────────
+
+    Godot Arch → Player + Combat → Enemy AI → Loot System → Dungeon Gen
+    → Boss Design → Gem System → Multiplayer → Polish → RELEASE
+
+    Ez a sorrend nem módosítható anélkül, hogy a projekt csúszna.
+    A roadmap (file 11) ezt az útvonalat követi.
+
+================================================================================
+  IV. 11 MODUL ÖSSZEFOGLALÓ
+================================================================================
+
+  ┌────┬──────────────────────────┬─────────────┬──────────────────────────┐
+  │ #  │ Modul                    │ Fájlnév     │ Tartalom összefoglaló    │
+  ├────┼──────────────────────────┼─────────────┼──────────────────────────┤
+  │ 01 │ Skill Tree Rendszer      │ 01_skill_   │ 3 class × 3 branch × 5  │
+  │    │                          │ tree_plan   │ skill = 45 skill.        │
+  │    │                          │ .txt        │ Damage/CD/cost/scaling   │
+  │    │                          │             │ táblázatok. Skill pont   │
+  │    │                          │             │ rendszer, UI, Godot node │
+  │    │                          │             │ struktúra. AI animáció.  │
+  │    │                          │             │ ~935 sor.                │
+  ├────┼──────────────────────────┼─────────────┼──────────────────────────┤
+  │ 02 │ Procedurális Világ       │ 02_proced   │ Multi-layer Perlin Noise │
+  │    │ Generálás                │ ural_world  │ (height+temp+corruption+ │
+  │    │                          │ _plan.txt   │ moisture). 8 biome       │
+  │    │                          │             │ rendszer. Poisson POI,   │
+  │    │                          │             │ A* utak. Chunk streaming.│
+  │    │                          │             │ Day/night, weather. AI   │
+  │    │                          │             │ tileset generálás.       │
+  │    │                          │             │ ~818 sor.                │
+  ├────┼──────────────────────────┼─────────────┼──────────────────────────┤
+  │ 03 │ Boss Design              │ 03_boss_    │ 13 boss 4 tier-ben.     │
+  │    │                          │ design_plan │ T1: 4 mini boss          │
+  │    │                          │ .txt        │ T2: 4 dungeon boss       │
+  │    │                          │             │ T3: 3 world boss         │
+  │    │                          │             │ T4: 2 raid boss          │
+  │    │                          │             │ Phase mechanikák, multi- │
+  │    │                          │             │ player HP scaling, tele- │
+  │    │                          │             │ graph rendszer. AI boss  │
+  │    │                          │             │ sprite-ok (48-192px).    │
+  │    │                          │             │ ~1167 sor.               │
+  ├────┼──────────────────────────┼─────────────┼──────────────────────────┤
+  │ 04 │ Gazdasági Rendszer       │ 04_economy  │ 3 valuta (Gold, Dark     │
+  │    │                          │ _system_    │ Essence, Relic Fragment). │
+  │    │                          │ plan.txt    │ Gathering, Crafting,     │
+  │    │                          │             │ NPC Shop, Marketplace.   │
+  │    │                          │             │ Enhancement +1→+10.      │
+  │    │                          │             │ Infláció kontrol (sink/  │
+  │    │                          │             │ source). Profession (8). │
+  │    │                          │             │ AI UI elemek.            │
+  │    │                          │             │ ~798 sor.                │
+  ├────┼──────────────────────────┼─────────────┼──────────────────────────┤
+  │ 05 │ Networking Architektúra  │ 05_network  │ Host-authoritative ENet  │
+  │    │                          │ ing_plan    │ modell. 20 tick/sec.     │
+  │    │                          │ .txt        │ Max 4 player co-op.      │
+  │    │                          │             │ Lobby, entity/player/    │
+  │    │                          │             │ enemy/loot sync.         │
+  │    │                          │             │ Client prediction, lag   │
+  │    │                          │             │ compensation. Session    │
+  │    │                          │             │ management + reconnect.  │
+  │    │                          │             │ ~802 sor.                │
+  ├────┼──────────────────────────┼─────────────┼──────────────────────────┤
+  │ 06 │ Enemy AI Rendszer        │ 06_enemy_   │ 5 kategória: Melee,     │
+  │    │                          │ ai_plan     │ Ranged, Caster, Elite,   │
+  │    │                          │ .txt        │ Boss. Behaviour Tree     │
+  │    │                          │             │ implementáció. Detection,│
+  │    │                          │             │ A* pathfinding, Pack AI, │
+  │    │                          │             │ 7 elite affix, 40 biome- │
+  │    │                          │             │ specifikus enemy, palette│
+  │    │                          │             │ swap shader. AI enemy    │
+  │    │                          │             │ sprite generálás.        │
+  │    │                          │             │ ~1048 sor.               │
+  ├────┼──────────────────────────┼─────────────┼──────────────────────────┤
+  │ 07 │ Dungeon Generation       │ 07_dungeon  │ BSP algoritmus (teljes   │
+  │    │                          │ _generation │ GDScript kód). 4 dungeon │
+  │    │                          │ _plan.txt   │ tier (8-25 room, 1-3     │
+  │    │                          │             │ floor). 8 room típus.    │
+  │    │                          │             │ Wave-based enemy spawn.  │
+  │    │                          │             │ 7 trap típus, Fog of War │
+  │    │                          │             │ shader, 7 biome dungeon  │
+  │    │                          │             │ téma, 5 puzzle típus.    │
+  │    │                          │             │ Multiplayer seed sync.   │
+  │    │                          │             │ AI dungeon tileset.      │
+  │    │                          │             │ ~918 sor.                │
+  ├────┼──────────────────────────┼─────────────┼──────────────────────────┤
+  │ 08 │ Loot System              │ 08_loot_    │ 5 rarity (Common→Leg.). │
+  │    │                          │ system_plan │ 11 gear slot. Stat +     │
+  │    │                          │ .txt        │ affix rendszer (prefix/  │
+  │    │                          │             │ suffix). Drop formula    │
+  │    │                          │             │ Magic Find scaling-gel.  │
+  │    │                          │             │ Boss loot pool, 8 set    │
+  │    │                          │             │ (~35 darab), 30 unique/  │
+  │    │                          │             │ legendary. Személyes     │
+  │    │                          │             │ loot, loot filter. AI    │
+  │    │                          │             │ item sprite (~185 db).   │
+  │    │                          │             │ ~904 sor.                │
+  ├────┼──────────────────────────┼─────────────┼──────────────────────────┤
+  │ 09 │ Gem System               │ 09_gem_     │ 6 gem típus + Legendary. │
+  │    │                          │ system_plan │ 6 tier (Chipped→Radiant).│
+  │    │                          │ .txt        │ Socket rendszer (0-4/    │
+  │    │                          │             │ item). Stat táblázatok   │
+  │    │                          │             │ gem×tier×slot. 15        │
+  │    │                          │             │ legendary gem. Gem       │
+  │    │                          │             │ combine (3→1). Jeweler   │
+  │    │                          │             │ NPC. AI gem sprite (51). │
+  │    │                          │             │ ~605 sor.                │
+  ├────┼──────────────────────────┼─────────────┼──────────────────────────┤
+  │ 10 │ Godot Architecture       │ 10_godot_   │ Teljes res:// dir layout.│
+  │    │                          │ architecture│ 8 autoload singleton.    │
+  │    │                          │ _plan.txt   │ Scene tree, EventBus     │
+  │    │                          │             │ (~25 signal), Resource   │
+  │    │                          │             │ rendszer. Collision      │
+  │    │                          │             │ layer (10). HUD layout.  │
+  │    │                          │             │ Save/Load (JSON, 3 slot).│
+  │    │                          │             │ AI asset pipeline docs.  │
+  │    │                          │             │ Export config, perf opt. │
+  │    │                          │             │ ~1047 sor.               │
+  ├────┼──────────────────────────┼─────────────┼──────────────────────────┤
+  │ 11 │ Fejlesztési Roadmap      │ 11_roadmap  │ 6 hónap heti bontás     │
+  │    │                          │ _plan.txt   │ (26 hét). Párhuzamos AI │
+  │    │                          │             │ asset ütemterv. 6 mile-  │
+  │    │                          │             │ stone. Tesztelési terv   │
+  │    │                          │             │ (unit/integ/perf/beta).  │
+  │    │                          │             │ 17 pontos release check- │
+  │    │                          │             │ list. Post-launch terv.  │
+  │    │                          │             │ 5 kockázat + backup.     │
+  │    │                          │             │ Prioritás mátrix.        │
+  │    │                          │             │ ~701 sor.                │
+  └────┴──────────────────────────┴─────────────┴──────────────────────────┘
+
+  ÖSSZESEN: ~9,743 sor részletes terv 11 fájlban.
+
+================================================================================
+  V. TELJES TECHNIKAI SPECIFIKÁCIÓ
+================================================================================
+
+  5.1 Technológiai stack
+  ──────────────────
+
+    ┌──────────────────┬──────────────────────────────────────────────┐
+    │ Technológia      │ Részletek                                    │
+    ├──────────────────┼──────────────────────────────────────────────┤
+    │ Motor            │ Godot 4.x (stable)                           │
+    │ Nyelv            │ GDScript (100%)                              │
+    │ Renderer         │ Compatibility (OpenGL, 2D optimalizált)      │
+    │ Multiplayer API  │ ENetMultiplayerPeer (high-level)             │
+    │ Noise            │ FastNoiseLite (beépített)                    │
+    │ Pathfinding      │ NavigationServer2D (beépített)               │
+    │ AI generálás     │ Stable Diffusion XL + ComfyUI                │
+    │ LoRA training    │ Kohya_ss                                     │
+    │ Post-process     │ Aseprite (pixel art cleanup)                 │
+    │ Verziókezelés    │ Git + GitHub/GitLab                          │
+    │ Hang             │ .ogg (zene), .wav (SFX)                      │
+    │ Mentés formátum  │ JSON (enkryptált opcionálisan)               │
+    └──────────────────┴──────────────────────────────────────────────┘
+
+  5.2 Viewport és renderelés
+  ──────────────────
+
+    Viewport méret: 640×480 logikai pixel
+    Megjelenítés: 1280×960 (2× upscale) vagy magasabb + integer scaling
+    Tile méret: 32×32 pixel
+    Karakter sprite: 32×48 pixel (32 széles, 48 magas)
+    Enemy sprite: 32×48 (alap), 48×64 (elite), 64-192×64-192 (boss)
+    Látható terület: ~40×30 tile (20×15 chunk)
+    FPS cél: 60 FPS (minimum 30 FPS)
+
+  5.3 Multiplayer specifikáció
+  ──────────────────
+
+    Modell: Host-authoritative (peer-to-peer)
+    Max játékos: 4 (1 host + 3 client)
+    Tick rate: 20/sec (50ms update interval)
+    Sávszélesség: ~5-10 KB/sec (host upstream)
+    Port: 7777 (TCP/UDP via ENet)
+    Reconnect timeout: 5 perc
+    Latency cél: <150ms elfogadható
+    Nincs: dedikált szerver, host migration
+
+  5.4 Save/Load rendszer
+  ──────────────────
+
+    Formátum: JSON
+    Slot-ok: 3 manuális + 1 autosave
+    Autosave: biome váltásnál, dungeon ki/belépésnél
+    Mentett adat: pozíció, inventory, skill-ek, quest állapot,
+                  world seed, felfedezett terület, economy, stash
+
+  5.5 Collision rétegek
+  ──────────────────
+
+    Layer 1: Solid (fal, akadály)
+    Layer 2: Player
+    Layer 3: Enemy
+    Layer 4: NPC
+    Layer 5: Player Hitbox
+    Layer 6: Enemy Hitbox
+    Layer 7: Player Hurtbox
+    Layer 8: Enemy Hurtbox
+    Layer 9: Projectile
+    Layer 10: Pickup (loot, resource)
+
+  5.6 Autoload Singleton-ök
+  ──────────────────
+
+    GameManager     → játék állapot (menü/loading/playing/paused)
+    EventBus        → globális signal-ok (~25 signal)
+    SaveManager     → save/load logika
+    AudioManager    → zene/SFX lejátszás, crossfade
+    SceneManager    → scene váltás transition-ökkel
+    NetworkManager  → multiplayer kapcsolat
+    Constants       → globális konstansok, enum-ok
+    InputManager    → input mapping + state
+
+================================================================================
+  VI. CONTENT INVENTÁR (SZÁMSZERŰSÍTVE)
+================================================================================
+
+  6.1 Játszható tartalom
+  ──────────────────
+
+    ┌──────────────────────────────┬───────┬──────────────────────────────┐
+    │ Kategória                    │ Szám  │ Részletek                    │
+    ├──────────────────────────────┼───────┼──────────────────────────────┤
+    │ Játszható osztályok          │   3   │ Assassin, Tank, Mage/Healer  │
+    │ Skill branch-ek             │   9   │ 3 / class                    │
+    │ Aktív skill-ek              │  36   │ 4 / branch × 9 branch        │
+    │ Ultimate skill-ek           │   9   │ 1 / branch                   │
+    │ ÖSSZES SKILL                │  45   │ egyedi, mind implementálva   │
+    │ Biome-ok                    │   8   │ Starting Meadow → Plague Land│
+    │ Enemy típusok (egyedi)      │  40   │ 5 / biome × 8 biome          │
+    │ Elite variánsok             │  40   │ minden alap enemy-nek van    │
+    │ Rare enemy-k                │  15   │ named, egyedi kinézet        │
+    │ Elite affix-ek              │   7   │ Shielded, Vampiric, stb.     │
+    │ Mini Boss-ok (T1)           │   4   │ solo, 2 fázis                │
+    │ Dungeon Boss-ok (T2)        │   4   │ 1-2 játékos, 2-3 fázis      │
+    │ World Boss-ok (T3)          │   3   │ 2-4 játékos, 3-4 fázis      │
+    │ Raid Boss-ok (T4)           │   2   │ 4 játékos, 4-5 fázis        │
+    │ ÖSSZES BOSS                 │  13   │                              │
+    │ Dungeon tier-ek             │   4   │ Small→Raid                   │
+    │ Dungeon room típusok        │   8   │ Combat, Puzzle, stb.         │
+    │ Dungeon téma (biome-based)  │   7   │ Witch Hollow, stb.           │
+    │ Trap típusok                │   7   │ Spike, Poison Gas, stb.      │
+    │ Puzzle típusok              │   5   │ Switch, Pressure, stb.       │
+    │ Gear slot-ok                │  11   │ Weapon→Cloak                 │
+    │ Alap item típusok           │ ~100  │ fegyver + páncél + kiegészítő│
+    │ Set item gyűjtemények       │   8   │ ~35 darab összesen           │
+    │ Unique/Legendary item-ek    │  30   │ egyedi effekttel             │
+    │ Crafting material típusok   │  30   │ Wood, Ore, Herb, stb.        │
+    │ Consumable típusok          │  15   │ potion, scroll, stb.         │
+    │ Gem típusok (alap)          │   6   │ Ruby→Diamond                 │
+    │ Gem tier-ek                 │   6   │ Chipped→Radiant              │
+    │ Legendary gem-ek            │  15   │ egyedi effekttel             │
+    │ Rarity szintek              │   5   │ Common→Legendary             │
+    │ Valuta típusok              │   3   │ Gold, Dark Essence, Relic    │
+    │ NPC Shop típusok            │   5   │ Weapon, Armor, stb.          │
+    │ Crafting station típusok    │   4   │ Anvil, Loom, stb.            │
+    │ Profession-ök               │   8   │ 4 gathering + 4 crafting     │
+    │ Max player szint            │  50   │ ~30-40 óra gameplay          │
+    │ Max multiplayer játékos     │   4   │ host + 3 client              │
+    └──────────────────────────────┴───────┴──────────────────────────────┘
+
+  6.2 AI-generált asset inventár
+  ──────────────────
+
+    ┌──────────────────────────────┬───────┬──────────────────────────────┐
+    │ Asset típus                  │ Szám  │ Részletek                    │
+    ├──────────────────────────────┼───────┼──────────────────────────────┤
+    │ Player sprite sheet-ek      │   3   │ 1/class × 8 animáció / sheet │
+    │ Animáció frame-ek (player)  │ ~144  │ 3 class × 8 anim × 6 frame  │
+    │ Enemy sprite sheet-ek       │  40   │ 1 / egyedi enemy típus       │
+    │ Elite enemy sprite variáns  │  40   │ palette swap + scale + glow  │
+    │ Rare enemy sprite           │  15   │ egyedi kinézet               │
+    │ Boss sprite sheet-ek        │  13   │ 48-192px mérettartomány      │
+    │ NPC sprite-ok               │ ~10   │ shopkeeper, jeweler, stb.    │
+    │ Skill effect animációk      │  45   │ 1 / skill                    │
+    │ Item ikon-ok                │ ~185  │ gear + material + consumable │
+    │ Skill ikon-ok               │  45   │ 1 / skill (32×32)            │
+    │ Gem ikon-ok (normál)        │  36   │ 6 típus × 6 tier             │
+    │ Gem ikon-ok (legendary)     │  15   │ egyedi kinézet               │
+    │ Currency ikon-ok            │   3   │ gold, dark essence, relic    │
+    │ Tileset-ek (world)          │   8   │ 47 tile autotile / biome     │
+    │ Tileset-ek (dungeon)        │   7   │ dungeon-specifikus           │
+    │ Dungeon prop sprite-ok      │ ~40   │ chest, torch, barrel, stb.   │
+    │ World dekoráció sprite      │ ~60   │ fák, kövek, virágok, stb.    │
+    │ UI elemek                   │ ~50   │ frame, button, background    │
+    │ ÖSSZES EGYEDI SPRITE ASSET  │~600+  │                              │
+    └──────────────────────────────┴───────┴──────────────────────────────┘
+
+    Becsült teljes AI generálás + post-process idő: 200-300 óra
+
+================================================================================
+  VII. AI ASSET PIPELINE ÖSSZEFOGLALÓ
+================================================================================
+
+  7.1 Hardware követelmények
+  ──────────────────
+
+    GPU: NVIDIA RTX 3060+ (min 8GB VRAM, ajánlott 12GB+)
+    SDXL model: ~6.5GB VRAM használat
+    LoRA training: ~10-12GB VRAM (Kohya_ss)
+    Generálási sebesség: ~5-15 sec/image (512×512, 20 step)
+
+  7.2 Pipeline lépések
+  ──────────────────
+
+    1. STÍLUS DEFINÍCIÓ
+       └─ 20-30 referencia pixel art gyűjtés
+       └─ "ashenfall_style" LoRA training (Kohya_ss)
+       └─ LoRA paraméterek: dim 32, alpha 16, 1500-2000 step
+
+    2. GENERÁLÁS (ComfyUI batch workflow)
+       └─ Prompt template per asset típus
+       └─ Negative prompt: 3D, photorealistic, blurry, text
+       └─ Batch: 20-50 kép / session → válogatás (top 20-30%)
+       └─ Seed tracking: jó eredmények seed-jei mentve
+
+    3. POST-PROCESS (Aseprite)
+       └─ Méretezés: pontos pixel méret (32×32, 32×48, stb.)
+       └─ Palette lock: biome / asset specifikus paletta
+       └─ Frame cut: sprite sheet → egyedi frame-ek
+       └─ Cleanup: pixel hibák javítás, outline consistency
+       └─ Animáció: frame sorrend, timing
+
+    4. GODOT IMPORT
+       └─ SpriteFrames resource létrehozás
+       └─ Animáció beállítás (FPS, loop)
+       └─ Teszt: in-game megjelenés ellenőrzés
+
+  7.3 Prompt template példák
+  ──────────────────
+
+    Karakter: "pixel art character sprite sheet, [class], [action],
+              32x48, dark fantasy, top-down view, ashenfall_style LoRA"
+
+    Tileset: "pixel art tileset, [biome], 32x32 grid, seamless edges,
+             dark fantasy atmosphere, ashenfall_style LoRA"
+
+    Item: "pixel art item icon, [item_name], 32x32, dark fantasy,
+           clean background, detailed, ashenfall_style LoRA"
+
+    Boss: "pixel art boss sprite, [name], [size]px, dark fantasy,
+           intimidating, detailed, top-down perspective, ashenfall_style"
+
+  7.4 Párhuzamos ütemterv
+  ──────────────────
+
+    ┌──────────┬──────────────────────────────────────────────────────┐
+    │ Hónap    │ AI Asset feladatok                                   │
+    ├──────────┼──────────────────────────────────────────────────────┤
+    │ Month 1  │ LoRA training, Player sprite-ok (3 class), első     │
+    │          │ enemy-k (5-10), placeholder UI                      │
+    │ Month 2  │ Skill effect sprite-ok (45), Item ikon-ok (60-80),  │
+    │          │ UI elemek                                           │
+    │ Month 3  │ World tileset-ek (3), enemy-k (15), dungeon         │
+    │          │ tileset-ek (2), dekoráció                            │
+    │ Month 4  │ Maradék tileset-ek (5+5), enemy-k (10), NPC-k      │
+    │ Month 5  │ Boss sprite-ok (13), gem ikon-ok (51), maradék      │
+    │          │ item ikon-ok, set/legendary item sprite-ok           │
+    │ Month 6  │ UI polish, menu art, loading screen, final cleanup  │
+    └──────────┴──────────────────────────────────────────────────────┘
+
+    Napi workflow: prompt batch → generálás → válogatás → Aseprite
+    Heti AI idő: ~10-12 óra (főleg hétvége + esték)
+
+================================================================================
+  VIII. FEJLESZTÉSI ROADMAP ÖSSZEFOGLALÓ
+================================================================================
+
+  8.1 Havi bontás
+  ──────────────────
+
+    ┌──────────┬────────────────────┬──────────────────────────────────┐
+    │ Hónap    │ Fókusz             │ Fő deliverable-ök               │
+    ├──────────┼────────────────────┼──────────────────────────────────┤
+    │ Month 1  │ CORE SYSTEMS       │ Player mozgás, combat, enemy AI,│
+    │ (Hét 1-4)│                    │ placeholder sprite-ok, XP       │
+    │          │                    │ → PLAYABLE PROTOTYPE            │
+    ├──────────┼────────────────────┼──────────────────────────────────┤
+    │ Month 2  │ GAMEPLAY SYSTEMS   │ Skill tree (3 class), loot      │
+    │ (Hét 5-8)│                    │ rendszer, inventory, equipment, │
+    │          │                    │ crafting, NPC shop, economy      │
+    │          │                    │ → CORE LOOP KÉSZ                │
+    ├──────────┼────────────────────┼──────────────────────────────────┤
+    │ Month 3  │ WORLD & CONTENT    │ Procedurális világ (3 biome),   │
+    │(Hét 9-13)│                    │ POI, enemy spawn, dungeon gen,  │
+    │          │                    │ 4 boss (T1+T2), trap, puzzle    │
+    │          │                    │ → EXPLORABLE WORLD              │
+    ├──────────┼────────────────────┼──────────────────────────────────┤
+    │ Month 4  │ MULTIPLAYER        │ ENet setup, lobby, player/enemy/│
+    │(Hét14-17)│                    │ loot sync, dungeon sync, lag    │
+    │          │                    │ compensation, stress test        │
+    │          │                    │ → 4 PLAYER CO-OP                │
+    ├──────────┼────────────────────┼──────────────────────────────────┤
+    │ Month 5  │ ENDGAME CONTENT    │ Maradék 5 biome, 20+ enemy,    │
+    │(Hét18-22)│                    │ 9 maradék boss, gem rendszer,   │
+    │          │                    │ set+legendary item, marketplace, │
+    │          │                    │ profession-ök, rare enemy-k     │
+    │          │                    │ → CONTENT COMPLETE              │
+    ├──────────┼────────────────────┼──────────────────────────────────┤
+    │ Month 6  │ POLISH & RELEASE   │ Balancing, UI polish, audio,    │
+    │(Hét23-26)│                    │ bug fix, teljes playthrough     │
+    │          │                    │ teszt, export, itch.io page     │
+    │          │                    │ → RELEASE v1.0                  │
+    └──────────┴────────────────────┴──────────────────────────────────┘
+
+  8.2 Heti munkaidő elosztás
+  ──────────────────
+
+    Hétfő-Péntek (30-35 óra): kódolás + tesztelés
+    Szombat (6-8 óra): AI generálás + Aseprite post-process
+    Vasárnap: PIHENŐNAP (burnout megelőzés)
+
+    Összesen: ~40-45 óra / hét (fenntartható tempó)
+
+================================================================================
+  IX. MILESTONE DEFINÍCIÓK
+================================================================================
+
+  ┌─────┬───────────────────┬────────────────────────────────────────────────┐
+  │ M#  │ Dátum (relatív)   │ Feltételek                                    │
+  ├─────┼───────────────────┼────────────────────────────────────────────────┤
+  │ M1  │ Hónap 1 vége      │ ✦ Player 8-irányú mozgás + Stardew kamera    │
+  │     │ (Hét 4)           │ ✦ Melee + ranged + caster enemy alapszintű AI │
+  │     │                   │ ✦ Hitbox/Hurtbox combat működik               │
+  │     │                   │ ✦ HP bar, damage number, death                │
+  │     │                   │ ✦ Dodge/roll + iframes                        │
+  │     │                   │ ✦ Alap XP + level up                         │
+  │     │                   │ ✦ AI-generált player + 3 enemy sprite         │
+  │     │                   │ → "Playable Prototype" demo                   │
+  ├─────┼───────────────────┼────────────────────────────────────────────────┤
+  │ M2  │ Hónap 2 vége      │ ✦ 25+ skill implementálva (Assassin teljes   │
+  │     │ (Hét 8)           │   + Tank Guardian + Mage Arcane branch)       │
+  │     │                   │ ✦ Skill tree UI működik                       │
+  │     │                   │ ✦ Loot drop: 5 rarity, random stat rolling    │
+  │     │                   │ ✦ 6×8 inventory + 11 slot equipment           │
+  │     │                   │ ✦ NPC shop buy/sell                           │
+  │     │                   │ ✦ Crafting alap (1-2 station)                 │
+  │     │                   │ ✦ Enhancement +1 → +10                        │
+  │     │                   │ → "Core Loop" (kill→loot→equip→stronger)      │
+  ├─────┼───────────────────┼────────────────────────────────────────────────┤
+  │ M3  │ Hónap 3 vége      │ ✦ Procedurális világ: 3 biome                │
+  │     │ (Hét 13)          │ ✦ Chunk streaming működik                     │
+  │     │                   │ ✦ 15 enemy típus (5/biome)                    │
+  │     │                   │ ✦ BSP dungeon generátor: 2 dungeon téma       │
+  │     │                   │ ✦ 2 Mini Boss + 2 Dungeon Boss                │
+  │     │                   │ ✦ Trap + puzzle room                          │
+  │     │                   │ ✦ Day/night cycle                             │
+  │     │                   │ ✦ Minimap                                     │
+  │     │                   │ → "Explorable World" (felfedezésre érdemes)   │
+  ├─────┼───────────────────┼────────────────────────────────────────────────┤
+  │ M4  │ Hónap 4 vége      │ ✦ 4 player co-op működik (host-client ENet)  │
+  │     │ (Hét 17)          │ ✦ Player/enemy/loot/dungeon sync             │
+  │     │                   │ ✦ Lobby + class select                        │
+  │     │                   │ ✦ Client prediction, interpolation            │
+  │     │                   │ ✦ Személyes loot                              │
+  │     │                   │ ✦ Boss multiplayer HP scaling                  │
+  │     │                   │ ✦ Chat rendszer                               │
+  │     │                   │ ✦ Reconnect (5 perc timeout)                  │
+  │     │                   │ → "Multiplayer Alpha" (co-op játszható)       │
+  ├─────┼───────────────────┼────────────────────────────────────────────────┤
+  │ M5  │ Hónap 5 vége      │ ✦ 8 biome teljes implementáció               │
+  │     │ (Hét 22)          │ ✦ 40 enemy + 40 elite + 15 rare              │
+  │     │                   │ ✦ 13 boss (T1-T4) mindegyik működik          │
+  │     │                   │ ✦ 45 skill (3 class × 3 branch teljes)       │
+  │     │                   │ ✦ Gem rendszer (6 típus, 6 tier, 15 legendary)│
+  │     │                   │ ✦ 8 set item (~35 darab) + 30 legendary      │
+  │     │                   │ ✦ Marketplace + profession-ök                 │
+  │     │                   │ ✦ Weather rendszer                            │
+  │     │                   │ → "Content Complete" (minden feature kész)    │
+  ├─────┼───────────────────┼────────────────────────────────────────────────┤
+  │ M6  │ Hónap 6 vége      │ ✦ Damage/XP/loot balance finomhangolva       │
+  │     │ (Hét 26)          │ ✦ Teljes UI polish (dark fantasy téma)       │
+  │     │                   │ ✦ 6-8 zene track + 50-80 SFX implementálva   │
+  │     │                   │ ✦ Solo 1→50 playthrough tesztelve             │
+  │     │                   │ ✦ 4 player co-op stress tesztelve             │
+  │     │                   │ ✦ 60 FPS teljesítmény                        │
+  │     │                   │ ✦ Nincs crash 2+ óra gameplay-ben             │
+  │     │                   │ ✦ Export: Windows build működik               │
+  │     │                   │ ✦ itch.io page kész                           │
+  │     │                   │ → "RELEASE v1.0"                              │
+  └─────┴───────────────────┴────────────────────────────────────────────────┘
+
+================================================================================
+  X. KOCKÁZATKEZELÉS ÉS PRIORITÁSOK
+================================================================================
+
+  10.1 Kockázati mátrix
+  ──────────────────
+
+    ┌─────┬─────────────────────────┬──────────┬──────────┬──────────────────┐
+    │ #   │ Kockázat                │ Valószín │ Hatás    │ Backup terv      │
+    ├─────┼─────────────────────────┼──────────┼──────────┼──────────────────┤
+    │  1  │ 6 hónap nem elég       │ KÖZEPES  │ MAGAS    │ MVP release (3   │
+    │     │                         │          │          │ biome, no multi) │
+    │     │                         │          │          │ → post-launch DLC│
+    ├─────┼─────────────────────────┼──────────┼──────────┼──────────────────┤
+    │  2  │ AI sprite inkonzisztens │ KÖZEPES  │ KÖZEPES  │ Manuális cleanup,│
+    │     │                         │          │          │ egyszerűbb stílus│
+    │     │                         │          │          │ vagy asset store │
+    ├─────┼─────────────────────────┼──────────┼──────────┼──────────────────┤
+    │  3  │ Multiplayer túl komplex │ MAGAS    │ MAGAS    │ Solo-first       │
+    │     │                         │          │          │ release → multi  │
+    │     │                         │          │          │ post-launch      │
+    ├─────┼─────────────────────────┼──────────┼──────────┼──────────────────┤
+    │  4  │ Solo dev burnout        │ KÖZEPES  │ MAGAS    │ Heti pihenőnap,  │
+    │     │                         │          │          │ 2 hetente 1 nap  │
+    │     │                         │          │          │ teljes szünet    │
+    ├─────┼─────────────────────────┼──────────┼──────────┼──────────────────┤
+    │  5  │ Scope creep             │ MAGAS    │ KÖZEPES  │ Feature freeze   │
+    │     │                         │          │          │ Month 4 végén,   │
+    │     │                         │          │          │ strict "nice to  │
+    │     │                         │          │          │ have" lista      │
+    └─────┴─────────────────────────┴──────────┴──────────┴──────────────────┘
+
+  10.2 Prioritás mátrix – Mi a MUST HAVE?
+  ──────────────────
+
+    ████ CRITICAL (nélküle nincs játék) ████
+
+      ✦ Player mozgás + combat (hitbox/hurtbox)
+      ✦ 3 class (legalább 1-1 branch per class = 15 skill working)
+      ✦ 10-15 enemy (3 biome, Melee/Ranged/Caster)
+      ✦ Loot drop + inventory (6×8) + equipment (11 slot)
+      ✦ Procedurális világ (minimum 3 biome, chunk loading)
+      ✦ 1 dungeon típus (BSP + combat room + boss room)
+      ✦ 3-5 boss (legalább T1 + T2)
+      ✦ Save/Load rendszer
+
+    ████ HIGH PRIORITY (nagyban javítja az élményt) ████
+
+      ✦ Teljes skill tree (45 skill, 3 branch / class)
+      ✦ Gem rendszer (6 típus, socket, combine)
+      ✦ Crafting rendszer (station + receptek)
+      ✦ 4 player multiplayer co-op
+      ✦ 8 biome (teljes világ)
+      ✦ 13 boss (T1-T4)
+      ✦ Economy: NPC shop, gold, dark essence
+
+    ████ NICE TO HAVE (post-launch is elfogadható) ████
+
+      ✦ Marketplace (player-to-player auction house)
+      ✦ Set item-ek (8 set, ~35 item)
+      ✦ 30 Legendary item (egyedi effektek)
+      ✦ Weather rendszer (eső, hó, köd)
+      ✦ Profession rendszer (8 db)
+      ✦ Puzzle room-ok (5 típus)
+      ✦ Secret room-ok
+      ✦ 15 Rare named enemy-k
+      ✦ Legendary gem-ek (15 db)
+
+  10.3 Feature freeze szabály
+  ──────────────────
+    Month 4 végén (Hét 17): NINCS ÚJ FEATURE
+    Month 5-6: csak meglévő feature implementálás + content + polish
+    Új ötletek → "Post-launch" listára
+
+================================================================================
+  XI. REFERENCIA: DETAIL PLAN FILE-OK
+================================================================================
+
+  Minden egyes rendszer részletes implementációs terve megtalálható
+  az alábbi fájlokban. Ezek tartalmazzák a teljes GDScript kód
+  struktúrákat, adatszerkezeteket, algoritmusokat, stat táblázatokat,
+  AI sprite generálási utasításokat és Godot node hierarchiákat.
+
+  ┌────┬────────────────────────────────────┬───────────────────────────────┐
+  │ #  │ Fájlnév                            │ Fő tartalom                   │
+  ├────┼────────────────────────────────────┼───────────────────────────────┤
+  │ 01 │ 01_skill_tree_plan.txt             │ 45 skill, stat táblázatok,    │
+  │    │                                    │ UI, node struktúra, AI anim   │
+  ├────┼────────────────────────────────────┼───────────────────────────────┤
+  │ 02 │ 02_procedural_world_plan.txt       │ Noise layer-ek, 8 biome      │
+  │    │                                    │ szabályok, POI, chunk, AI tile│
+  ├────┼────────────────────────────────────┼───────────────────────────────┤
+  │ 03 │ 03_boss_design_plan.txt            │ 13 boss részletesen, phase,   │
+  │    │                                    │ ability, loot, multiplayer    │
+  ├────┼────────────────────────────────────┼───────────────────────────────┤
+  │ 04 │ 04_economy_system_plan.txt         │ 3 valuta, crafting, shop,     │
+  │    │                                    │ marketplace, inflation ctrl   │
+  ├────┼────────────────────────────────────┼───────────────────────────────┤
+  │ 05 │ 05_networking_plan.txt             │ ENet, host-client, sync,      │
+  │    │                                    │ lobby, prediction, reconnect  │
+  ├────┼────────────────────────────────────┼───────────────────────────────┤
+  │ 06 │ 06_enemy_ai_plan.txt              │ 5 típus, BT, detection,       │
+  │    │                                    │ pack AI, elite, 40 enemy      │
+  ├────┼────────────────────────────────────┼───────────────────────────────┤
+  │ 07 │ 07_dungeon_generation_plan.txt     │ BSP kód, room-ok, trap,       │
+  │    │                                    │ puzzle, fog of war, theme     │
+  ├────┼────────────────────────────────────┼───────────────────────────────┤
+  │ 08 │ 08_loot_system_plan.txt            │ 5 rarity, affix, drop formula,│
+  │    │                                    │ set, legendary, loot filter   │
+  ├────┼────────────────────────────────────┼───────────────────────────────┤
+  │ 09 │ 09_gem_system_plan.txt             │ 6 gem, 6 tier, socket,        │
+  │    │                                    │ combine, legendary gem, stat  │
+  ├────┼────────────────────────────────────┼───────────────────────────────┤
+  │ 10 │ 10_godot_architecture_plan.txt     │ Projekt layout, autoload,     │
+  │    │                                    │ scene tree, signals, save,    │
+  │    │                                    │ AI pipeline, export, perf     │
+  ├────┼────────────────────────────────────┼───────────────────────────────┤
+  │ 11 │ 11_roadmap_plan.txt               │ 26 hét detail, AI schedule,   │
+  │    │                                    │ teszt, release, post-launch   │
+  └────┴────────────────────────────────────┴───────────────────────────────┘
+
+================================================================================
+  GYORS REFERENCIA KÁRTYÁK (CHEAT SHEETS)
+================================================================================
+
+  ── PLAYER STATS (Level 1) ──
+
+    ┌────────────┬──────┬──────┬──────┬───────┬───────┬──────┬───────┐
+    │ Class      │ HP   │ Mana │ DMG  │ Speed │ Armor │ Crit%│ CritX │
+    ├────────────┼──────┼──────┼──────┼───────┼───────┼──────┼───────┤
+    │ Assassin   │  80  │  60  │  12  │  130  │   5   │  8%  │ 1.5×  │
+    │ Tank       │ 150  │  40  │  10  │   90  │  15   │  3%  │ 1.5×  │
+    │ Mage/Healer│  70  │ 120  │   8  │  100  │   3   │  5%  │ 1.5×  │
+    └────────────┴──────┴──────┴──────┴───────┴───────┴──────┴───────┘
+
+  ── BIOME DIFFICULTY ──
+
+    ┌──────────────────┬──────────┬───────────────────────────────────┐
+    │ Biome            │ Szint    │ Megkülönböztető elem             │
+    ├──────────────────┼──────────┼───────────────────────────────────┤
+    │ Starting Meadow  │  1-10    │ Alacsony corruption, biztonságos │
+    │ Cursed Forest    │  8-20    │ Közepes corruption, sűrű fák     │
+    │ Dark Swamp       │ 10-25    │ Lassuló terep, mérgező DOT       │
+    │ Ruins            │ 15-30    │ Undead enemy-k, csapdák          │
+    │ Mountains        │ 20-35    │ Hideg, magasan→erős ellenségek   │
+    │ Frozen Wastes    │ 25-40    │ Fagyasztó debuff, visibility↓    │
+    │ Ashlands         │ 30-45    │ Tűz damage, forró→DOT            │
+    │ Plague Lands     │ 35-50    │ Max corruption, legkeményebb     │
+    └──────────────────┴──────────┴───────────────────────────────────┘
+
+  ── RARITY RENDSZER ──
+
+    Common (fehér)    → 60% drop, 0 affix
+    Uncommon (zöld)   → 25% drop, 1 affix
+    Rare (kék)        → 12% drop, 2-3 affix
+    Epic (lila)       → 2.8% drop, 3-4 affix
+    Legendary (narancs)→ 0.2% drop, 4 affix + unique effect
+
+  ── BOSS TIER ──
+
+    T1 Mini Boss    → 500-2K HP, 2 Phase, 1 player, Uncommon-Rare loot
+    T2 Dungeon Boss → 3K-8K HP, 2-3 Phase, 1-2 player, Rare-Epic loot
+    T3 World Boss   → 15K+ HP, 3-4 Phase, 2-4 player, Epic-Leg. loot
+    T4 Raid Boss    → 50K+ HP, 4-5 Phase, 4 player, Legendary loot
+
+  ── GEM RENDSZER ──
+
+    6 típus: Ruby (+Damage), Emerald (+Crit), Sapphire (+HP/Armor),
+             Amethyst (+Lifesteal), Topaz (+Elemental), Diamond (+DR)
+    6 tier: Chipped → Flawed → Normal → Flawless → Perfect → Radiant
+    Upgrade: 3× azonos → 1× magasabb tier
+    Socket: 0-4 / item (rarity-függő)
+
+  ── ECONOMY ──
+
+    Gold: fő valuta (enemy kill, quest, trade)
+    Dark Essence: prémium (boss kill, weekly challenge, achievement)
+    Relic Fragment: endgame (T3-T4 boss, raid completion)
+
+  ── MULTIPLAYER ──
+
+    Host-Client (ENet), Port 7777, Max 4 player, 20 tick/sec
+    Személyes loot, Boss HP scaling (+50%/+100%/+150% per player)
+    Reconnect: 5 perc timeout, nincs host migration
+
+================================================================================
+  FEJLESZTÉSI ELLENŐRZŐ LISTA (DEVELOPMENT CHECKLIST)
+================================================================================
+
+  ┌───────────────────────────────────────────────────────┬─────┬────────┐
+  │ FELADAT                                               │ Hét │ Kész?  │
+  ├───────────────────────────────────────────────────────┼─────┼────────┤
+  │ MONTH 1 – CORE SYSTEMS                               │     │        │
+  ├───────────────────────────────────────────────────────┼─────┼────────┤
+  │ Godot projekt setup + könyvtár struktúra              │  1  │  [ ]   │
+  │ Player mozgás (8-irányú) + Camera2D                   │  1  │  [ ]   │
+  │ LoRA training (ashenfall_style)                       │  1  │  [ ]   │
+  │ Combat: Hitbox/Hurtbox + Damage rendszer              │  2  │  [ ]   │
+  │ HealthComponent + HP bar + Damage number              │  2  │  [ ]   │
+  │ Player sprite AI generálás (Assassin)                 │  2  │  [ ]   │
+  │ Enemy AI: BehaviourTree alap implementáció            │  3  │  [ ]   │
+  │ 3 enemy típus (Melee, Ranged, Caster)                 │  3  │  [ ]   │
+  │ Dodge/Roll + iframes                                  │  4  │  [ ]   │
+  │ XP rendszer + Level up                                │  4  │  [ ]   │
+  │ MILESTONE 1: Playable Prototype                       │  4  │  [ ]   │
+  ├───────────────────────────────────────────────────────┼─────┼────────┤
+  │ MONTH 2 – GAMEPLAY SYSTEMS                            │     │        │
+  ├───────────────────────────────────────────────────────┼─────┼────────┤
+  │ Skill rendszer + SkillData Resource                   │  5  │  [ ]   │
+  │ 15 Assassin skill implementálás                       │  7  │  [ ]   │
+  │ Skill Tree UI (vizuális fa + unlock)                  │  7  │  [ ]   │
+  │ Loot: ItemData + rarity + affix rolling               │  6  │  [ ]   │
+  │ Inventory UI (6×8) + Equipment (11 slot)              │  6  │  [ ]   │
+  │ NPC shop + Crafting alap                              │  8  │  [ ]   │
+  │ Enhancement +1→+10                                    │  8  │  [ ]   │
+  │ MILESTONE 2: Core Loop                                │  8  │  [ ]   │
+  ├───────────────────────────────────────────────────────┼─────┼────────┤
+  │ MONTH 3 – WORLD & CONTENT                             │     │        │
+  ├───────────────────────────────────────────────────────┼─────┼────────┤
+  │ Perlin Noise világ generálás (3 biome)                │  9  │  [ ]   │
+  │ Chunk rendszer + streaming                            │  9  │  [ ]   │
+  │ 15 enemy (5/biome × 3 biome)                          │ 10  │  [ ]   │
+  │ POI placement + Road generation                       │ 10  │  [ ]   │
+  │ BSP dungeon generátor (2 téma)                        │ 11  │  [ ]   │
+  │ 4 boss (2× T1 + 2× T2)                               │ 12  │  [ ]   │
+  │ Trap + Puzzle room                                    │ 12  │  [ ]   │
+  │ AI tileset-ek (3 world + 2 dungeon)                   │9-13 │  [ ]   │
+  │ MILESTONE 3: Explorable World                         │ 13  │  [ ]   │
+  ├───────────────────────────────────────────────────────┼─────┼────────┤
+  │ MONTH 4 – MULTIPLAYER                                 │     │        │
+  ├───────────────────────────────────────────────────────┼─────┼────────┤
+  │ ENet host-client setup                                │ 14  │  [ ]   │
+  │ Lobby + class select + ready                          │ 14  │  [ ]   │
+  │ Player/Enemy/Loot/Projectile sync                     │ 15  │  [ ]   │
+  │ Dungeon multiplayer sync (seed-based)                 │ 16  │  [ ]   │
+  │ Boss multiplayer HP scaling                           │ 16  │  [ ]   │
+  │ Client prediction + Lag compensation                  │ 17  │  [ ]   │
+  │ Disconnect/Reconnect kezelés                          │ 17  │  [ ]   │
+  │ MILESTONE 4: 4 Player Co-op                           │ 17  │  [ ]   │
+  ├───────────────────────────────────────────────────────┼─────┼────────┤
+  │ MONTH 5 – ENDGAME CONTENT                             │     │        │
+  ├───────────────────────────────────────────────────────┼─────┼────────┤
+  │ Maradék 5 biome implementáció                         │18-19│  [ ]   │
+  │ 20+ maradék enemy                                     │18-19│  [ ]   │
+  │ Teljes skill tree (45 skill, 3 class)                 │18-19│  [ ]   │
+  │ Gem rendszer (6 típus, 6 tier, socket, combine)       │18-19│  [ ]   │
+  │ 9 maradék boss (T1-T4)                                │20-21│  [ ]   │
+  │ Set item-ek (8 set, ~35 darab)                        │20-21│  [ ]   │
+  │ 30 Legendary item (unique effect-ekkel)               │20-21│  [ ]   │
+  │ 15 Legendary gem                                      │20-21│  [ ]   │
+  │ Marketplace + Profession-ök                           │20-21│  [ ]   │
+  │ Weather rendszer + Loot filter + Trade window         │ 22  │  [ ]   │
+  │ MILESTONE 5: Content Complete                         │ 22  │  [ ]   │
+  ├───────────────────────────────────────────────────────┼─────┼────────┤
+  │ MONTH 6 – POLISH & RELEASE                            │     │        │
+  ├───────────────────────────────────────────────────────┼─────┼────────┤
+  │ Damage/Skill/Enemy/Loot/Economy balance               │ 23  │  [ ]   │
+  │ Teljes UI polish (dark fantasy téma)                  │ 24  │  [ ]   │
+  │ Audio: 6-8 zene + 50-80 SFX                          │ 25  │  [ ]   │
+  │ Teljes bug lista feldolgozás                          │ 25  │  [ ]   │
+  │ Solo playthrough teszt (1→50)                         │ 26  │  [ ]   │
+  │ Co-op stress teszt (4 player, long session)           │ 26  │  [ ]   │
+  │ Windows export build                                  │ 26  │  [ ]   │
+  │ itch.io page (screenshots, leírás)                   │ 26  │  [ ]   │
+  │ MILESTONE 6: RELEASE v1.0                             │ 26  │  [ ]   │
+  └───────────────────────────────────────────────────────┴─────┴────────┘
+
+================================================================================
+  POST-LAUNCH TERV (RÖVIDEN)
+================================================================================
+
+  Hónap 7-8:  Bug fix, community feedback, balance patch, QoL
+  Hónap 9-10: Content Update 1.1 (új biome, új boss, új skill branch)
+  Hónap 11-12: Steam Release (Steamworks, achievement, cloud save)
+  Hosszú táv:  Mobile port, PvP arena, Endless dungeon, Modding support
+
+  Steam ár tervezett: $9.99 – $14.99
+
+================================================================================
+  MŰKÖDÉSI SZABÁLYOK (DEVELOPMENT RULES)
+================================================================================
+
+  1. FEATURE FREEZE: Month 4 végén (Hét 17) – új feature nem kerül be
+  2. WEEKLY BUILD: minden péntek este működő build legyen
+  3. GIT COMMIT: naponta minimum 1 commit, descriptive message
+  4. PIHENŐNAP: vasárnap OFF (burnout megelőzés)
+  5. SCOPE GUARD: minden új ötlet → "nice-to-have" lista → post-launch
+  6. AI REVIEW: minden generált sprite → Aseprite cleanup MIELŐTT import
+  7. TESZTELÉS: minden milestone-nál full integration teszt
+  8. DOKUMENTÁCIÓ: nagy rendszer változás → frissíteni a terv fájl-okat
+  9. BACKUP: heti 1× teljes projekt backup (külső drive)
+  10. PROGRESS LOG: napi 2-3 mondat mit csináltam → fejlesztési napló
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║  ASHENFALL MASTER PLAN – VÉGE                                                ║
+║                                                                              ║
+║  11 részletes terv fájl + 1 master plan = TELJES PROJEKT DOKUMENTÁCIÓ       ║
+║  Összesen ~10,500+ sor terv → FEJLESZTÉS INDULHAT                           ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝

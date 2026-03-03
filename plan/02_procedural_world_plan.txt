@@ -1,0 +1,817 @@
+================================================================================
+  ASHENFALL – 02. PROCEDURÁLIS VILÁG GENERÁLÁS – TELJES IMPLEMENTÁCIÓS TERV
+================================================================================
+
+  Motor: Godot 4.x (GDScript)
+  Stílus: 2D top-down pixel art (Stardew Valley kamera)
+  AI Asset Pipeline: Stable Diffusion + ComfyUI + LoRA + Aseprite
+
+================================================================================
+  TARTALOMJEGYZÉK
+================================================================================
+
+  1. Rendszer áttekintés
+  2. Map generálás pipeline
+  3. Perlin Noise implementáció
+  4. Biome rendszer
+  5. Corruption és Temperature map
+  6. Points of Interest (POI) rendszer
+  7. Dungeon spawn logika
+  8. Úthálózat generálás
+  9. Chunk rendszer és streaming
+  10. Godot implementáció
+  11. AI-generált tileset-ek és textúrák
+  12. AI-generált biome dekorációk és props
+  13. AI-generált környezeti animációk
+  14. Kapcsolódó rendszerek
+
+================================================================================
+  1. RENDSZER ÁTTEKINTÉS
+================================================================================
+
+  A játék világát procedurálisan generáljuk egy seed alapján.
+  A világ egy összefüggő kontinens, több biome-mal, városokkal, dungeon-ökkel
+  és felfedezésre váró területekkel.
+
+  Világ méret:
+    Kis világ: 256×256 chunk (1 chunk = 16×16 tile) → 4096×4096 tile
+    Közepes: 512×512 chunk → 8192×8192 tile
+    Nagy: 1024×1024 chunk → 16384×16384 tile
+
+  Tile méret: 32×32 pixel
+  Megjelenített terület: ~40×30 tile (1280×960px viewport)
+
+================================================================================
+  2. MAP GENERÁLÁS PIPELINE
+================================================================================
+
+  A generálás sorrendje (lépésről lépésre):
+
+  1. Continent Seed
+     └─ Egyetlen integer seed, amiből minden származik.
+     └─ Alapból random, de megadható (reprodukálható világ).
+
+  2. Heightmap generálás
+     └─ Multi-octave Perlin Noise → magasság térkép
+     └─ Értékek: 0.0 (mély víz) – 1.0 (magas hegy)
+     └─ Küszöbek:
+         0.0 – 0.25: mély víz (nem járható)
+         0.25 – 0.35: sekély víz / part
+         0.35 – 0.55: alföld / síkság
+         0.55 – 0.70: domb / erdős terület
+         0.70 – 0.85: hegyoldal
+         0.85 – 1.0: hegycsúcs (nem járható)
+
+  3. Temperature Map
+     └─ Külön Perlin Noise layer (eltérő seed offset)
+     └─ Értékek: 0.0 (fagyos) – 1.0 (forró)
+     └─ Befolyásolja a biome kiválasztást
+
+  4. Corruption Map
+     └─ A "sötétség" terjedését jelöli
+     └─ A világ közepéből / bizonyos pontoktól terjed
+     └─ Értékek: 0.0 (tiszta) – 1.0 (teljesen korrupt)
+     └─ Magas corruption = nehezebb ellenségek, jobb loot
+
+  5. Biome Placement
+     └─ Height + Temperature + Corruption → biome kiválasztás
+     └─ Szabály-alapú döntési fa (lásd 4. szekció)
+
+  6. Points of Interest (POI) Spawn
+     └─ Poisson disk sampling biome-onként
+     └─ Város, tanya, rom, oltár, kereskedő, quest NPC
+
+  7. Dungeon Spawn
+     └─ Biome difficulty + distance from start → dungeon tier
+     └─ Minden biome-ban minimum 2, maximum 6 dungeon
+
+  8. Road Generation
+     └─ A* pathfinding a POI-k között → út tile-ok lerakása
+     └─ Fő utak: városok között
+     └─ Mellékutak: város → dungeon bejárat
+
+  9. Foliage & Decoration
+     └─ Biome-specifikus dekoráció spawning (fák, sziklák, virágok)
+     └─ Sűrűség: noise-alapú (ne legyen egyenletes)
+
+================================================================================
+  3. PERLIN NOISE IMPLEMENTÁCIÓ
+================================================================================
+
+  3.1 GDScript Noise használat
+  ────────────────────────────
+
+    Godot beépített FastNoiseLite class használata:
+
+    var noise = FastNoiseLite.new()
+    noise.noise_type = FastNoiseLite.TYPE_PERLIN
+    noise.seed = world_seed
+    noise.frequency = 0.01
+    noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+    noise.fractal_octaves = 6
+    noise.fractal_lacunarity = 2.0
+    noise.fractal_gain = 0.5
+
+    # Érték lekérés:
+    var height = noise.get_noise_2d(x, y)  # -1.0 – 1.0
+    height = (height + 1.0) / 2.0           # 0.0 – 1.0 normalizált
+
+  3.2 Több noise layer
+  ────────────────────────────
+
+    height_noise:
+      frequency: 0.008, octaves: 6
+      → kontinens forma, hegyek, völgyek
+
+    temperature_noise:
+      frequency: 0.004, octaves: 3
+      seed_offset: +1000
+      → hőmérsékleti zónák (nagymértékű változás)
+
+    corruption_noise:
+      frequency: 0.006, octaves: 4
+      seed_offset: +2000
+      → corruption intenzitás
+      + radiális gradient a corruption forráspontoktól
+
+    moisture_noise:
+      frequency: 0.005, octaves: 4
+      seed_offset: +3000
+      → nedvesség → mocsár/sivatag határozás
+
+    detail_noise:
+      frequency: 0.05, octaves: 2
+      seed_offset: +4000
+      → mikro részletek (dekoráció sűrűség, tile variáns kiválasztás)
+
+================================================================================
+  4. BIOME RENDSZER
+================================================================================
+
+  4.1 Biome típusok
+  ──────────────────
+
+  ┌──────────────────┬──────────┬──────────┬───────────┬──────────┐
+  │ Biome            │ Height   │ Temp     │ Corrupt   │ Moisture │
+  ├──────────────────┼──────────┼──────────┼───────────┼──────────┤
+  │ Cursed Forest    │ 0.35-0.6 │ 0.3-0.6  │ 0.4-0.7   │ 0.4-0.7  │
+  │ Plague Lands     │ 0.35-0.5 │ 0.4-0.7  │ 0.7-1.0   │ 0.2-0.5  │
+  │ Mountains        │ 0.7-0.85 │ 0.0-0.4  │ bármilyen │ bármilyen│
+  │ Ruins            │ 0.4-0.6  │ 0.3-0.6  │ 0.3-0.6   │ 0.2-0.4  │
+  │ Dark Swamp       │ 0.3-0.4  │ 0.5-0.8  │ 0.3-0.8   │ 0.7-1.0  │
+  │ Ashlands (extra) │ 0.4-0.6  │ 0.8-1.0  │ 0.5-0.9   │ 0.0-0.2  │
+  │ Frozen Wastes    │ 0.4-0.7  │ 0.0-0.2  │ 0.2-0.6   │ 0.3-0.6  │
+  │ Starting Meadow  │ 0.35-0.5 │ 0.4-0.6  │ 0.0-0.2   │ 0.3-0.6  │
+  └──────────────────┴──────────┴──────────┴───────────┴──────────┘
+
+  4.2 Biome kiválasztás algoritmusa
+  ──────────────────
+
+    func get_biome(x: int, y: int) -> BiomeType:
+        var h = height_noise.get_normalized(x, y)
+        var t = temp_noise.get_normalized(x, y)
+        var c = corruption_noise.get_normalized(x, y)
+        var m = moisture_noise.get_normalized(x, y)
+
+        # Víz és hegy ellenőrzés előbb
+        if h < 0.25: return BiomeType.DEEP_WATER
+        if h < 0.35: return BiomeType.SHALLOW_WATER
+        if h > 0.85: return BiomeType.MOUNTAIN_PEAK
+        if h > 0.70: return BiomeType.MOUNTAINS
+
+        # Starting area protection (spawn pont körül)
+        var dist_from_spawn = Vector2(x, y).distance_to(spawn_point)
+        if dist_from_spawn < 50 and c < 0.3:
+            return BiomeType.STARTING_MEADOW
+
+        # Corruption-based biomes
+        if c > 0.7: return BiomeType.PLAGUE_LANDS
+        if c > 0.4 and m > 0.4 and h < 0.6:
+            return BiomeType.CURSED_FOREST
+
+        # Temperature-based
+        if t < 0.2: return BiomeType.FROZEN_WASTES
+        if t > 0.8 and m < 0.2: return BiomeType.ASHLANDS
+
+        # Moisture-based
+        if m > 0.7 and h < 0.45: return BiomeType.DARK_SWAMP
+
+        # Default
+        if c > 0.3: return BiomeType.RUINS
+        return BiomeType.STARTING_MEADOW
+
+  4.3 Biome átmenetek
+  ──────────────────
+    Biome határok nem élesek → transition zone (3-5 tile széles)
+    Transition tile-ok: mindkét biome tile-jainak keveréke
+    Implementáció: lerp a noise értékeken → blended tile kiválasztás
+
+  4.4 Biome tulajdonságok
+  ──────────────────
+
+    Minden biome-hoz:
+      - Tile palette (ground, decoration)
+      - Enemy spawn table (típus + szint tartomány)
+      - Ambient sound
+      - Lighting/color tint (CanvasModulate)
+      - Fog/particle effect
+      - Music track
+      - Difficulty multiplier
+      - Loot bonus multiplier
+
+    Példa - Cursed Forest:
+      Ground tiles: sötét föld, rothadó levelek, gomba
+      Dekoráció: csavart fák, pókhálók, mérgező növények
+      Ellenségek: Spider (Melee), Poison Archer (Ranged), Witch (Caster)
+      Ambient: bagoly, szél, recsegés
+      Tint: zöld-lila (Color(0.7, 0.8, 0.6))
+      Difficulty: 1.2×
+      Loot bonus: 1.1×
+
+================================================================================
+  5. CORRUPTION ÉS TEMPERATURE MAP
+================================================================================
+
+  5.1 Corruption rendszer
+  ──────────────────────
+
+    A corruption nem statikus – a játék előrehaladásával terjedhet.
+
+    Alap corruption:
+      - Noise alapú → organikus foltok
+      - Corruption source pontok (boss lair-ek, portálok)
+      - Radiális gradient a source-tól
+
+    Dinamikus corruption (opcionális, endgame):
+      - Ha egy world boss-t nem ölnek meg X ideig, a corruption terjed
+      - Biome-ok átválthatnak (Meadow → Cursed Forest → Plague Lands)
+      - Vizuális: tile-ok lassan változnak (transition animáció)
+
+  5.2 Temperature hatás
+  ──────────────────────
+    - Hideg biome-ok: movement slow effect (hacsak nincs cold resist gear)
+    - Forró biome-ok: HP drain (hacsak nincs heat resist)
+    - Semleges: nincs hatás
+    - Resistance gear / buff → semlegesíthető
+
+================================================================================
+  6. POINTS OF INTEREST (POI) RENDSZER
+================================================================================
+
+  6.1 POI típusok
+  ──────────────
+
+    ┌───────────────────┬──────────────────┬────────────┐
+    │ POI Típus         │ Biome            │ Gyakoriság │
+    ├───────────────────┼──────────────────┼────────────┤
+    │ Város (Town)      │ Starting Meadow  │ 3-5 / világ│
+    │ Falu (Village)    │ bármelyik        │ 8-15       │
+    │ Kereskedő (Trader)│ út mentén        │ 10-20      │
+    │ Romok (Ruin)      │ Ruins, Forest    │ 15-25      │
+    │ Oltár (Shrine)    │ bármelyik        │ 10-15      │
+    │ Dungeon bejárat   │ biome-specifikus │ 15-30      │
+    │ Boss Arena        │ magas corruption │ 5-8        │
+    │ Rejtett barlang   │ Mountains, Swamp │ 5-10       │
+    │ Teleport kapu     │ városok közelében│ 3-5        │
+    └───────────────────┴──────────────────┴────────────┘
+
+  6.2 POI spawn algoritmus
+  ──────────────
+
+    Poisson Disk Sampling:
+      - Minimum távolság POI-k között: 30 tile (típusfüggő)
+      - Városok: min 100 tile egymástól
+      - Dungeon-ök: min 40 tile egymástól
+      - Kereskedők: utak mentén (road tile-ok 5 tile-os sugarában)
+
+    func generate_pois(biome_map, road_map):
+        var pois = []
+
+        # Városok először (legfontosabbak)
+        pois += place_towns(biome_map, count=rng.randi_range(3, 5))
+
+        # Dungeon-ök biome-onként
+        for biome in biome_map.get_unique_biomes():
+            var count = rng.randi_range(2, 6)
+            pois += place_dungeons(biome, count, min_distance=40)
+
+        # Kereskedők utak mentén
+        pois += place_traders_on_roads(road_map, count=rng.randi_range(10, 20))
+
+        # Kisebb POI-k (romok, oltárok, barlangok)
+        pois += scatter_minor_pois(biome_map, min_distance=30)
+
+        return pois
+
+  6.3 Város generálás
+  ──────────────
+
+    Város struktúra (pre-built layout variánsok + procedurális kitöltés):
+      - Központi tér (marketplace)
+      - Épületek: kovács, alkimista, fogadó, bank, quest board
+      - NPC spawn pontok
+      - Védőfal (opcionális, nagyobb városoknál)
+      - Teleport kapu
+
+    Város méret: 20×20 – 40×40 tile
+    Épület tile-ok: AI-generált (lásd 12. szekció)
+
+================================================================================
+  7. DUNGEON SPAWN LOGIKA
+================================================================================
+
+  Dungeon tier meghatározás:
+
+    tier = floor(biome_difficulty + distance_factor + corruption_bonus)
+
+    biome_difficulty:
+      Starting Meadow: 0
+      Cursed Forest: 1
+      Dark Swamp: 1
+      Ruins: 2
+      Mountains: 2
+      Frozen Wastes: 2
+      Plague Lands: 3
+      Ashlands: 3
+
+    distance_factor:
+      dist_from_spawn / 200 (0-3 tartomány)
+
+    corruption_bonus:
+      corruption_value × 2 (0-2 tartomány)
+
+    Tier ranges:
+      0-1: Tier 1 (Mini dungeon, 3-5 room)
+      2-3: Tier 2 (Standard dungeon, 6-10 room)
+      4-5: Tier 3 (Large dungeon, 10-15 room)
+      6+:  Tier 4 (Raid dungeon, 15-25 room)
+
+  Részletek: lásd 07_dungeon_generation_plan.txt
+
+================================================================================
+  8. ÚTHÁLÓZAT GENERÁLÁS
+================================================================================
+
+  8.1 Fő utak (main roads)
+  ──────────────────────
+    - Város → Város közötti legrövidebb út
+    - A* pathfinding a heightmap-en (hegyeket kerüli)
+    - Út szélessége: 2-3 tile
+    - Tile: döngölt föld, kő út (biome-függő)
+
+  8.2 Mellékutak (side roads)
+  ──────────────────────
+    - Város → közeli dungeon / POI
+    - Vékonyabb (1-2 tile)
+    - Organikusabb (noise-perturbáció az egyenes vonalon)
+
+  8.3 Út generálás algoritmus
+  ──────────────────────
+
+    func generate_roads(towns, dungeons, heightmap):
+        var roads = []
+
+        # Minimum Spanning Tree a városok között
+        var mst = compute_mst(towns)
+        for edge in mst:
+            var path = astar_path(edge.from, edge.to, heightmap)
+            roads.append(widen_path(path, width=2))
+
+        # Mellékutak: minden városhoz a legközelebbi 2-3 POI
+        for town in towns:
+            var nearby = get_nearest_pois(town, dungeons, count=3)
+            for poi in nearby:
+                var path = astar_path(town.pos, poi.pos, heightmap)
+                path = perturb_path(path, noise_amount=3)  # organikus
+                roads.append(path)
+
+        return roads
+
+  8.4 Út tile-ok
+  ──────────────────────
+    Biome-specifikus út kinézet:
+      Starting Meadow: homokszínű döngölt földút
+      Cursed Forest: sötét, repedezett kő
+      Mountains: sziklás ösvény
+      Dark Swamp: fa pallók (boardwalk)
+      Plague Lands: csontokkal szegélyezett
+
+================================================================================
+  9. CHUNK RENDSZER ÉS STREAMING
+================================================================================
+
+  9.1 Chunk méret
+  ──────────────
+    1 chunk = 16×16 tile = 512×512 pixel
+
+  9.2 Aktív chunk-ok
+  ──────────────
+    Megjelenítés: 3×3 chunk a játékos körül (viewport + buffer)
+    Szimulálás: 5×5 chunk (ellenség AI, terjeszkedés)
+    Teljes memória: max 25 chunk betöltve
+
+  9.3 Chunk lifecycle
+  ──────────────
+    1. GENERATE: Ha a chunk még nem létezik → generálás a seed-ből
+    2. LOAD: Ha a chunk már generálva volt → betöltés cache-ből
+    3. ACTIVE: Játékos közelében → teljes szimulálás
+    4. IDLE: Szimulálási tartományon kívül → csak memóriában
+    5. UNLOAD: Távol → mentés + memóriából törlés
+    6. SAVE: Chunk állapot mentése (módosított tile-ok, elpusztított objektumok)
+
+  9.4 Chunk adatstruktúra
+  ──────────────
+
+    class ChunkData:
+        var chunk_pos: Vector2i          # chunk koordináta
+        var tiles: Array[Array[int]]     # 16×16 tile ID-k
+        var biome: BiomeType             # domináns biome
+        var decorations: Array[DecorationData]
+        var enemies: Array[EnemySpawnData]
+        var pois: Array[POIData]
+        var modified: bool               # módosítva lett-e
+        var generated: bool
+
+  9.5 Streaming implementáció
+  ──────────────
+
+    A játékos pozíciójából kiszámoljuk az aktuális chunk-ot.
+    Minden frame-ben:
+      - Ha a játékos új chunk-ba lépett:
+        1. Betöltjük az új szomszéd chunk-okat (aszinkron, Thread)
+        2. Kidobjuk a már távoli chunk-okat
+      - Generálás háttérszálon (Thread) hogy ne legyen lag
+
+    func _process(delta):
+        var current_chunk = world_to_chunk(player.position)
+        if current_chunk != last_chunk:
+            update_loaded_chunks(current_chunk)
+            last_chunk = current_chunk
+
+    func update_loaded_chunks(center: Vector2i):
+        var needed = get_chunks_in_radius(center, LOAD_RADIUS)
+        var current = loaded_chunks.keys()
+
+        # Betöltés
+        for chunk_pos in needed:
+            if chunk_pos not in current:
+                load_or_generate_chunk(chunk_pos)
+
+        # Kidobás
+        for chunk_pos in current:
+            if chunk_pos not in needed:
+                unload_chunk(chunk_pos)
+
+================================================================================
+  10. GODOT IMPLEMENTÁCIÓ
+================================================================================
+
+  10.1 Node struktúra
+  ──────────────
+
+    WorldManager (Node2D) [Autoload Singleton]
+    ├── WorldGenerator (Node)
+    │   ├── NoiseManager (Node) → FastNoiseLite instances
+    │   ├── BiomeResolver (Node) → biome szabályok
+    │   ├── POIGenerator (Node)
+    │   ├── RoadGenerator (Node)
+    │   └── DungeonPlacer (Node)
+    ├── ChunkManager (Node)
+    │   ├── ChunkLoader (Node) → aszinkron betöltés
+    │   ├── ChunkCache (Node) → memória cache
+    │   └── ChunkSaver (Node) → mentés/betöltés
+    ├── TileMapLayer_Ground (TileMapLayer) → alap tile-ok
+    ├── TileMapLayer_Decoration (TileMapLayer) → dekoráció
+    ├── TileMapLayer_Overlay (TileMapLayer) → corruption overlay
+    ├── EntityContainer (Node2D) → NPC-k, ellenségek, POI-k
+    ├── EnvironmentManager (Node)
+    │   ├── CanvasModulate → biome tint
+    │   ├── AmbientParticles (GPUParticles2D)
+    │   └── WeatherSystem (Node)
+    └── MinimapData (Node) → térkép adatok a minimap-hez
+
+  10.2 Fő scriptek
+  ──────────────
+
+    scripts/world/
+    ├── world_manager.gd         # Fő singleton, inicializálás
+    ├── world_generator.gd       # Teljes generálás pipeline
+    ├── noise_manager.gd         # FastNoiseLite setup + query
+    ├── biome_resolver.gd        # Biome kiválasztás logika
+    ├── biome_data.gd            # Resource: biome tulajdonságok
+    ├── chunk_manager.gd         # Chunk lifecycle
+    ├── chunk_data.gd            # Chunk adatstruktúra
+    ├── poi_generator.gd         # POI elhelyezés
+    ├── road_generator.gd        # Úthálózat
+    ├── dungeon_placer.gd        # Dungeon bejárat spawn
+    ├── tile_rules.gd            # Auto-tile szabályok
+    ├── environment_manager.gd   # Biome-specifikus ambient
+    └── minimap_manager.gd       # Minimap adatok
+
+  10.3 TileMap setup
+  ──────────────
+
+    TileSet resource:
+      - Tile méret: 32×32
+      - Terrain sets: biome-onként (auto-tiling)
+      - Layers:
+          0: Ground (föld, víz, kő)
+          1: Decoration (fák, sziklák, virágok)
+          2: Overlay (corruption, tint)
+          3: Collision (path blocker)
+
+    Terrain típusok (Godot Terrain System):
+      - Minden biome-hoz külön terrain set
+      - Auto-tiling bit mask (3×3 minimum)
+      - Transition tile-ok biome határokhoz
+
+  10.4 Mentés rendszer
+  ──────────────
+
+    Mentendő adatok:
+      - World seed
+      - Módosított chunk-ok (módosított tile-ok delta-ja)
+      - POI állapotok (felfedezett, kiürített dungeon, stb.)
+      - Játékos pozíció
+      - NPC állapotok
+
+    Formátum: JSON vagy Godot .tres resource
+
+================================================================================
+  11. AI-GENERÁLT TILESET-EK ÉS TEXTÚRÁK
+================================================================================
+
+  11.1 Tool Stack
+  ──────────────
+    Generálás: Stable Diffusion XL + ComfyUI
+    Konzisztencia: LoRA fine-tune "ashenfall_tiles" stílus
+    Tile seamless: Tiling-aware generálás (seamless tile ComfyUI node)
+    Post-process: Aseprite (pixel cleanup, palette matching)
+    Auto-tile setup: Godot TileSet editor
+
+  11.2 Ground tile-ok (biome-onként)
+  ──────────────
+
+    Minden biome-hoz szükséges tile-ok:
+      - Base ground: 4 variáns (vizuális változatosság)
+      - Transition tile-ok: 8 irányú átmenet más biome-okkal
+      - Path/road tile-ok: 4 irányú + sarok
+      - Víz tile-ok: mély, sekély, part (animált, 3-4 frame)
+
+    AI prompt template (ground tile):
+      "seamless pixel art tile, top-down RPG, 32x32 pixels,
+       [biome_description], dark fantasy style, muted colors,
+       tileable texture, no objects"
+
+    Biome-specifikus promptok:
+
+    Starting Meadow:
+      "green grass tile, some small flowers, soft earth,
+       warm colors, peaceful meadow"
+
+    Cursed Forest:
+      "dark forest floor, dead leaves, mushrooms, dark green
+       and purple tones, corrupted earth"
+
+    Plague Lands:
+      "cracked toxic ground, green-yellow poisonous pools,
+       dead vegetation, sickly colors"
+
+    Mountains:
+      "grey stone surface, rocky terrain, snow patches,
+       cold blue-grey tones"
+
+    Ruins:
+      "broken stone floor, ancient tiles, cracks, rubble,
+       grey and brown tones"
+
+    Dark Swamp:
+      "muddy swamp ground, murky water puddles, dark green
+       and brown, wet surface"
+
+    Ashlands:
+      "volcanic ash ground, ember cracks, dark red and black,
+       scorched earth"
+
+    Frozen Wastes:
+      "snow and ice surface, blue-white, frozen ground,
+       ice crystal patches"
+
+  11.3 Tile mennyiség becslés
+  ──────────────
+
+    Biome-onként:
+      Ground variánsok: 4
+      Transition tile-ok: 16 (8 irány × 2 szomszéd biome átlag)
+      Út tile-ok: 6
+      Dekoráció tile-ok: 10-15
+      Speciális (víz anim, lava): 8-12 frame
+
+    Összesen: ~8 biome × ~40 tile = ~320 egyedi tile
+    + animált tile-ok: ~50 frame összesen
+
+  11.4 Seamless tiling workflow
+  ──────────────
+
+    1. ComfyUI-ban: "tiling" opció bekapcsolása a samplerben
+    2. Generálás 128×128-as méretben (4× a végleges tile méret)
+    3. Downscale 32×32-re pixel art sharpening-gel
+    4. Aseprite-ban palette lock + manual cleanup
+    5. Godot import: TileSet AtlasSource-ként
+
+================================================================================
+  12. AI-GENERÁLT BIOME DEKORÁCIÓK ÉS PROPS
+================================================================================
+
+  12.1 Dekoráció kategóriák
+  ──────────────
+
+    Természeti (biome-onként eltérő):
+      - Fák (kicsi, közepes, nagy) → 32×48, 48×64, 64×96
+      - Bokrok → 32×32
+      - Sziklák (kicsi, nagy) → 32×32, 48×48
+      - Virágok / gombák → 16×16
+      - Moha / korhadt fa → 32×16
+
+    Épített:
+      - Romok / oszlopok → 32×64
+      - Kerítés darabok → 32×16
+      - Útjelző tábla → 16×32
+      - Sírkövek → 16×32
+      - Oltárok → 32×32
+
+    Interaktív:
+      - Chest → 32×32 (nyitott/zárt frame)
+      - Barrel → 16×16 (ép/törött)
+      - Campfire → 32×32 (animált, 4 frame)
+      - Harvesting node (fa/kő/herb) → 32×32 (ép/kimerült)
+
+  12.2 AI generálási workflow (dekorációk)
+  ──────────────
+
+    Prompt template:
+      "pixel art [object], top-down RPG game asset, 2D sprite,
+       dark fantasy style, transparent background, [size]px,
+       [biome_context]"
+
+    Példa – Cursed Forest fa:
+      "pixel art twisted dead tree, top-down RPG, 2D sprite,
+       dark fantasy, transparent background, 64x96 pixels,
+       dark green and purple, glowing mushrooms on trunk"
+
+    Batch generálás:
+      1. Kategóriánként 1 ComfyUI workflow
+      2. Prompt-ban cserélni: object + biome_context
+      3. Egy batch: 20-30 variáns → kiválogatás
+      4. Aseprite: background removal, cleanup, palette match
+      5. Sprite atlas packing → Godot import
+
+  12.3 Biome-specifikus dekoráció gyűjtemények
+  ──────────────
+
+    Starting Meadow:
+      Fák: zöld lombos fa, virágzó cseresznyefa
+      Dekor: vadvirágok, pillangók, nyuszi (ambient)
+      Props: kerítés, szénakazal, szélmalom
+
+    Cursed Forest:
+      Fák: csavart halott fa, gomba-borított törzs, pókháló-fa
+      Dekor: mérgező gomba, izzó szemek a sötétben
+      Props: csontváz, elhagyott tábor, varjak
+
+    Plague Lands:
+      Fák: nincs (kihalt) → csontváz-fák
+      Dekor: mérgező buborékok, rothadó hús halmok
+      Props: megsemmisült falvak romjai, fertőzött oltár
+
+    Mountains:
+      Fák: fenyő, havas fa
+      Dekor: sziklák, hó foltok, kaviccsal borított ösvények
+      Props: meredek sziklafalak, bányabejárat
+
+    Dark Swamp:
+      Fák: mangrove, vízben álló elhalt fák
+      Dekor: hínár, buborékoló mocsár, köd
+      Props: fa pallók, elhagyott kunyhó, varjak
+
+    Ruins:
+      Fák: repedezett kő oszlopok (fa helyett)
+      Dekor: romok, törött szobrok, rúnakövek
+      Props: régi oltár, kincsesláda, csapdák
+
+================================================================================
+  13. AI-GENERÁLT KÖRNYEZETI ANIMÁCIÓK
+================================================================================
+
+  13.1 Animált tile-ok
+  ──────────────
+
+    Víz:
+      Frame: 4, Loop: 1.2s
+      Méret: 32×32
+      Típusok: mély víz, sekély víz, part hullámzás
+      AI prompt: "pixel art water tile animation, 4 frames,
+                  seamless, top-down, 32x32, dark blue"
+
+    Lava (Ashlands):
+      Frame: 4, Loop: 1.6s
+      AI prompt: "pixel art lava tile animation, 4 frames,
+                  glowing orange-red, seamless, top-down"
+
+    Mérgező mocsár (Dark Swamp / Plague Lands):
+      Frame: 3, Loop: 2.0s
+      AI prompt: "pixel art toxic swamp bubbles, 3 frames,
+                  green murky water, top-down"
+
+    Corruption pulsálás (Plague Lands):
+      Frame: 4, Loop: 2.0s
+      Overlay tile ami pulzálva sötétedik/világosodik
+
+  13.2 Particle effect-ek (Godot GPUParticles2D)
+  ──────────────
+
+    Biome-specifikus ambient particle-ök:
+
+    Starting Meadow:
+      - Kis fehér porszemek / pitypang pihék
+      - Pillangók (sprite particle, 16×16)
+
+    Cursed Forest:
+      - Zöld köd particle
+      - Izzó lila spórák
+      - Pókháló szálak (line particle)
+
+    Mountains:
+      - Hópelyhek
+      - Szél particle (fehér csíkok)
+
+    Dark Swamp:
+      - Sűrű köd
+      - Buborékok (zöld, felszálló)
+      - Szentjánosbogarak (sárga pont particle)
+
+    Plague Lands:
+      - Mérgező köd (sárga-zöld)
+      - Hamu / por particle-ök
+      - Corruption cseppek (felfelé emelkedő lila)
+
+    AI-generált particle textúra:
+      Méret: 8×8 vagy 16×16
+      Prompt: "tiny pixel art [particle_type], transparent bg,
+              single [color] [shape], 8x8 pixels"
+
+  13.3 Időjárás rendszer
+  ──────────────
+
+    Eső:
+      - Particle system (kék csíkok, felülről lefelé)
+      - Biome tint sötétítés
+      - Esőcsepp splash animáció a talajon (AI-generált, 4 frame)
+
+    Hó (Mountains, Frozen wastes):
+      - Hópehely particle (fehér, lassú, oldalra sodródó)
+      - Talaj hó réteg overlay
+
+    Köd:
+      - Áttetsző fehér/szürke pannók (Node2D + Sprite2D)
+      - Lassan mozgó, alpha blend
+
+    Vihar (ritka event):
+      - Eső + szél particle
+      - Villám flash (CanvasModulate brightness spike)
+      - Villámlás fény effect (0.1s fehér flash)
+
+  13.4 Nap/éjszaka ciklus
+  ──────────────
+
+    Ciklus hossz: 20 perc valós idő = 1 játék nap
+    Implementáció: CanvasModulate color animáció
+
+    Fázisok:
+      Hajnal (05:00):    Color(0.8, 0.7, 0.5)  → narancsas
+      Nappal (08:00):    Color(1.0, 1.0, 1.0)  → normál
+      Alkony (18:00):    Color(0.9, 0.6, 0.4)  → vöröses
+      Éjszaka (21:00):   Color(0.3, 0.3, 0.5)  → sötétkék
+      Éjfél (00:00):     Color(0.15, 0.15, 0.3) → nagyon sötét
+
+    Éjszakai hatás:
+      - Csökkentett látótávolság (PointLight2D a játékoson)
+      - Erősebb / más ellenségek spawn
+      - Speciális éjszakai event-ek
+
+================================================================================
+  14. KAPCSOLÓDÓ RENDSZEREK
+================================================================================
+
+  Ez a modul kapcsolódik:
+    → 07_dungeon_generation_plan.txt – Dungeon bejáratok a világban
+    → 06_enemy_ai_plan.txt – Biome-specifikus enemy spawn
+    → 03_boss_design_plan.txt – World boss spawn helyek
+    → 08_loot_system_plan.txt – Region difficulty → loot quality
+    → 05_networking_plan.txt – Chunk szinkronizáció multiplayer-ben
+    → 04_economy_system_plan.txt – Gathering node-ok a világban
+    → 10_godot_architecture_plan.txt – WorldManager autoload
+
+================================================================================
+  VÉGE – 02_procedural_world_plan.txt
+================================================================================

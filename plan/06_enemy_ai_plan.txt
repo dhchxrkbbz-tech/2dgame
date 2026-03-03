@@ -1,0 +1,1047 @@
+================================================================================
+  ASHENFALL – 06. ENEMY AI RENDSZER – TELJES IMPLEMENTÁCIÓS TERV
+================================================================================
+
+  Motor: Godot 4.x (GDScript)
+  Stílus: 2D top-down pixel art
+  AI Asset Pipeline: Stable Diffusion + ComfyUI + LoRA + Aseprite
+
+================================================================================
+  TARTALOMJEGYZÉK
+================================================================================
+
+  1. Rendszer áttekintés
+  2. Enemy típusok (5 kategória)
+  3. AI Behaviour Tree struktúra
+  4. Detection rendszer
+  5. Pathfinding (A* navigáció)
+  6. Attack Pattern rendszer
+  7. Pack AI (csoportos viselkedés)
+  8. Elite és Rare enemy-k
+  9. Enemy stat scaling
+  10. Enemy spawn rendszer
+  11. Biome-specifikus enemy-k (teljes lista)
+  12. Godot implementáció
+  13. AI-generált enemy sprite-ok
+  14. AI-generált enemy animációk
+  15. AI-generált enemy variánsok biome-onként
+  16. Kapcsolódó rendszerek
+
+================================================================================
+  1. RENDSZER ÁTTEKINTÉS
+================================================================================
+
+  Az Ashenfall 5 fő enemy kategóriát tartalmaz.
+  Minden enemy-nek AI behaviour tree vezérli a viselkedését.
+  Az enemy-k biome-specifikusak – más ellenségek vannak az egyes területeken.
+
+  Enemy-k száma összesen: ~40 egyedi enemy (8 biome × ~5 enemy/biome)
+  + Elite variánsok: +40 (minden alap enemy-nek van elite verziója)
+  + Rare variánsok: +15 (speciális ritka spawn-ok)
+
+  Minden enemy-nek AI-generált sprite sheet-je van, biome-hoz illő
+  szín palettával és animációkkal.
+
+================================================================================
+  2. ENEMY TÍPUSOK (5 kategória)
+================================================================================
+
+  ┌─────┬──────────────┬───────────────────────────────────────────────────┐
+  │ #   │ Típus        │ Jellemzők                                       │
+  ├─────┼──────────────┼───────────────────────────────────────────────────┤
+  │  1  │ Melee        │ Közelharcos, közepes HP, egyszerű AI             │
+  │  2  │ Ranged       │ Távolsági, alacsony HP, tartja a távolságot     │
+  │  3  │ Caster       │ Mágikus, közepes HP, AoE spell-ek, buff/debuff  │
+  │  4  │ Elite        │ Bármely típus erősebb verziója, extra ability    │
+  │  5  │ Boss         │ Lásd 03_boss_design_plan.txt (külön rendszer)    │
+  └─────┴──────────────┴───────────────────────────────────────────────────┘
+
+  2.1 Melee Enemy részletesen
+  ──────────────────
+
+    Alap statisztikák (Level 1 referencia):
+      HP: 40-80 | Damage: 8-15 | Speed: 60-90 | Armor: 2-8
+      Attack Range: 1 tile | Detection Range: 6 tile
+      Attack Speed: 1 hit/1.5s
+
+    Viselkedés:
+      - Egyenesen a játékos felé megy
+      - Közelharci ütés (1 v 2 attack animáció)
+      - Ha HP < 20%: 50% esély retreat-re
+      - Egyszerű, agresszív AI
+
+    Alt-típusok:
+      CHARGER: gyors, de kevés HP, roham ütés (charge attack)
+      BRUTE: lassú, sok HP, erős ütés, 2s stun ha eltalál
+      SWARMER: nagyon gyenge, mindig 3-5-ösével spawn, pack AI
+
+  2.2 Ranged Enemy részletesen
+  ──────────────────
+
+    Alap statisztikák:
+      HP: 25-50 | Damage: 10-18 | Speed: 50-70 | Armor: 1-3
+      Attack Range: 6-8 tile | Detection Range: 8 tile
+      Attack Speed: 1 hit/2s
+
+    Viselkedés:
+      - Megpróbálja tartani a 5-7 tile távolságot
+      - Ha a játékos közel jön → hátrálás
+      - Projectile lövés (tracking vagy egyenes)
+      - Ha sarokba szorul → melee ütés (gyenge)
+
+    Alt-típusok:
+      ARCHER: egyenes nyíl, közepes damage
+      SPITTER: AoE lövedék (kis terület), DOT
+      SNIPER: nagy range (10 tile), lassú de erős, telegraph jelzés
+
+  2.3 Caster Enemy részletesen
+  ──────────────────
+
+    Alap statisztikák:
+      HP: 30-60 | Damage: 15-25 (spell) | Speed: 40-60 | Armor: 1-2
+      Attack Range: 7-9 tile | Detection Range: 8 tile
+      Attack Speed: 1 spell/3s
+
+    Viselkedés:
+      - Háttérben marad (7+ tile)
+      - AoE spell cast (telegraph jelzéssel)
+      - Support: ha más enemy közelben → buff-olja őket (+20% damage)
+      - Ha egyedül marad → teleport/blink menekülés
+      - Ritka: heal más enemy-ket
+
+    Alt-típusok:
+      ELEMENTALIST: tűz/jég/méreg AoE, biome-specifikus elem
+      NECROMANCER: halott enemy-ket feltámaszt, summon
+      ENCHANTER: buff-olja a közeli enemy-ket, debuff-olja a játékost
+      HEALER: gyógyítja a szövetséges enemy-ket (prioritás!)
+
+  2.4 Elite Enemy részletesen
+  ──────────────────
+
+    Egy alap enemy erősebb verziója:
+      HP: base × 3
+      Damage: base × 1.5
+      Armor: base × 2
+      Speed: base × 1.1
+
+    Extra tulajdonságok (random 1-2 az alábbiak közül):
+      - SHIELDED: időszakos pajzs (3s invulnerability, 15s cd)
+      - VAMPIRIC: lifesteal (10% damage = heal)
+      - THORNS: visszaüt melee támadókat (20% damage reflect)
+      - ENRAGED: HP < 50% → +50% damage + speed
+      - SUMMONER: 30s-ként 2 kisebb enemy-t idéz
+      - TELEPORTER: 10s-ként random teleport a játékos háta mögé
+      - EXPLOSIVE: halálkor robbanás (3 tile AoE, nagy damage)
+
+    Vizuális megkülönböztetés:
+      - Izzó aura (szín függ az extra tulajdonságtól)
+      - Nagyobb sprite (1.3× scale)
+      - Csillag jelzés a HP bar mellett
+
+    Spawn esély: 10% bármely normál enemy spawn helyett
+
+================================================================================
+  3. AI BEHAVIOUR TREE STRUKTÚRA
+================================================================================
+
+  3.1 Behaviour Tree áttekintés
+  ──────────────────
+
+    A játék Behaviour Tree (BT) mintát használ az enemy AI-hoz.
+    Nem Godot plugin – saját implementáció GDScript-ben.
+
+    Node típusok:
+      SELECTOR: sorban próbálja a child-eket, első siker → kész
+      SEQUENCE: sorban végrehajtja mind, bármelyik fail → fail
+      CONDITION: feltétel ellenőrzés (bool)
+      ACTION: tényleges cselekvés (mozgás, támadás, stb.)
+      DECORATOR: módosítja a child viselkedését (inverter, repeat)
+
+  3.2 Melee Enemy Behaviour Tree
+  ──────────────────
+
+    ROOT (Selector)
+    ├── DEAD_CHECK (Sequence)
+    │   ├── Condition: is_dead?
+    │   └── Action: play_death_animation → despawn
+    ├── RETREAT (Sequence)
+    │   ├── Condition: hp_percent < 20 AND random < 0.5
+    │   └── Action: flee_from_player(distance: 8 tile)
+    ├── ATTACK (Sequence)
+    │   ├── Condition: target_in_attack_range? (1 tile)
+    │   ├── Condition: attack_cooldown_ready?
+    │   └── Action: perform_attack → play_attack_anim → deal_damage
+    ├── CHASE (Sequence)
+    │   ├── Condition: target_detected? (6 tile)
+    │   └── Action: move_toward_target (pathfinding)
+    ├── PATROL (Sequence)
+    │   ├── Condition: has_patrol_path?
+    │   └── Action: follow_patrol_path
+    └── IDLE (Action)
+        └── Action: idle_animation, face_random_direction
+
+  3.3 Ranged Enemy Behaviour Tree
+  ──────────────────
+
+    ROOT (Selector)
+    ├── DEAD_CHECK (Sequence)
+    │   ├── Condition: is_dead?
+    │   └── Action: play_death → despawn
+    ├── TOO_CLOSE_RETREAT (Sequence)
+    │   ├── Condition: target_distance < 3 tile
+    │   └── Action: move_away_from_target(desired_distance: 6)
+    ├── ATTACK (Sequence)
+    │   ├── Condition: target_in_range? (6-8 tile)
+    │   ├── Condition: has_line_of_sight?
+    │   ├── Condition: attack_cooldown_ready?
+    │   └── Action: fire_projectile → play_attack_anim
+    ├── REPOSITION (Sequence)
+    │   ├── Condition: target_detected? AND NOT has_line_of_sight
+    │   └── Action: find_line_of_sight_position → move_there
+    ├── CHASE (Sequence)
+    │   ├── Condition: target_detected? (8 tile)
+    │   └── Action: move_toward_target (keep desired_distance: 6)
+    ├── PATROL → ...
+    └── IDLE → ...
+
+  3.4 Caster Enemy Behaviour Tree
+  ──────────────────
+
+    ROOT (Selector)
+    ├── DEAD_CHECK → ...
+    ├── BUFF_ALLIES (Sequence)
+    │   ├── Condition: ally_in_range? (5 tile) AND buff_ready?
+    │   └── Action: cast_buff_on_nearest_ally
+    ├── HEAL_ALLIES (Sequence) [ha healer típus]
+    │   ├── Condition: ally_hp < 50%? AND heal_ready?
+    │   └── Action: cast_heal_on_lowest_hp_ally
+    ├── CAST_SPELL (Sequence)
+    │   ├── Condition: target_in_range? (7-9 tile)
+    │   ├── Condition: spell_cooldown_ready?
+    │   └── Action: cast_spell (AoE telegraph → damage)
+    ├── SUMMON (Sequence) [ha necromancer típus]
+    │   ├── Condition: summon_count < max AND summon_ready?
+    │   └── Action: summon_minion
+    ├── RETREAT_IF_CLOSE (Sequence)
+    │   ├── Condition: target_distance < 4 tile
+    │   └── Action: blink_away(distance: 6) OR flee
+    ├── FOLLOW_AT_DISTANCE → ...
+    └── IDLE → ...
+
+================================================================================
+  4. DETECTION RENDSZER
+================================================================================
+
+  4.1 Detection paraméterek
+  ──────────────────
+
+    detection_range: 6-10 tile (típusfüggő)
+    detection_shape: kör (Area2D CircleShape2D)
+    line_of_sight: raycasting (falakon nem lát át)
+    aggro_memory: 10s (ha a játékos eltűnik, még üldözi)
+    
+  4.2 Aggro rendszer
+  ──────────────────
+
+    Threat érték (multiplayer-ben):
+      Minden játékoshoz threat szám
+      Melee: a legközelebbit támadja (distance-based threat)
+      Ranged: a legtöbb damage-et okozót (damage-based threat)
+      Caster: a legkisebb HP-jú (opportunity targeting)
+
+    Threat módosítók:
+      Taunt skill: +1000 threat (overwrites)
+      Heal: threat = heal_amount × 0.5
+      Damage: threat = damage_amount × 1.0
+      Proximity: threat += 1/distance × 10
+
+  4.3 Detection állapotok
+  ──────────────────
+
+    UNAWARE: nem lát játékost → idle/patrol
+    SUSPICIOUS: játékos a detection határ szélén → lassú közelítés
+    ALERT: játékos detektálva → chase/attack
+    CHASING: üldözés (ha a játékos elfut)
+    LEASH: túl messzire ment a spawn ponttól → visszatérés + regen
+
+    Leash distance: 30 tile (ha ennél messzebb kergetné → feladja)
+    Leash regen: 10% HP/sec visszafelé menet + visszatérés teljes HP-ra
+
+  4.4 Implementáció
+  ──────────────────
+
+    Detection node:
+      EnemyEntity
+      └── DetectionArea (Area2D)
+          └── CollisionShape2D (CircleShape2D, radius=detection_range × 32)
+
+    func _on_detection_area_body_entered(body):
+        if body is Player:
+            if has_line_of_sight(body):
+                set_state(ALERT)
+                current_target = body
+
+    Line of sight:
+      var space = get_world_2d().direct_space_state
+      var query = PhysicsRayQueryParameters2D.create(
+          global_position, target.global_position
+      )
+      query.exclude = [self]
+      query.collision_mask = WALL_LAYER
+      var result = space.intersect_ray(query)
+      has_los = result.is_empty()  # ha nincs akadály → lát
+
+================================================================================
+  5. PATHFINDING (A* NAVIGÁCIÓ)
+================================================================================
+
+  5.1 Godot NavigationServer2D
+  ──────────────────
+    Beépített Godot navigáció használata (nem custom A*):
+    
+    NavigationRegion2D:
+      - TileMap-ből automatikus NavigationPolygon generálás
+      - Járható tile-ok → navigálható terület
+      - Fal/víz/akadály → lyukak a polygon-ban
+
+  5.2 Enemy navigáció setup
+  ──────────────────
+
+    EnemyEntity (CharacterBody2D)
+    └── NavigationAgent2D
+        ├── target_position: target.global_position
+        ├── path_desired_distance: 4.0
+        ├── target_desired_distance: 4.0
+        ├── avoidance_enabled: true
+        └── max_speed: enemy.speed
+
+  5.3 Mozgás logika
+  ──────────────────
+
+    func navigate_to(target_pos: Vector2):
+        nav_agent.target_position = target_pos
+
+    func _physics_process(delta):
+        if nav_agent.is_navigation_finished():
+            return
+
+        var next_pos = nav_agent.get_next_path_position()
+        var direction = global_position.direction_to(next_pos)
+        velocity = direction * speed
+        move_and_slide()
+
+  5.4 Obstacle avoidance
+  ──────────────────
+    NavigationAgent2D beépített avoidance:
+      - Más enemy-ket elkerüli (ne stackelődjenek)
+      - radius: 16px (fél tile)
+      - Prioritás: Elite > normál (elite-ek nem térnek ki)
+
+  5.5 Pathfinding optimalizáció
+  ──────────────────
+    - Path újraszámítás: 0.5s-ként (nem minden frame)
+    - Ha a cél nem mozdult >1 tile → régi path megmaradt
+    - Távoli enemy-k (> 20 tile viewport-on kívül): egyszerűsített pathfinding
+    - Max 30 aktív pathfinding query / frame
+
+================================================================================
+  6. ATTACK PATTERN RENDSZER
+================================================================================
+
+  6.1 Attack Pattern struktúra
+  ──────────────────
+
+    class AttackPattern extends Resource:
+        var attack_name: String
+        var damage: float
+        var cooldown: float
+        var range: float
+        var animation_name: String
+        var telegraph_time: float  # 0 = nincs telegraph
+        var area_type: AreaType    # NONE, CIRCLE, CONE, LINE
+        var area_size: Vector2
+        var projectile_scene: PackedScene  # null ha melee
+        var effects: Array[StatusEffect]   # poison, slow, stun
+
+  6.2 Melee attack pattern-ök
+  ──────────────────
+
+    Basic Slash:
+      damage: 100% base, cooldown: 1.5s, range: 1 tile
+      animáció: swing forward
+
+    Heavy Strike (Brute):
+      damage: 200% base, cooldown: 3s, range: 1.5 tile
+      telegraph: 0.8s (fegyver felemelés)
+      effect: 1s stun
+
+    Charge Attack (Charger):
+      damage: 150% base, cooldown: 5s, range: 4 tile (dash)
+      animáció: dash forward → impact
+      effect: knockback 2 tile
+
+    Bite (beast típusú):
+      damage: 120% base, cooldown: 2s, range: 1 tile
+      possible effect: poison DOT (biome-specifikus)
+
+  6.3 Ranged attack pattern-ök
+  ──────────────────
+
+    Arrow Shot:
+      damage: 100% base, cooldown: 2s, range: 8 tile
+      projectile: arrow (egyenes vonal, gyors)
+
+    Poison Spit:
+      damage: 60% base + 40% DOT (4s), cooldown: 3s, range: 6 tile
+      projectile: zöld gömb (közepes sebesség)
+      area: 2 tile splash a becsapódási pontnál
+
+    Sniper Shot:
+      damage: 200% base, cooldown: 5s, range: 10 tile
+      telegraph: 1.5s (piros vonal jelzés)
+      projectile: gyors, egyenes
+
+    Web Shot (pók típusú):
+      damage: 20% base, cooldown: 4s, range: 6 tile
+      effect: 2s root (nem sebez sokat, de mozgásgátló)
+
+  6.4 Caster attack pattern-ök
+  ──────────────────
+
+    Fireball:
+      damage: 150% base, cooldown: 3s, range: 8 tile
+      AoE: 2 tile sugár a becsapódásnál
+      telegraph: 0.5s
+
+    Frost Nova:
+      damage: 80% base, cooldown: 8s, range: self (3 tile sugár)
+      effect: 2s slow (50%)
+      telegraph: 1.0s
+
+    Curse:
+      damage: 0, cooldown: 10s, range: 7 tile
+      effect: -20% player damage, 8s
+      speciális: debuff
+
+    Summon Minion:
+      spawns: 2 swarmer enemy, cooldown: 15s
+
+    Heal Beam:
+      heal: 15% target max HP, cooldown: 8s, range: 6 tile
+      target: legalacsonyabb HP szövetséges enemy
+
+  6.5 Attack kiválasztás logika
+  ──────────────────
+
+    func choose_attack() -> AttackPattern:
+        var available = []
+        for attack in attack_patterns:
+            if attack.is_ready() and target_in_range(attack.range):
+                available.append(attack)
+        
+        if available.is_empty():
+            return null
+        
+        # Prioritás: speciális > alap
+        available.sort_custom(func(a, b): return a.priority > b.priority)
+        
+        # Kis random variáció hogy ne legyen kiszámítható
+        if available.size() > 1 and randf() < 0.3:
+            return available[1]  # néha a 2. legjobb opció
+        
+        return available[0]
+
+================================================================================
+  7. PACK AI (csoportos viselkedés)
+================================================================================
+
+  7.1 Pack rendszer
+  ──────────────────
+
+    Ha 3+ enemy van egymás 5 tile-os körzetében → pack formáció.
+
+    Pack role-ok:
+      LEADER: a legmagasabb HP-jú enemy → frontvonal, aggro
+      FLANKER: melee enemy → oldalról közelít
+      SUPPORT: ranged/caster → hátul marad, támogat
+
+    Pack kommunikáció:
+      - Leader detektál target → az egész pack alert state-be kerül
+      - Ha a leader meghal → új leader kiválasztás (legmagasabb HP)
+      - Pack retreat: ha a pack 50%-a meghal → maradék menekül (30% esély)
+
+  7.2 Flanking logika
+  ──────────────────
+
+    A FLANKER enemy-k nem egyenesen mennek a játékosra:
+      1. Kiszámítják a spieler ellentétes oldalát a leader-hez képest
+      2. Oda navigálnak (90-180° eltolás)
+      3. Onnan támadnak → nehezebb egyszerre blokkolni
+
+    func get_flank_position(leader_pos: Vector2, target_pos: Vector2) -> Vector2:
+        var to_target = (target_pos - leader_pos).normalized()
+        var perpendicular = Vector2(-to_target.y, to_target.x)
+        var flank_offset = perpendicular * flank_distance * flank_side
+        return target_pos + flank_offset
+
+  7.3 Swarmer viselkedés
+  ──────────────────
+    Swarmer-ek (3-5 fős csoport):
+      - Mindig együtt mozognak (boids-szerű)
+      - Separation: ne menjenek túl közel egymáshoz
+      - Cohesion: maradjanak a csoport közelében
+      - Alignment: hasonló irányba mozogjanak
+      - Ha áll az útjukban → körbeveszik a játékost
+
+================================================================================
+  8. ELITE ÉS RARE ENEMY-K
+================================================================================
+
+  8.1 Elite spawn
+  ──────────────────
+    Minden normál enemy spawn-nak 10% esélye elite-ként spawning.
+    Elite = alap enemy + erősített stat-ok + 1-2 extra ability.
+
+    Elite kiválasztás:
+      var rng = RandomNumberGenerator.new()
+      if rng.randf() < 0.10:
+          spawn_as_elite(enemy)
+
+    Elite módosítások:
+      enemy.hp *= 3.0
+      enemy.damage *= 1.5
+      enemy.armor *= 2.0
+      enemy.speed *= 1.1
+      enemy.xp_reward *= 3.0
+      enemy.loot_bonus *= 2.0
+      enemy.add_random_affixes(randi_range(1, 2))
+
+  8.2 Elite affix-ek részletesen
+  ──────────────────
+
+    SHIELDED:
+      - 3s invulnerability, 15s cooldown
+      - Vizuális: kék burok megjelenés
+      - AI: Shield Mode-ban agresszívabban támad
+
+    VAMPIRIC:
+      - 10% dealt damage = self heal
+      - Vizuális: piros aura, vér particle hit-nél
+      - Extra veszélyes DPS check
+
+    THORNS:
+      - Melee támadók 20% reflected damage kapnak
+      - Vizuális: tüskés aura
+      - Counter: ranged módszer ajánlott
+
+    ENRAGED:
+      - HP < 50% → +50% damage, +30% speed
+      - Vizuális: piros glow, gyorsabb animáció
+      - Timing: gyorsan kell megölni az enrage után
+
+    SUMMONER:
+      - 30s-ként 2 normál enemy spawn
+      - Max 4 summon aktív
+      - Prioritás: öld meg a summoner-t előbb!
+
+    TELEPORTER:
+      - 10s-ként teleport a játékos háta mögé
+      - 0.5s invulnerability teleport közben
+      - Vizuális: lila portál effect
+
+    EXPLOSIVE:
+      - Halálkor 3 tile AoE robbanás, 200% base damage
+      - Vizuális: pulzáló piros-narancs glow halálakor
+      - Taktika: hátrébb lépni mielőtt meghal
+
+  8.3 Rare enemy-k
+  ──────────────────
+    Rare enemy: egyedi nevű, egyedi kinézetű, fix spawn helyen.
+    1% spawn esély, vagy fix helyen egy biome-ban.
+
+    Példák:
+      "Shadowfang" – Cursed Forest, Shadow Wolf (Melee Elite + TELEPORTER + VAMPIRIC)
+      "Plaguemother" – Plague Lands, Giant Spider (Ranged Elite + SUMMONER)
+      "Frostbane" – Frozen Wastes, Ice Golem (Melee Elite + SHIELDED + THORNS)
+
+    Rare loot: guaranteed rare/epic drop + egyedi item esély
+
+================================================================================
+  9. ENEMY STAT SCALING
+================================================================================
+
+  9.1 Level-based scaling
+  ──────────────────
+
+    Enemy stat-ok a player szinthez igazodnak:
+      enemy_level = base_biome_level + randi_range(-2, +2)
+
+    Scaling formula:
+      hp = base_hp × (1 + (enemy_level - 1) × 0.15)
+      damage = base_damage × (1 + (enemy_level - 1) × 0.12)
+      armor = base_armor × (1 + (enemy_level - 1) × 0.10)
+      xp_reward = base_xp × (1 + (enemy_level - 1) × 0.20)
+      gold_drop = base_gold × (1 + (enemy_level - 1) × 0.15)
+
+  9.2 Biome base level-ek
+  ──────────────────
+
+    ┌──────────────────┬────────────┬──────────────┐
+    │ Biome            │ Base Level │ Enemy Count  │
+    ├──────────────────┼────────────┼──────────────┤
+    │ Starting Meadow  │ 1-5        │ kevés, gyenge│
+    │ Cursed Forest    │ 8-15       │ közepes      │
+    │ Dark Swamp       │ 10-18      │ közepes      │
+    │ Ruins            │ 15-25      │ közepes-sok  │
+    │ Mountains        │ 18-28      │ közepes      │
+    │ Frozen Wastes    │ 22-32      │ közepes      │
+    │ Ashlands         │ 28-38      │ sok          │
+    │ Plague Lands     │ 35-45      │ nagyon sok   │
+    └──────────────────┴────────────┴──────────────┘
+
+  9.3 Multiplayer scaling
+  ──────────────────
+    Enemy HP scaling játékos szám alapján:
+      1 játékos: 1.0×
+      2 játékos: 1.5×
+      3 játékos: 2.0×
+      4 játékos: 2.5×
+
+    Damage NEM skálázódik (különben túl nehéz lenne).
+    Spawn count: +20% / extra játékos
+
+================================================================================
+  10. ENEMY SPAWN RENDSZER
+================================================================================
+
+  10.1 Spawn logika
+  ──────────────────
+
+    Chunk-alapú spawning:
+      - Minden chunk-nak van max enemy kapacitása (5-15 biome-függő)
+      - Amikor egy chunk aktívvá válik (játékos közelít):
+        1. Ellenőrzi, hány enemy van még aktívan
+        2. Ha kevesebb mint max → spawn (feltöltés)
+      - Spawn pozíció: a játékostól min 10 tile-ra, max 20 tile-ra
+      - NEM spawn a viewport-ban (ne popping-oljon)
+
+  10.2 Spawn wave rendszer (dungeon)
+  ──────────────────
+    Dungeon room-okban: wave-alapú spawning
+      Wave 1: 3-5 melee enemy
+      Wave 2: 2-3 melee + 1-2 ranged
+      Wave 3: 1-2 melee + 1 ranged + 1 caster
+      Final: elite enemy (opcionális)
+
+    Room cleared = ajtó kinyílik, loot spawn
+
+  10.3 Spawn table
+  ──────────────────
+
+    class SpawnTable:
+        var biome: BiomeType
+        var entries: Array[SpawnEntry]
+
+    class SpawnEntry:
+        var enemy_type: EnemyType
+        var weight: float          # spawn esély súlyozás
+        var min_level: int
+        var max_level: int
+        var pack_size: Vector2i    # min/max csoport méret
+
+    Példa – Cursed Forest spawn table:
+      Spider (Melee): weight 30, pack 2-4
+      Poison Archer (Ranged): weight 20, pack 1-2
+      Dark Witch (Caster): weight 10, pack 1
+      Shadow Wolf (Melee/Charger): weight 25, pack 3-5
+      Corrupted Treant (Melee/Brute): weight 15, pack 1
+
+  10.4 Respawn mechanika
+  ──────────────────
+    - World enemy respawn: 2-5 perc (ha a chunk aktív)
+    - Dungeon enemy: NEM respawn (room cleared = cleared)
+    - Boss respawn: 10 min (mini boss), 30 min (dungeon boss), 1 óra (world boss)
+
+================================================================================
+  11. BIOME-SPECIFIKUS ENEMY-K (teljes lista)
+================================================================================
+
+  ──────────────────────────────────────────────────────────────────────────────
+  STARTING MEADOW
+  ──────────────────────────────────────────────────────────────────────────────
+    1. Forest Slime (Melee/Swarmer) – zöld kocsonyás lény
+    2. Wild Boar (Melee/Charger) – vaddisznó, charge attack
+    3. Bandit (Melee) – tolvaj, daggers
+    4. Bandit Archer (Ranged) – tolvaj, nyíl
+    5. Rabid Wolf (Melee) – veszett farkas
+
+  ──────────────────────────────────────────────────────────────────────────────
+  CURSED FOREST
+  ──────────────────────────────────────────────────────────────────────────────
+    1. Giant Spider (Melee) – nagy pók, harapás + web
+    2. Poison Archer (Ranged/Spitter) – mérgezett nyíl
+    3. Dark Witch (Caster/Enchanter) – átkok, debuff
+    4. Shadow Wolf (Melee/Charger) – árnyék farkas, gyors
+    5. Corrupted Treant (Melee/Brute) – romlott fa golem
+
+  ──────────────────────────────────────────────────────────────────────────────
+  DARK SWAMP
+  ──────────────────────────────────────────────────────────────────────────────
+    1. Swamp Lurker (Melee) – mocsári lény, grab
+    2. Toxic Frog (Ranged/Spitter) – mérges béka, poison spit
+    3. Bog Witch (Caster/Healer) – mocsári boszorkány, heal
+    4. Vine Creeper (Melee) – inda lény, root effect
+    5. Swamp Horror (Melee/Brute) – hatalmas mocsári szörny
+
+  ──────────────────────────────────────────────────────────────────────────────
+  RUINS
+  ──────────────────────────────────────────────────────────────────────────────
+    1. Skeleton Warrior (Melee) – csontváz harcos
+    2. Skeleton Archer (Ranged) – csontváz íjász
+    3. Ghost (Caster) – szellem, phase through walls
+    4. Animated Armor (Melee/Brute) – élő páncél
+    5. Wraith (Caster/Necromancer) – kísértet, summon skeleton
+
+  ──────────────────────────────────────────────────────────────────────────────
+  MOUNTAINS
+  ──────────────────────────────────────────────────────────────────────────────
+    1. Mountain Goat (Melee/Charger) – hegyi kecske, charge
+    2. Rock Elemental (Melee/Brute) – kő elementál, igen erős
+    3. Harpy (Ranged) – hárpia, repülő, szél lövedék
+    4. Yeti (Melee/Brute) – jeti, frost DOT
+    5. Mountain Bandit (Ranged/Sniper) – bandita, sniper nyíl
+
+  ──────────────────────────────────────────────────────────────────────────────
+  FROZEN WASTES
+  ──────────────────────────────────────────────────────────────────────────────
+    1. Ice Wolf (Melee/Charger) – jég farkas, frost bite
+    2. Frost Mage (Caster/Elementalist) – jég mágus, Frost Nova
+    3. Ice Golem (Melee/Brute) – jég golem, nagyon lassú, nagy sebzés
+    4. Snow Wraith (Caster) – hó kísértet, blizzard aura
+    5. Frozen Revenant (Melee) – befagyott harcosok, melee + slow
+
+  ──────────────────────────────────────────────────────────────────────────────
+  ASHLANDS
+  ──────────────────────────────────────────────────────────────────────────────
+    1. Flame Imp (Melee/Swarmer) – tűz imp, 3-5 fős csoport
+    2. Fire Elemental (Caster/Elementalist) – tűz elementál, fireball
+    3. Ash Golem (Melee/Brute) – hamu golem
+    4. Magma Worm (Ranged/Spitter) – láva féreg, lava spit
+    5. Infernal Knight (Melee) – pokol lovag, tüzes fegyver
+
+  ──────────────────────────────────────────────────────────────────────────────
+  PLAGUE LANDS
+  ──────────────────────────────────────────────────────────────────────────────
+    1. Plague Zombie (Melee/Swarmer) – zombi, nagy számban, lassú
+    2. Plague Rat (Melee/Swarmer) – patkány raj
+    3. Abomination (Melee/Brute) – hatalmas undead, AoE slam
+    4. Plague Doctor (Caster/Healer) – pestis orvos, heal + poison
+    5. Death Knight (Melee) – halál lovag, erős, curse strike
+
+================================================================================
+  12. GODOT IMPLEMENTÁCIÓ
+================================================================================
+
+  12.1 Node struktúra (EnemyEntity)
+  ──────────────────
+
+    EnemyEntity (CharacterBody2D)
+    ├── EnemySprite (AnimatedSprite2D)
+    ├── AnimationPlayer
+    ├── CollisionShape2D (physics)
+    ├── HitboxArea (Area2D) → melee attack hitbox
+    ├── HurtboxArea (Area2D) → sebezhetőség
+    ├── DetectionArea (Area2D) → player detection
+    ├── NavigationAgent2D → pathfinding
+    ├── BehaviourTree (Node) → AI logic
+    │   ├── BT_Root (BTSelector)
+    │   └── [child nodes per behaviour]
+    ├── AttackManager (Node) → attack pattern kezelés
+    ├── StatusEffectManager (Node) → buff/debuff
+    ├── HealthBar (Control) → feletti HP bar
+    ├── LootDropper (Node) → loot generálás halálkor
+    ├── MultiplayerSynchronizer → multiplayer sync
+    └── EliteIndicator (Sprite2D) → elite aura/jelzés
+
+  12.2 Script struktúra
+  ──────────────────
+
+    scripts/ai/
+    ├── enemy_base.gd              # Alap enemy class
+    ├── enemy_data.gd              # Resource: enemy statisztikák
+    ├── behaviour_tree/
+    │   ├── bt_node.gd             # Alap BT node
+    │   ├── bt_selector.gd         # Selector node
+    │   ├── bt_sequence.gd         # Sequence node
+    │   ├── bt_condition.gd        # Condition node
+    │   ├── bt_action.gd           # Action node
+    │   ├── bt_decorator.gd        # Decorator node
+    │   └── bt_builder.gd          # BT felépítés típus alapján
+    ├── detection_system.gd        # Aggro és detection
+    ├── attack_manager.gd          # Attack pattern kezelés
+    ├── attack_pattern.gd          # Resource: attack adatok
+    ├── pack_ai.gd                 # Pack viselkedés
+    ├── elite_system.gd            # Elite affix logika
+    ├── enemy_spawner.gd           # Spawn management
+    ├── spawn_table.gd             # Resource: spawn táblák
+    └── specific/                  # Biome-specifikus AI
+        ├── spider_ai.gd
+        ├── skeleton_ai.gd
+        ├── elemental_ai.gd
+        └── [... per enemy type]
+
+  12.3 EnemyData Resource
+  ──────────────────
+
+    class_name EnemyData extends Resource
+
+    @export var enemy_name: String
+    @export var enemy_id: String
+    @export var enemy_category: EnemyCategory  # MELEE, RANGED, CASTER
+    @export var sub_type: EnemySubType         # CHARGER, BRUTE, SWARMER, SNIPER, etc.
+    @export var base_hp: int
+    @export var base_damage: int
+    @export var base_armor: int
+    @export var base_speed: float
+    @export var detection_range: float
+    @export var attack_range: float
+    @export var attack_patterns: Array[AttackPattern]
+    @export var sprite_frames: SpriteFrames
+    @export var loot_table: LootTable
+    @export var xp_reward: int
+    @export var gold_reward_range: Vector2i
+    @export var biome: BiomeType
+    @export var pack_size_range: Vector2i
+    @export var can_be_elite: bool = true
+
+================================================================================
+  13. AI-GENERÁLT ENEMY SPRITE-OK
+================================================================================
+
+  13.1 Sprite méret
+  ──────────────────
+    Alap enemy: 32×32px (1 tile)
+    Brute/nagy enemy: 48×48px (1.5 tile)
+    Swarmer/kis enemy: 24×24px (0.75 tile)
+
+  13.2 Sprite sheet struktúra
+  ──────────────────
+    Soronként 1 animáció, oszloponként frame-ek:
+      Row 0: idle (4 frame)
+      Row 1: walk (6 frame)
+      Row 2: attack_1 (5 frame)
+      Row 3: attack_2 (5 frame) [opcionális]
+      Row 4: hit (3 frame)
+      Row 5: death (6 frame)
+
+    Irányok: 4 irány (down, up, left, right)
+    Összesen: ~30 frame × 4 irány = ~120 frame / enemy (sprite sheet)
+    Vagy: 2 irány (down, up) + horizontal flip = 60 frame / enemy
+
+  13.3 AI generálási workflow
+  ──────────────────
+
+    1. Concept design:
+       Prompt: "pixel art [enemy_name], top-down RPG character design,
+               dark fantasy, [biome_context], [color_palette], concept art"
+       → 5-10 variáns → legjobb kiválasztás
+
+    2. Sprite sheet generálás:
+       Prompt: "pixel art sprite sheet, [enemy_name], top-down view,
+               [size] per frame, idle walk attack death animations,
+               transparent background, [frame_count] frames per animation,
+               dark fantasy style"
+       + ControlNet: pose referencia sprite sheet
+
+    3. LoRA konzisztencia:
+       "ashenfall_enemy" LoRA → konzisztens stílus
+       + Biome-specifikus LoRA modifier (szín paletta)
+
+    4. Post-process (Aseprite):
+       - Frame-ek szeparálása
+       - Background removal
+       - Palette lock (max 16-24 szín / enemy)
+       - Pixel cleanup (AI artifakt eltávolítás)
+       - Animation timing beállítás
+
+    5. Godot import:
+       - SpriteFrames resource létrehozás
+       - AnimatedSprite2D frame-ek beállítás
+       - Collision shape igazítás
+
+  13.4 Enemy-specifikus prompt-ok
+  ──────────────────
+
+    Giant Spider (Cursed Forest):
+      "pixel art giant spider, 8 legs, dark purple and green,
+       venomous fangs, web strands, dark forest creature,
+       32x32 sprite, top-down RPG, menacing"
+
+    Skeleton Warrior (Ruins):
+      "pixel art skeleton warrior, rusty sword and shield,
+       tattered armor, glowing eye sockets, undead,
+       32x32 sprite, top-down RPG, dark fantasy"
+
+    Fire Elemental (Ashlands):
+      "pixel art fire elemental, living flame creature,
+       orange and red, ember particles, molten core,
+       32x32 sprite, top-down RPG, burning"
+
+    Swamp Lurker (Dark Swamp):
+      "pixel art swamp monster, mossy, wet, amphibian,
+       glowing eyes, mud-covered, dark green and brown,
+       32x32 sprite, top-down RPG, creepy"
+
+    Plague Zombie (Plague Lands):
+      "pixel art plague zombie, rotting flesh, green toxic,
+       tattered clothes, shambling, undead,
+       32x32 sprite, top-down RPG, horrific"
+
+================================================================================
+  14. AI-GENERÁLT ENEMY ANIMÁCIÓK
+================================================================================
+
+  14.1 Animáció lista (minden enemy-re)
+  ──────────────────
+
+    idle:       4 frame, 0.8s loop → subtle mozgás (lélegzés, szemek)
+    walk:       6 frame, 0.6s loop → mozgás ciklus
+    attack_1:   5 frame, 0.4s once → alap támadás
+    attack_2:   5 frame, 0.5s once → másodlagos (ha van)
+    hit:        3 frame, 0.3s once → megsebzés reakció
+    death:      6 frame, 0.8s once → halál + eltűnés / collapse
+
+  14.2 Speciális animációk (típusfüggő)
+  ──────────────────
+
+    Charger:
+      charge_windup: 3 frame, 0.3s → összehúzza magát
+      charge_dash: 4 frame, 0.2s loop → blur effect dash
+
+    Brute:
+      heavy_attack: 8 frame, 0.8s → lassú, nagy swing
+      stomp: 6 frame, 0.6s → AoE ground pound
+
+    Caster:
+      cast: 6 frame, 0.5s → spell casting kézmozgás
+      channel: 4 frame, loop → folyamatos varázslat
+      teleport: 4 frame, 0.3s → eltűnés/megjelenés
+
+    Swarmer:
+      swarm_idle: 3 frame, 0.4s → gyors, ideges mozgás
+
+  14.3 Death animáció variánsok
+  ──────────────────
+    Elemental halál: szétrobbanás → particle burst
+    Undead halál: összeroskadás → csontok széthullás
+    Beast halál: elesés → fade out
+    Humanoid halál: térdre roskadás → eldőlés
+
+    AI prompt: "pixel art [enemy] death animation, 6 frames,
+               [death_style], top-down, transparent background"
+
+  14.4 Projectile sprite-ok (enemy lövedékek)
+  ──────────────────
+    Arrow: 8×16px, 2 frame (repülés loop)
+    Poison spit: 16×16px, 4 frame (buborékolás)
+    Fireball: 16×16px, 4 frame (lángoló)
+    Ice shard: 8×16px, 2 frame
+    Web ball: 16×16px, 3 frame (ragadós)
+    Dark bolt: 16×16px, 4 frame (lila izzás)
+
+    AI prompt: "pixel art [projectile_type] sprite, small,
+               [frame_count] frames, transparent background,
+               pixel art RPG style, [color]"
+
+================================================================================
+  15. AI-GENERÁLT ENEMY VARIÁNSOK BIOME-ONKÉNT
+================================================================================
+
+  15.1 Recolor / variáns rendszer
+  ──────────────────
+
+    Ugyanaz az enemy más biome-ban más szín palettával:
+
+    Wolf variánsok:
+      Starting Meadow: barna (normál farkas)
+      Cursed Forest: sötét szürke + lila szemek (Shadow Wolf)
+      Frozen Wastes: fehér + kék szemek (Ice Wolf)
+      Plague Lands: zöldes, rothadó (Plague Wolf)
+
+    Implementáció opciók:
+      A) Külön sprite sheet biome-onként (több asset, legjobb minőség)
+      B) Shader-based recolor (palette swap shader – egy asset, sok variáns)
+      C) Mix: fő enemy-k külön sprite, variánsok shader recolor
+
+    Ajánlott: C) Mix megközelítés
+      - Fő enemy-k (40 db): teljes AI-generált sprite sheet
+      - Variánsok (+40): palette swap shader (Godot ShaderMaterial)
+      - Elite glow: shader overlay (szín = affix típus)
+
+  15.2 Palette swap shader (Godot)
+  ──────────────────
+
+    shader_type canvas_item;
+    uniform sampler2D palette_texture : source_color;
+    uniform int palette_index = 0;
+
+    void fragment() {
+        vec4 color = texture(TEXTURE, UV);
+        // Look up the replacement color from palette
+        float key = color.r;  // grayscale key
+        vec4 new_color = texture(palette_texture,
+            vec2(key, float(palette_index) / palette_count));
+        COLOR = vec4(new_color.rgb, color.a);
+    }
+
+    Előny: 1 sprite sheet + N palette = N enemy variáns
+    Palette texture: 256×N (N = variánsok száma)
+
+  15.3 Elite vizuális shader
+  ──────────────────
+
+    Elite aura shader:
+      - Izzó outline (szín = affix típus)
+      - Pulzáló alpha (breathing effect)
+      - Méret: 1.2-1.3× scale
+
+    shader_type canvas_item;
+    uniform vec4 glow_color : source_color = vec4(1.0, 0.0, 0.0, 1.0);
+    uniform float glow_strength = 0.5;
+    uniform float pulse_speed = 2.0;
+
+    void fragment() {
+        vec4 color = texture(TEXTURE, UV);
+        float pulse = sin(TIME * pulse_speed) * 0.3 + 0.7;
+        // Outline detection
+        float outline = 0.0;
+        for (int i = -1; i <= 1; i++) {
+            for (int j = -1; j <= 1; j++) {
+                vec2 offset = vec2(float(i), float(j)) * TEXTURE_PIXEL_SIZE;
+                outline += texture(TEXTURE, UV + offset).a;
+            }
+        }
+        if (color.a < 0.5 && outline > 0.0) {
+            COLOR = glow_color * pulse * glow_strength;
+        } else {
+            COLOR = color;
+        }
+    }
+
+================================================================================
+  16. KAPCSOLÓDÓ RENDSZEREK
+================================================================================
+
+  Ez a modul kapcsolódik:
+    → 01_skill_tree_plan.txt – Skill vs enemy interaction
+    → 02_procedural_world_plan.txt – Biome enemy spawn table-ök
+    → 03_boss_design_plan.txt – Boss AI (speciális enemy)
+    → 04_economy_system_plan.txt – Enemy gold/material drop
+    → 05_networking_plan.txt – Enemy sync host→client
+    → 07_dungeon_generation_plan.txt – Dungeon enemy spawn wave
+    → 08_loot_system_plan.txt – Enemy tier → loot rarity
+    → 10_godot_architecture_plan.txt – AI modul helye
+
+================================================================================
+  VÉGE – 06_enemy_ai_plan.txt
+================================================================================

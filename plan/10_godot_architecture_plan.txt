@@ -1,0 +1,1046 @@
+================================================================================
+  ASHENFALL – 10. GODOT ARCHITECTURE – TELJES IMPLEMENTÁCIÓS TERV
+================================================================================
+
+  Motor: Godot 4.x (GDScript)
+  Stílus: 2D top-down pixel art
+  AI Asset Pipeline: Stable Diffusion + ComfyUI + LoRA + Aseprite
+
+================================================================================
+  TARTALOMJEGYZÉK
+================================================================================
+
+  1. Projekt struktúra (könyvtár layout)
+  2. Autoload Singleton-ök
+  3. Scene Tree hierarchia
+  4. Signal rendszer
+  5. Resource rendszer
+  6. Core rendszerek
+  7. Combat rendszer
+  8. Class rendszer
+  9. Item és Loot rendszer
+  10. World rendszer
+  11. Dungeon rendszer
+  12. Multiplayer rendszer
+  13. UI rendszer
+  14. AI rendszer
+  15. Audio rendszer
+  16. Save/Load rendszer
+  17. AI Asset Pipeline (teljes dokumentáció)
+  18. Exportálás és build
+  19. Performance optimalizáció
+  20. Kapcsolódó rendszerek
+
+================================================================================
+  1. PROJEKT STRUKTÚRA (KÖNYVTÁR LAYOUT)
+================================================================================
+
+  res://
+  ├── project.godot
+  ├── export_presets.cfg
+  │
+  ├── assets/
+  │   ├── sprites/
+  │   │   ├── characters/
+  │   │   │   ├── assassin/
+  │   │   │   │   ├── idle/
+  │   │   │   │   ├── walk/
+  │   │   │   │   ├── run/
+  │   │   │   │   ├── attack/
+  │   │   │   │   ├── cast/
+  │   │   │   │   ├── hit/
+  │   │   │   │   ├── death/
+  │   │   │   │   └── dodge/
+  │   │   │   ├── tank/
+  │   │   │   │   └── [same structure]
+  │   │   │   └── mage/
+  │   │   │       └── [same structure]
+  │   │   ├── enemies/
+  │   │   │   ├── starting_meadow/
+  │   │   │   ├── cursed_forest/
+  │   │   │   ├── dark_swamp/
+  │   │   │   ├── ruins/
+  │   │   │   ├── mountains/
+  │   │   │   ├── frozen_wastes/
+  │   │   │   ├── ashlands/
+  │   │   │   └── plague_lands/
+  │   │   ├── bosses/
+  │   │   │   ├── tier1/
+  │   │   │   ├── tier2/
+  │   │   │   ├── tier3/
+  │   │   │   └── tier4/
+  │   │   ├── npcs/
+  │   │   ├── effects/
+  │   │   │   ├── skills/
+  │   │   │   ├── impacts/
+  │   │   │   ├── projectiles/
+  │   │   │   └── auras/
+  │   │   └── ui/
+  │   │       ├── icons/
+  │   │       │   ├── skills/
+  │   │       │   ├── items/
+  │   │       │   ├── gems/
+  │   │       │   └── currencies/
+  │   │       ├── frames/
+  │   │       ├── buttons/
+  │   │       └── backgrounds/
+  │   ├── tilesets/
+  │   │   ├── world/
+  │   │   │   ├── starting_meadow.tres
+  │   │   │   ├── cursed_forest.tres
+  │   │   │   ├── dark_swamp.tres
+  │   │   │   ├── ruins.tres
+  │   │   │   ├── mountains.tres
+  │   │   │   ├── frozen_wastes.tres
+  │   │   │   ├── ashlands.tres
+  │   │   │   └── plague_lands.tres
+  │   │   └── dungeons/
+  │   │       ├── witch_hollow.tres
+  │   │       ├── sunken_temple.tres
+  │   │       ├── ancient_crypt.tres
+  │   │       ├── deep_mine.tres
+  │   │       ├── frost_citadel.tres
+  │   │       ├── molten_forge.tres
+  │   │       └── plague_sanctum.tres
+  │   ├── audio/
+  │   │   ├── music/
+  │   │   │   ├── menu.ogg
+  │   │   │   ├── exploration.ogg
+  │   │   │   ├── combat.ogg
+  │   │   │   ├── boss.ogg
+  │   │   │   ├── dungeon.ogg
+  │   │   │   └── victory.ogg
+  │   │   └── sfx/
+  │   │       ├── combat/
+  │   │       ├── ui/
+  │   │       ├── environment/
+  │   │       └── skills/
+  │   ├── shaders/
+  │   │   ├── palette_swap.gdshader
+  │   │   ├── elite_glow.gdshader
+  │   │   ├── rarity_border.gdshader
+  │   │   ├── fog_of_war.gdshader
+  │   │   ├── day_night.gdshader
+  │   │   ├── water.gdshader
+  │   │   └── corruption.gdshader
+  │   └── fonts/
+  │       ├── main_font.tres
+  │       ├── title_font.tres
+  │       └── pixel_font.tres
+  │
+  ├── scenes/
+  │   ├── main/
+  │   │   ├── main.tscn               # Fő scene
+  │   │   ├── game_world.tscn         # Gameplay világ
+  │   │   └── loading_screen.tscn
+  │   ├── player/
+  │   │   ├── player.tscn             # Player entity
+  │   │   ├── player_camera.tscn      # Kamera
+  │   │   └── player_hud.tscn         # HUD overlay
+  │   ├── enemies/
+  │   │   ├── enemy_base.tscn         # Alap enemy scene
+  │   │   ├── enemy_melee.tscn
+  │   │   ├── enemy_ranged.tscn
+  │   │   ├── enemy_caster.tscn
+  │   │   └── enemy_elite.tscn
+  │   ├── bosses/
+  │   │   ├── boss_base.tscn
+  │   │   └── [boss-specific scenes]
+  │   ├── world/
+  │   │   ├── chunk.tscn              # Egy chunk scene
+  │   │   ├── world_props.tscn        # Dekoráció
+  │   │   └── dungeon_entrance.tscn
+  │   ├── dungeons/
+  │   │   ├── dungeon_instance.tscn
+  │   │   ├── room_combat.tscn
+  │   │   ├── room_treasure.tscn
+  │   │   ├── room_puzzle.tscn
+  │   │   ├── room_safe.tscn
+  │   │   ├── room_boss.tscn
+  │   │   └── room_secret.tscn
+  │   ├── ui/
+  │   │   ├── main_menu.tscn
+  │   │   ├── character_select.tscn
+  │   │   ├── inventory_screen.tscn
+  │   │   ├── skill_tree_screen.tscn
+  │   │   ├── map_screen.tscn
+  │   │   ├── marketplace.tscn
+  │   │   ├── crafting_station.tscn
+  │   │   ├── npc_shop.tscn
+  │   │   ├── dialogue_box.tscn
+  │   │   ├── settings_menu.tscn
+  │   │   ├── lobby_screen.tscn
+  │   │   ├── loot_filter_settings.tscn
+  │   │   └── trade_window.tscn
+  │   ├── items/
+  │   │   ├── dropped_item.tscn       # Földön lévő loot
+  │   │   ├── chest.tscn              # Chest entity
+  │   │   └── mimic.tscn              # Mimic enemy/chest
+  │   └── effects/
+  │       ├── projectile.tscn
+  │       ├── aoe_effect.tscn
+  │       ├── buff_aura.tscn
+  │       └── damage_number.tscn
+  │
+  ├── scripts/
+  │   ├── core/
+  │   │   ├── game_manager.gd         # Autoload: fő játék vezérlés
+  │   │   ├── event_bus.gd            # Autoload: globális signal-ok
+  │   │   ├── save_manager.gd         # Autoload: save/load
+  │   │   ├── audio_manager.gd        # Autoload: hang kezelés
+  │   │   ├── scene_manager.gd        # Autoload: scene váltás
+  │   │   ├── input_manager.gd        # Autoload: input kezelés
+  │   │   ├── constants.gd            # Autoload: konstansok
+  │   │   ├── enums.gd                # Enum definíciók
+  │   │   ├── utils.gd                # Utility funkciók
+  │   │   └── debug_console.gd        # Debug konzol (dev only)
+  │   ├── combat/
+  │   │   ├── combat_manager.gd       # Combat flow vezérlés
+  │   │   ├── damage_calculator.gd    # Damage formula
+  │   │   ├── hitbox_component.gd     # Hitbox logika
+  │   │   ├── hurtbox_component.gd    # Hurtbox logika
+  │   │   ├── health_component.gd     # HP kezelés
+  │   │   ├── status_effect.gd        # Buff/debuff alap class
+  │   │   ├── status_effect_manager.gd│ Status kezelés
+  │   │   ├── projectile.gd           # Projectile mozgás + impact
+  │   │   ├── damage_number.gd        # Floating damage szám
+  │   │   └── telegraph.gd            # AoE telegraph jelzés
+  │   ├── classes/
+  │   │   ├── class_base.gd           # Alap class logika
+  │   │   ├── assassin.gd
+  │   │   ├── tank.gd
+  │   │   ├── mage.gd
+  │   │   ├── skill_manager.gd        # Skill kezelés
+  │   │   ├── skill_data.gd           # Resource: skill adatok
+  │   │   ├── skill_tree.gd           # Skill tree UI + logika
+  │   │   └── ultimate_manager.gd     # Ultimate skill kezelés
+  │   ├── items/
+  │   │   ├── item_base.gd
+  │   │   ├── item_data.gd
+  │   │   ├── item_instance.gd
+  │   │   ├── item_generator.gd
+  │   │   ├── rarity.gd
+  │   │   ├── affix_pool.gd
+  │   │   ├── affix.gd
+  │   │   ├── loot_table.gd
+  │   │   ├── loot_dropper.gd
+  │   │   ├── loot_manager.gd
+  │   │   ├── drop_display.gd
+  │   │   ├── set_item_data.gd
+  │   │   ├── legendary_data.gd
+  │   │   ├── inventory.gd
+  │   │   ├── stash.gd
+  │   │   ├── equipment.gd
+  │   │   ├── item_tooltip.gd
+  │   │   ├── loot_filter.gd
+  │   │   └── gems/
+  │   │       ├── gem_data.gd
+  │   │       ├── gem_instance.gd
+  │   │       ├── gem_stat_table.gd
+  │   │       ├── legendary_gem_data.gd
+  │   │       ├── socket_system.gd
+  │   │       ├── gem_combiner.gd
+  │   │       └── gem_ui.gd
+  │   ├── professions/
+  │   │   ├── profession_base.gd
+  │   │   ├── gathering/
+  │   │   │   ├── mining.gd
+  │   │   │   ├── herbalism.gd
+  │   │   │   ├── woodcutting.gd
+  │   │   │   └── skinning.gd
+  │   │   └── crafting/
+  │   │       ├── blacksmithing.gd
+  │   │       ├── alchemy.gd
+  │   │       ├── tailoring.gd
+  │   │       └── enchanting.gd
+  │   ├── world/
+  │   │   ├── world_generator.gd       # Procedurális világ generátor
+  │   │   ├── chunk_manager.gd         # Chunk loading/unloading
+  │   │   ├── chunk.gd                 # Egy chunk logika
+  │   │   ├── biome_data.gd            # Resource: biome adatok
+  │   │   ├── noise_generator.gd       # Perlin noise rétegek
+  │   │   ├── poi_placer.gd            # Point of Interest
+  │   │   ├── road_generator.gd        # Útvonal generálás
+  │   │   ├── day_night_cycle.gd       # Nap/éjszaka
+  │   │   ├── weather_system.gd        # Időjárás
+  │   │   ├── resource_node.gd         # Gyűjthető node
+  │   │   └── npc_system.gd            # NPC logika
+  │   ├── dungeons/
+  │   │   ├── dungeon_manager.gd
+  │   │   ├── bsp_generator.gd
+  │   │   ├── room_data.gd
+  │   │   ├── room_factory.gd
+  │   │   ├── corridor_builder.gd
+  │   │   ├── dungeon_tilemap_painter.gd
+  │   │   ├── door_controller.gd
+  │   │   ├── trap_system.gd
+  │   │   ├── trap_data.gd
+  │   │   ├── fog_of_war.gd
+  │   │   ├── dungeon_minimap.gd
+  │   │   ├── dungeon_enemy_spawner.gd
+  │   │   ├── dungeon_loot_spawner.gd
+  │   │   ├── puzzle_base.gd
+  │   │   ├── puzzles/
+  │   │   │   └── [puzzle scripts]
+  │   │   └── biome_themes/
+  │   │       └── [theme scripts]
+  │   ├── multiplayer/
+  │   │   ├── network_manager.gd       # Autoload: networking
+  │   │   ├── lobby_manager.gd         # Lobby kezelés
+  │   │   ├── player_sync.gd           # Játékos szinkronizáció
+  │   │   ├── enemy_sync.gd            # Enemy szinkronizáció
+  │   │   ├── loot_sync.gd             # Loot szinkronizáció
+  │   │   ├── chat_system.gd           # In-game chat
+  │   │   ├── session_manager.gd       # Session kezelés
+  │   │   └── anti_cheat.gd            # Alapszintű anti-cheat
+  │   ├── ui/
+  │   │   ├── hud.gd                   # HUD fő script
+  │   │   ├── health_bar.gd            # HP bar (player + enemy)
+  │   │   ├── mana_bar.gd
+  │   │   ├── xp_bar.gd
+  │   │   ├── minimap.gd               # World minimap
+  │   │   ├── inventory_ui.gd          # Inventory screen
+  │   │   ├── skill_tree_ui.gd         # Skill tree screen
+  │   │   ├── quest_log_ui.gd          # Quest lista
+  │   │   ├── marketplace_ui.gd        # Marketplace UI
+  │   │   ├── crafting_ui.gd           # Crafting UI
+  │   │   ├── tooltip_system.gd        # Tooltip rendszer
+  │   │   ├── dialogue_ui.gd           # NPC párbeszéd
+  │   │   ├── notification_ui.gd       # Pop-up értesítések
+  │   │   └── settings_ui.gd           # Beállítások
+  │   └── ai/
+  │       ├── enemy_base.gd
+  │       ├── enemy_data.gd
+  │       ├── behaviour_tree/
+  │       │   ├── bt_node.gd
+  │       │   ├── bt_selector.gd
+  │       │   ├── bt_sequence.gd
+  │       │   ├── bt_condition.gd
+  │       │   ├── bt_action.gd
+  │       │   ├── bt_decorator.gd
+  │       │   └── bt_builder.gd
+  │       ├── detection_system.gd
+  │       ├── attack_manager.gd
+  │       ├── attack_pattern.gd
+  │       ├── pack_ai.gd
+  │       ├── elite_system.gd
+  │       ├── enemy_spawner.gd
+  │       ├── spawn_table.gd
+  │       └── specific/
+  │           └── [enemy-specific AI scripts]
+  │
+  ├── data/
+  │   ├── skills/
+  │   │   ├── assassin_shadow.tres
+  │   │   ├── assassin_poison.tres
+  │   │   ├── assassin_blood.tres
+  │   │   ├── tank_guardian.tres
+  │   │   ├── tank_warbringer.tres
+  │   │   ├── tank_paladin.tres
+  │   │   ├── mage_arcane.tres
+  │   │   ├── mage_frost.tres
+  │   │   └── mage_holy.tres
+  │   ├── enemies/
+  │   │   └── [per biome enemy data .tres]
+  │   ├── bosses/
+  │   │   └── [boss data .tres]
+  │   ├── items/
+  │   │   ├── base_weapons/
+  │   │   ├── base_armor/
+  │   │   ├── base_accessories/
+  │   │   ├── consumables/
+  │   │   ├── materials/
+  │   │   ├── sets/
+  │   │   └── legendaries/
+  │   ├── gems/
+  │   │   ├── normal_gems/
+  │   │   └── legendary_gems/
+  │   ├── loot_tables/
+  │   │   ├── enemy_loot/
+  │   │   ├── boss_loot/
+  │   │   └── chest_loot/
+  │   ├── spawn_tables/
+  │   │   └── [per biome spawn table .tres]
+  │   ├── biomes/
+  │   │   └── [biome data .tres]
+  │   ├── recipes/
+  │   │   └── [crafting recipe .tres]
+  │   ├── affixes/
+  │   │   ├── prefixes.tres
+  │   │   └── suffixes.tres
+  │   ├── traps/
+  │   │   └── [trap data .tres]
+  │   └── balance/
+  │       ├── damage_formulas.tres
+  │       ├── xp_table.tres
+  │       └── economy_config.tres
+  │
+  └── addons/
+      └── [opcionális plugin-ok]
+
+================================================================================
+  2. AUTOLOAD SINGLETON-ÖK
+================================================================================
+
+  Az autoload-ok globálisan elérhetőek mindenhonnan.
+  Minimális autoload szám – csak ami valóban globális.
+
+  ┌──────────────────────┬─────────────────────────────────────────────────┐
+  │ Autoload neve        │ Felelősség                                     │
+  ├──────────────────────┼─────────────────────────────────────────────────┤
+  │ GameManager          │ Játék állapot (menü/loading/playing/paused)    │
+  │ EventBus             │ Globális signal-ok (decouple)                  │
+  │ SaveManager          │ Save/Load logika                               │
+  │ AudioManager         │ Zene/SFX lejátszás                            │
+  │ SceneManager         │ Scene váltás (transition-ökkel)               │
+  │ NetworkManager       │ Multiplayer kapcsolat                          │
+  │ Constants            │ Globális konstansok                            │
+  │ InputManager         │ Input mapping + state                          │
+  └──────────────────────┴─────────────────────────────────────────────────┘
+
+  project.godot beállítás:
+    [autoload]
+    GameManager="*res://scripts/core/game_manager.gd"
+    EventBus="*res://scripts/core/event_bus.gd"
+    SaveManager="*res://scripts/core/save_manager.gd"
+    AudioManager="*res://scripts/core/audio_manager.gd"
+    SceneManager="*res://scripts/core/scene_manager.gd"
+    NetworkManager="*res://scripts/multiplayer/network_manager.gd"
+    Constants="*res://scripts/core/constants.gd"
+    InputManager="*res://scripts/core/input_manager.gd"
+
+================================================================================
+  3. SCENE TREE HIERARCHIA
+================================================================================
+
+  3.1 Gameplay scene tree
+  ──────────────────
+
+    Main (Node)
+    ├── GameWorld (Node2D)
+    │   ├── WorldEnvironment (CanvasModulate)  # day/night
+    │   ├── ChunkManager (Node)
+    │   │   └── [dinamikus chunk-ok betöltve]
+    │   ├── EntityLayer (Node2D)                # Y-sort = Z-index
+    │   │   ├── Players (Node2D)
+    │   │   │   └── Player1, Player2, ...
+    │   │   ├── Enemies (Node2D)
+    │   │   │   └── [enemy instance-ok]
+    │   │   ├── NPCs (Node2D)
+    │   │   │   └── [NPC instance-ok]
+    │   │   └── DroppedItems (Node2D)
+    │   │       └── [loot a földön]
+    │   ├── ProjectileLayer (Node2D)
+    │   │   └── [aktív lövedékek]
+    │   ├── EffectLayer (Node2D)
+    │   │   └── [particle-ök, AoE, visual FX]
+    │   └── EnvironmentLayer (Node2D)
+    │       └── [weather, ambient particle]
+    ├── Camera2D                                # Stardew Valley stílusú
+    ├── UI (CanvasLayer)
+    │   ├── HUD
+    │   ├── [popup screen-ek]
+    │   └── [tooltip-ek]
+    └── DebugOverlay (CanvasLayer)             # dev only
+
+  3.2 Y-Sort megoldás
+  ──────────────────
+    EntityLayer: minden entity Y pozíciója = Z-index.
+    Így a "lejjebb" lévő entity eltakarja a "feljebb" lévőt.
+
+    Megoldás: Node2D Y-Sort enabled
+    VAGY: script-based z-index:
+      func _process(_delta):
+          z_index = int(global_position.y)
+
+================================================================================
+  4. SIGNAL RENDSZER
+================================================================================
+
+  4.1 EventBus (globális signal-ok)
+  ──────────────────
+
+    # event_bus.gd
+    extends Node
+
+    # Player events
+    signal player_spawned(player: Player)
+    signal player_died(player: Player)
+    signal player_leveled_up(player: Player, new_level: int)
+    signal player_skill_unlocked(player: Player, skill: SkillData)
+
+    # Combat events
+    signal damage_dealt(source, target, amount: float, type: DamageType)
+    signal entity_killed(killer, victim)
+    signal status_effect_applied(target, effect: StatusEffect)
+
+    # Loot events
+    signal item_dropped(item: ItemInstance, position: Vector2)
+    signal item_picked_up(player: Player, item: ItemInstance)
+    signal loot_rolled(player: Player, items: Array)
+
+    # Economy events
+    signal gold_changed(player: Player, amount: int)
+    signal item_sold(player: Player, item: ItemInstance, price: int)
+    signal item_bought(player: Player, item: ItemInstance, price: int)
+
+    # World events
+    signal chunk_loaded(chunk_pos: Vector2i)
+    signal chunk_unloaded(chunk_pos: Vector2i)
+    signal biome_entered(player: Player, biome: BiomeType)
+    signal day_night_changed(is_night: bool)
+    signal weather_changed(weather: WeatherType)
+
+    # Dungeon events
+    signal dungeon_entered(dungeon_data: DungeonData)
+    signal dungeon_exited()
+    signal room_cleared(room_index: int)
+    signal boss_phase_changed(boss, phase: int)
+
+    # Multiplayer events
+    signal player_connected(peer_id: int)
+    signal player_disconnected(peer_id: int)
+    signal lobby_updated(lobby_data: Dictionary)
+
+    # UI events
+    signal show_notification(text: String, type: NotificationType)
+    signal tooltip_requested(data: Dictionary)
+    signal screen_opened(screen_name: String)
+    signal screen_closed(screen_name: String)
+
+  4.2 Lokális signal-ok (component-eken belül)
+  ──────────────────
+    Ezek NEM az EventBus-on mennek:
+      - HealthComponent.health_changed(new_hp, max_hp)
+      - HealthComponent.died()
+      - NavigationAgent2D.navigation_finished()
+      - SkillManager.skill_used(skill)
+      - SkillManager.cooldown_finished(skill)
+      - Inventory.item_added(item)
+      - Inventory.item_removed(item)
+
+================================================================================
+  5. RESOURCE RENDSZER
+================================================================================
+
+  5.1 Resource típusok
+  ──────────────────
+
+    Az összes adat Godot Resource (.tres) formátumban.
+    Előnyök: editor-ben szerkeszthető, referencia-alapú, serializable.
+
+    Főbb custom Resource-ok:
+      EnemyData extends Resource
+      SkillData extends Resource
+      ItemData extends Resource
+      ItemInstance extends Resource
+      GemData extends Resource
+      AttackPattern extends Resource
+      LootTable extends Resource
+      SpawnTable extends Resource
+      BiomeData extends Resource
+      RecipeData extends Resource
+      AffixData extends Resource
+      TrapData extends Resource
+
+  5.2 Resource betöltés stratégia
+  ──────────────────
+
+    Preload (induláskor):
+      Gyakran használt resource-ok: affix pool, rarity config, XP table
+      
+    Load on demand (szükség esetén):
+      Enemy data: chunk betöltésekor
+      Item data: loot generáláskor
+      Dungeon theme: dungeon belépéskor
+
+    Resource cache: ResourceLoader + háttér betöltés
+      ResourceLoader.load_threaded_request("res://data/enemies/spider.tres")
+
+================================================================================
+  6. CORE RENDSZEREK
+================================================================================
+
+  6.1 GameManager
+  ──────────────────
+    Állapot gép: MENU → LOADING → PLAYING → PAUSED → PLAYING → ...
+    Felelős:
+      - Játék állapot váltás
+      - Pause kezelés
+      - Quit game
+      - FPS limit és display beállítás
+
+  6.2 SceneManager
+  ──────────────────
+    Scene váltás fade transition-nel:
+      func change_scene(scene_path: String, transition: TransitionType):
+          # Fade out → load → fade in
+    
+    Async loading: ResourceLoader háttér betöltés + progress bar.
+
+  6.3 InputManager
+  ──────────────────
+    Action mapping:
+      move_up: W / Up
+      move_down: S / Down
+      move_left: A / Left
+      move_right: D / Right
+      attack: LMB
+      skill_1: 1
+      skill_2: 2
+      skill_3: 3
+      skill_4: 4
+      ultimate: R
+      dodge: Space
+      interact: E / F
+      inventory: I / Tab
+      skill_tree: K
+      map: M
+      chat: Enter
+
+  6.4 Constants
+  ──────────────────
+    TILE_SIZE = 32
+    CHUNK_SIZE = 16           # tile-okban
+    CHUNK_PIXEL_SIZE = 512    # TILE_SIZE × CHUNK_SIZE
+    MAX_PLAYERS = 4
+    TICK_RATE = 20            # szerver tick/sec
+    MAX_LEVEL = 50
+    VIEWPORT_SIZE = Vector2i(640, 360)  # NativeRes → upscale
+
+================================================================================
+  7. COMBAT RENDSZER
+================================================================================
+
+  7.1 Damage formula
+  ──────────────────
+    final_damage = base_damage × damage_multiplier - target_armor × armor_reduction
+    Ha crit: final_damage × (1 + crit_damage_bonus)
+
+    damage_multiplier: skill + buff + gem + set bonus
+    armor_reduction: 0.5 (armor reduces 50% of its value)
+    min_damage: 1 (mindig legalább 1 sebzést kap)
+
+  7.2 Hitbox/Hurtbox rendszer
+  ──────────────────
+    Hitbox: Area2D → "ki üt" (player attack, enemy attack, projectile)
+    Hurtbox: Area2D → "kit ütnek" (player body, enemy body)
+    
+    Hitbox belép Hurtbox-ba → damage event
+    Collision layer/mask elkülönítés:
+      Layer 1: Player physics
+      Layer 2: Enemy physics
+      Layer 3: Wall
+      Layer 4: Player hitbox
+      Layer 5: Player hurtbox
+      Layer 6: Enemy hitbox
+      Layer 7: Enemy hurtbox
+      Layer 8: Projectile
+      Layer 9: Detection
+      Layer 10: Interaction
+
+  7.3 Status Effect rendszer
+  ──────────────────
+    Status effect: DOT, buff, debuff, CC (crowd control)
+    Stack-elés: DOT stackel, CC nem (leghosszabb marad)
+    
+    class StatusEffect extends Resource:
+        var effect_type: EffectType  # POISON, BURN, SLOW, STUN, BUFF
+        var duration: float
+        var tick_interval: float
+        var value: float
+        var stackable: bool
+        var max_stacks: int
+
+================================================================================
+  8. CLASS RENDSZER
+================================================================================
+
+  Részletes: lásd 01_skill_tree_plan.txt
+
+  Struktúra:
+    Player → ClassBase → (Assassin | Tank | Mage)
+    ClassBase → SkillManager → SkillTree → SkillData-k
+    
+    Skill unlock: level up → skill point → allocate
+    Max skill point: 25 (level 50-nél)
+    3 branch / class → 4 skill + 1 ultimate / branch
+
+================================================================================
+  9. ITEM ÉS LOOT RENDSZER
+================================================================================
+
+  Részletes: lásd 08_loot_system_plan.txt és 09_gem_system_plan.txt
+
+  Flow:
+    Enemy meghal → LootDropper → LootTable → ItemGenerator → DroppedItem
+    Felszedés → Inventory → Equipment (felszerelés) → stat recalc
+
+================================================================================
+  10. WORLD RENDSZER
+================================================================================
+
+  Részletes: lásd 02_procedural_world_plan.txt
+
+  Flow:
+    WorldGenerator → Noise + Biome → ChunkManager → Chunk load/unload
+    Chunk → TileMap + POI + NPC + ResourceNode + EnemySpawner
+
+================================================================================
+  11. DUNGEON RENDSZER
+================================================================================
+
+  Részletes: lásd 07_dungeon_generation_plan.txt
+
+  Flow:
+    DungeonEntrance → DungeonManager → BSPGenerator → RoomFactory →
+    EnemySpawner → PuzzleManager → BossRoom → Exit
+
+================================================================================
+  12. MULTIPLAYER RENDSZER
+================================================================================
+
+  Részletes: lásd 05_networking_plan.txt
+
+  Struktúra:
+    NetworkManager (Autoload)
+    ├── ENetMultiplayerPeer
+    ├── LobbyManager
+    ├── PlayerSync
+    ├── EnemySync
+    └── LootSync
+
+    Host-authoritative model.
+    Tick rate: 20/sec.
+    Max 4 player.
+
+================================================================================
+  13. UI RENDSZER
+================================================================================
+
+  13.1 HUD layout
+  ──────────────────
+
+    ┌──────────────────────────────────────────────────────────────────┐
+    │ [Party frames]                                    [Minimap]     │
+    │                                                                  │
+    │                                                                  │
+    │                                                                  │
+    │                      GAME VIEW                                   │
+    │                                                                  │
+    │                                                                  │
+    │                                                                  │
+    │ [HP bar]  [Mana bar]                         [Skill 1][2][3][4] │
+    │ [XP bar]                                     [Ultimate][Potion] │
+    │ [Level]  [Gold]                              [Interact prompt]  │
+    └──────────────────────────────────────────────────────────────────┘
+
+  13.2 Screen-ek
+  ──────────────────
+    Inventory: grid + equipment doll + tooltip
+    Skill Tree: vizuális fa + point allocation
+    Map: procedurális világ térkép (felfedezett területek)
+    Marketplace: auction house stílusú
+    Crafting: recipe lista + ingredient slot + eredmény
+
+  13.3 Responsive UI
+  ──────────────────
+    Alap viewport: 640×360 (pixel perfect)
+    Upscale: integer scaling (×2, ×3, ×4)
+    UI: Container-based layout (MarginContainer, VBoxContainer, etc.)
+    Theme: egyedi Godot Theme resource (dark fantasy)
+
+================================================================================
+  14. AI RENDSZER
+================================================================================
+
+  Részletes: lásd 06_enemy_ai_plan.txt
+
+  Behaviour Tree implementáció: custom GDScript (nem plugin).
+  Detection: Area2D + Raycast.
+  Pathfinding: NavigationServer2D (beépített).
+
+================================================================================
+  15. AUDIO RENDSZER
+================================================================================
+
+  15.1 AudioManager
+  ──────────────────
+    Zene:
+      2 AudioStreamPlayer a crossfade-hez
+      Zene váltás biome/dungeon/combat alapján
+      Volume: külön music/sfx/master slider
+
+    SFX:
+      AudioStreamPlayer2D pool (max 20 szimultán)
+      Spatial: 2D pozíció alapú (távolság fade)
+
+  15.2 Audio asset-ek
+  ──────────────────
+    Zene: 6-8 track (menu, exploration per biome group, combat, boss, dungeon, victory)
+    SFX: ~50-80 hang (attack, hit, spell, UI click, chest open, level up, loot drop, stb.)
+    
+    Formátum: .ogg (music), .wav (SFX)
+    AI zene generálás: opcionális (Suno AI / Mubert / manuális)
+
+================================================================================
+  16. SAVE/LOAD RENDSZER
+================================================================================
+
+  16.1 Save adatok
+  ──────────────────
+    Player save:
+      - Karakter (class, level, XP, skill points, skill tree state)
+      - Inventory (item instance-ok)
+      - Equipment (felszerelt item-ek)
+      - Stash (tárolt item-ek)
+      - Gold, Dark Essence, Relic Fragments
+      - Profession levels
+      - World state (felfedezett területek, cleared dungeon list)
+      - Quest progress
+      - Settings
+
+  16.2 Save formátum
+  ──────────────────
+    Formátum: JSON (olvasható, debugolható)
+    
+    Alternatíva: bináris (kisebb, nehezebb cheatolni)
+    → JSON a development-ben, opcionálisan bináris release-ben.
+
+    Save hely:
+      user://saves/slot_1.json
+      user://saves/slot_2.json
+      user://saves/slot_3.json
+
+  16.3 Autosave
+  ──────────────────
+    Autosave: 5 percenként
+    Save on exit: igen (game pause → save → quit)
+    Dungeon save: NEM – dungeon progress elveszhet ha kilép
+    Checkpoint: Safe Room-ban explicit save
+
+  16.4 Save/Load implementáció
+  ──────────────────
+
+    func save_game(slot: int):
+        var save_data = {}
+        save_data["player"] = PlayerManager.serialize()
+        save_data["inventory"] = Inventory.serialize()
+        save_data["equipment"] = Equipment.serialize()
+        save_data["stash"] = Stash.serialize()
+        save_data["world"] = WorldGenerator.serialize()
+        save_data["quests"] = QuestManager.serialize()
+        save_data["settings"] = SettingsManager.serialize()
+        save_data["timestamp"] = Time.get_unix_time_from_system()
+        
+        var json = JSON.stringify(save_data, "\t")
+        var file = FileAccess.open("user://saves/slot_%d.json" % slot, FileAccess.WRITE)
+        file.store_string(json)
+        file.close()
+
+    func load_game(slot: int):
+        var path = "user://saves/slot_%d.json" % slot
+        if not FileAccess.file_exists(path):
+            return false
+        var file = FileAccess.open(path, FileAccess.READ)
+        var json = JSON.parse_string(file.get_as_text())
+        file.close()
+        
+        PlayerManager.deserialize(json["player"])
+        Inventory.deserialize(json["inventory"])
+        # ... stb.
+        return true
+
+================================================================================
+  17. AI ASSET PIPELINE (TELJES DOKUMENTÁCIÓ)
+================================================================================
+
+  17.1 Szükséges szoftverek
+  ──────────────────
+    Stable Diffusion WebUI / ComfyUI
+    LoRA training: Kohya_ss / SimpleTuner
+    Aseprite: sprite post-processing
+    GIMP / Photoshop: nagyobb editálás
+    Godot 4.x: import és használat
+
+  17.2 Hardware ajánlás
+  ──────────────────
+    GPU: NVIDIA RTX 3060+ (12GB VRAM minimum)
+    RAM: 16GB+
+    Storage: SSD, ~50GB free (modellek + output)
+
+  17.3 Modell setup
+  ──────────────────
+    Base model: Stable Diffusion XL 1.0 (vagy SDXL Turbo)
+    Pixel art LoRA: "pixel-art-xl" vagy hasonló közösségi LoRA
+    Custom LoRA: "ashenfall_style" → játék-specifikus stílus
+
+    ComfyUI workflow:
+      KSampler → VAE Decode → Upscale (opcionális) → Save
+
+    Ajánlott beállítások:
+      Steps: 25-35
+      CFG Scale: 7-9
+      Sampler: DPM++ 2M Karras
+      Size: 512×512 → crop to sprite size
+      Negative prompt: "blurry, 3d, realistic, photo, smooth,
+                        anti-aliased, high resolution, modern"
+
+  17.4 LoRA training workflow
+  ──────────────────
+    1. Referencia gyűjtés:
+       20-50 kézileg rajzolt pixel art kép (konzisztens stílus)
+       Vagy: meglévő pixel art játékokból inspiráció (ne másolat!)
+
+    2. Training setup (Kohya_ss):
+       Base model: SDXL 1.0
+       Training images: 512×512 (crop/pad)
+       Captions: "ashenfall style, pixel art, [leírás]"
+       Learning rate: 1e-4
+       Steps: 1500-3000
+       Network dim: 32
+       Network alpha: 16
+
+    3. Tesztelés:
+       Generálj 50-100 képet különböző prompt-okkal
+       Értékelés: konzisztens-e a stílus? Megfelelő pixeles?
+       Iteráció: finomhangolás szükség esetén
+
+  17.5 Sprite sheet generálási workflow
+  ──────────────────
+
+    Módszer A – Teljes sprite sheet generálás:
+      1. Prompt: "pixel art character sprite sheet, [character],
+                  idle walk attack death, top-down, 32x32 per frame,
+                  4 rows, ashenfall style"
+      2. ControlNet: openpose referencia (kézzel készített template)
+      3. Eredmény: nagy kép → Aseprite-ben frame-ekre vágás
+      4. Clean-up: pixel cleanup, palette lock
+
+    Módszer B – Frame-enkénti generálás + interpoláció:
+      1. Key frame generálás (frame 1, 3, 6)
+      2. Közbülső frame-ek: AI interpoláció VAGY kézi rajzolás
+      3. Előny: nagyobb kontroll
+      4. Hátrány: lassabb, inkonzisztencia esély
+
+    Módszer C – Concept → Manuális pixel art:
+      1. AI generál concept art-ot (nem pixel art)
+      2. Pixel artist kézzel átrajzolja pixel art-ra
+      3. Legjobb minőség, de leglassabb
+      4. Ajánlott: legendás/fontos sprite-okra
+
+    Ajánlott: Módszer A kis enemy-kre, Módszer C boss-okra és player-ekre.
+
+  17.6 Asset count összesítés
+  ──────────────────
+
+    ┌──────────────────────────┬─────────┬──────────────────────────────┐
+    │ Kategória                │ Darab   │ Referencia                   │
+    ├──────────────────────────┼─────────┼──────────────────────────────┤
+    │ Player sprite sheet      │ 3       │ 01_skill_tree_plan.txt       │
+    │ Enemy sprite sheet       │ 40      │ 06_enemy_ai_plan.txt         │
+    │ Elite enemy variáns      │ 40      │ 06_enemy_ai_plan.txt (shade) │
+    │ Boss sprite sheet        │ 13      │ 03_boss_design_plan.txt      │
+    │ NPC sprite               │ 10-15   │ 04_economy_system_plan.txt   │
+    │ World tileset            │ 8       │ 02_procedural_world_plan.txt │
+    │ Dungeon tileset          │ 7       │ 07_dungeon_generation_plan   │
+    │ Skill effect sprite      │ 45      │ 01_skill_tree_plan.txt       │
+    │ Item ikon                │ 185     │ 08_loot_system_plan.txt      │
+    │ Gem ikon                 │ 51      │ 09_gem_system_plan.txt       │
+    │ UI elem                  │ 30-50   │ (ennek a fájlnak a scope-ja)│
+    │ Dungeon prop             │ 80      │ 07_dungeon_generation_plan   │
+    │ Projectile sprite        │ 15-20   │ 06_enemy_ai_plan.txt         │
+    │ Dekoráció                │ 50+     │ 02_ és 07_ plan              │
+    ├──────────────────────────┼─────────┼──────────────────────────────┤
+    │ ÖSSZESEN                 │ ~600-650│                              │
+    └──────────────────────────┴─────────┴──────────────────────────────┘
+
+    Becsült AI generálás idő:
+      Koncepció + generálás: 5-10 perc / sprite
+      Post-process (Aseprite): 10-30 perc / sprite (egyszerű→komplex)
+      Teljes pipeline: ~200-300 óra AI asset munkára
+
+================================================================================
+  18. EXPORTÁLÁS ÉS BUILD
+================================================================================
+
+  18.1 Target platform-ok
+  ──────────────────
+    Elsődleges: Windows (x86_64)
+    Másodlagos: Linux (x86_64)
+    Jövőben: macOS (opcionális)
+
+  18.2 Export beállítások
+  ──────────────────
+    Godot export preset:
+      Windows Desktop:
+        architecture: x86_64
+        embedding: PCK embedded
+        icon: custom .ico
+        version: semantic versioning (0.1.0 → 1.0.0)
+
+  18.3 Build pipeline
+  ──────────────────
+    1. Godot Editor → Project → Export
+    2. VAGY: command line: godot --headless --export-release "Windows" build/ashenfall.exe
+    3. Distribution: itch.io / Steam (later)
+
+================================================================================
+  19. PERFORMANCE OPTIMALIZÁCIÓ
+================================================================================
+
+  19.1 Rendering
+  ──────────────────
+    - Chunk-based loading (csak közeli chunk-ok renderelése)
+    - Offscreen entity-k pause-olása (AnimatedSprite2D)
+    - Particle limit: max 500 aktív particle system
+    - Light2D limit: max 20 aktív PointLight2D
+
+  19.2 Physics
+  ──────────────────
+    - Collision layer/mask elkülönítés (felesleges collision elkerülése)
+    - Távoli enemy-k: disable physics (nem mozognak/ütköznek)
+    - Raycast optimalizáció: nem minden frame, hanem 0.1s-ként
+
+  19.3 GDScript
+  ──────────────────
+    - Object pooling: Projectile-ok, DroppedItem-ek, DamageNumber-ök
+    - Array pre-allocate: kerüljük a dinamikus méretváltozást tight loop-ban
+    - Signal vs polling: signal-okat használjunk ahol lehet
+    - _process vs _physics_process: UI → _process, gameplay → _physics_process
+
+  19.4 Memory
+  ──────────────────
+    - Chunk unload: eltávolítja a chunk-ot és enemy-ket
+    - Texture atlas: sok kis sprite → egy nagy atlas (TextureAtlas)
+    - Resource cache limit: nem tartunk bent mindent örökké
+
+  19.5 Target FPS
+  ──────────────────
+    Target: 60 FPS
+    Minimum hardware: 
+      CPU: Intel i3 / Ryzen 3
+      GPU: integrated / GTX 1050
+      RAM: 4GB
+
+================================================================================
+  20. KAPCSOLÓDÓ RENDSZEREK
+================================================================================
+
+  Ez a fájl a teljes projekt architektúrát dokumentálja.
+  Minden más plan fájl részletesebben lefedi az adott modult:
+
+    → 01_skill_tree_plan.txt – Class és skill rendszer
+    → 02_procedural_world_plan.txt – Világ generálás
+    → 03_boss_design_plan.txt – Boss design
+    → 04_economy_system_plan.txt – Gazdaság
+    → 05_networking_plan.txt – Multiplayer
+    → 06_enemy_ai_plan.txt – Enemy AI
+    → 07_dungeon_generation_plan.txt – Dungeon
+    → 08_loot_system_plan.txt – Loot
+    → 09_gem_system_plan.txt – Gem
+    → 11_roadmap_plan.txt – Fejlesztési roadmap
+
+================================================================================
+  VÉGE – 10_godot_architecture_plan.txt
+================================================================================

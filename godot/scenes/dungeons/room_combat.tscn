@@ -1,0 +1,24 @@
+[gd_scene format=3 uid="uid://room_combat_scene"]
+
+[node name="RoomCombat" type="Node2D"]
+
+[node name="TileMap" type="TileMapLayer" parent="."]
+
+[node name="EnemySpawns" type="Node2D" parent="."]
+
+[node name="SpawnPoint1" type="Marker2D" parent="EnemySpawns"]
+position = Vector2(-48, -32)
+
+[node name="SpawnPoint2" type="Marker2D" parent="EnemySpawns"]
+position = Vector2(48, -32)
+
+[node name="SpawnPoint3" type="Marker2D" parent="EnemySpawns"]
+position = Vector2(-48, 32)
+
+[node name="SpawnPoint4" type="Marker2D" parent="EnemySpawns"]
+position = Vector2(48, 32)
+
+[node name="Doors" type="Node2D" parent="."]
+
+[node name="LootDropPoint" type="Marker2D" parent="."]
+position = Vector2(0, 0)

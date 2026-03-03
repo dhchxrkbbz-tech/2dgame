@@ -1,0 +1,1166 @@
+================================================================================
+  ASHENFALL – 03. BOSS DESIGN – TELJES IMPLEMENTÁCIÓS TERV
+================================================================================
+
+  Motor: Godot 4.x (GDScript)
+  Stílus: 2D top-down pixel art
+  AI Asset Pipeline: Stable Diffusion + ComfyUI + LoRA + Aseprite
+
+================================================================================
+  TARTALOMJEGYZÉK
+================================================================================
+
+  1. Rendszer áttekintés
+  2. Boss Tier rendszer
+  3. Boss mechanikai alap
+  4. Tier 1 – Mini Bossok (4 db részletesen)
+  5. Tier 2 – Dungeon Bossok (4 db részletesen)
+  6. Tier 3 – World Bossok (3 db részletesen)
+  7. Tier 4 – Raid Bossok (2 db részletesen)
+  8. Boss Phase rendszer
+  9. Boss loot rendszer
+  10. Multiplayer scaling
+  11. Godot implementáció
+  12. AI-generált boss sprite-ok és animációk
+  13. AI-generált boss arénák
+  14. AI-generált boss attack effect-ek
+  15. Kapcsolódó rendszerek
+
+================================================================================
+  1. RENDSZER ÁTTEKINTÉS
+================================================================================
+
+  A boss-ok a játék csúcs kihívásai. 4 szintű (tier) rendszer biztosítja
+  a fokozatos nehézség növekedést.
+
+  Összesen: ~13 egyedi boss (fejleszthető további tartalommal)
+    Tier 1: 4 mini boss
+    Tier 2: 4 dungeon boss
+    Tier 3: 3 world boss
+    Tier 4: 2 raid boss
+
+  Minden boss rendelkezik:
+    - Egyedi mechanikával (nem csak HP sponge)
+    - Phase rendszerrel (legalább 2 fázis)
+    - Egyedi loot table-lel
+    - AI-generált sprite-okkal és animációkkal
+    - Egyedi arénával
+
+================================================================================
+  2. BOSS TIER RENDSZER
+================================================================================
+
+  ┌────────┬───────────────┬──────────┬──────────┬───────────┬──────────────┐
+  │ Tier   │ Típus         │ Játékos  │ HP Range │ Fázisok   │ Loot Quality │
+  ├────────┼───────────────┼──────────┼──────────┼───────────┼──────────────┤
+  │ Tier 1 │ Mini Boss     │ 1 (solo) │ 500-2000 │ 2         │ Uncommon-Rare│
+  │ Tier 2 │ Dungeon Boss  │ 1-2      │ 3000-8000│ 2-3       │ Rare-Epic    │
+  │ Tier 3 │ World Boss    │ 2-4      │ 15000+   │ 3-4       │ Epic-Leg.    │
+  │ Tier 4 │ Raid Boss     │ 4 (full) │ 50000+   │ 4-5       │ Legendary    │
+  └────────┴───────────────┴──────────┴──────────┴───────────┴──────────────┘
+
+  Spawn feltételek:
+    Tier 1: Biome-ban random helyen, mindig elérhető
+    Tier 2: Dungeon végén, dungeon belépés szükséges
+    Tier 3: Világban fix helyen, corruption 0.5+ területen
+    Tier 4: Raid dungeon végén, party (4 fő) szükséges
+
+================================================================================
+  3. BOSS MECHANIKAI ALAP
+================================================================================
+
+  3.1 Boss statisztikák
+  ────────────────────
+
+    class BossData extends Resource:
+        var boss_name: String
+        var tier: int
+        var base_hp: int
+        var armor: int
+        var damage: int
+        var speed: float
+        var attack_speed: float
+        var abilities: Array[BossAbility]
+        var phases: Array[BossPhase]
+        var loot_table: LootTable
+        var music_track: AudioStream
+        var arena_scene: PackedScene
+        var sprite_sheet: SpriteFrames
+
+  3.2 Boss Ability struktúra
+  ────────────────────
+
+    class BossAbility:
+        var ability_name: String
+        var damage: float
+        var cooldown: float
+        var range: float
+        var area_type: AreaType  # NONE, CIRCLE, CONE, LINE, RECT
+        var area_size: Vector2
+        var telegraph_time: float  # figyelmeztetés idő (piros terület)
+        var effect_scene: PackedScene
+        var animation_name: String
+
+  3.3 Telegraph rendszer
+  ────────────────────
+    Minden boss AoE támadás előtt:
+      1. Telegraph megjelenik (piros/narancs terület jelzés)
+      2. X másodperc várakozás (típusfüggő: 0.5s – 2.0s)
+      3. Támadás végrehajtás
+      4. Damage kiértékelés (aki még a területen áll)
+
+    Ez lehetőséget ad a játékosnak kitérni → skill-based gameplay.
+
+  3.4 Enrage timer
+  ────────────────────
+    Minden Tier 3+ boss-nak van enrage timer:
+      Tier 3: 5 perc
+      Tier 4: 8 perc
+    Enrage után: +100% damage, +50% attack speed → "soft" DPS check
+
+================================================================================
+  4. TIER 1 – MINI BOSSOK
+================================================================================
+
+  ──────────────────────────────────────────────────────────────────────────────
+  MINI BOSS 1: Cursed Treant
+  Biome: Cursed Forest
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Leírás: Egy megszállt óriás fa ami életre kelt. Lassú de erős.
+
+  Statisztikák:
+    HP: 800 | Armor: 10 | Damage: 25 | Speed: 40
+    Ajánlott szint: 5-8
+
+  Phase 1 (100%-50% HP): Root Guardian
+    Ability 1: Root Slam
+      Leírás: Gyökereket döf fel a talajból 3×1 vonalban.
+      Damage: 35
+      Cooldown: 5s
+      Telegraph: 1.0s (zöld repedések a földön)
+
+    Ability 2: Leaf Storm
+      Leírás: Leveleket pörget maga körül (2 tile sugár).
+      Damage: 15/sec (3s)
+      Cooldown: 8s
+
+  Phase 2 (50%-0% HP): Unleashed
+    + Ability 3: Vine Grab
+      Leírás: Indák nyúlnak a játékos felé. Ha elkapják: 2s root + damage.
+      Damage: 20 + 2s root
+      Cooldown: 6s
+      Telegraph: 0.8s (inda árnyék a földön)
+
+    Módosítások: +20% attack speed, Leaf Storm sugár 3 tile-ra nő
+
+  Loot: Nature themed gear, wood crafting material, Treant Bark (rare mat)
+
+  ──────────────────────────────────────────────────────────────────────────────
+  MINI BOSS 2: Plague Rat King
+  Biome: Plague Lands / Dark Swamp
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Leírás: Hatalmas mutáns patkány, kisebb patkányokat idéz.
+
+  Statisztikák:
+    HP: 600 | Armor: 5 | Damage: 20 | Speed: 70
+    Ajánlott szint: 5-8
+
+  Phase 1 (100%-50% HP): Swarm Master
+    Ability 1: Summon Rats
+      Leírás: 3 kis patkányt idéz (15 HP, 8 damage mindegyik).
+      Cooldown: 10s
+      Max summon: 6 aktív
+
+    Ability 2: Toxic Bite
+      Leírás: Mérgező harapás, 4s poison DOT.
+      Damage: 25 + 8/sec DOT (4s)
+      Cooldown: 4s
+
+  Phase 2 (50%-0% HP): Frenzy
+    + Ability 3: Plague Wave
+      Leírás: Mérgező hullám előre (5 tile hosszú, 3 tile széles).
+      Damage: 40
+      Cooldown: 7s
+      Telegraph: 0.8s (zöld buborékok)
+
+    Módosítások: Summon Rats 5 patkányt idéz, +30% speed
+
+  Loot: Poison resistance gear, toxic crafting material, Rat King Crown (rare)
+
+  ──────────────────────────────────────────────────────────────────────────────
+  MINI BOSS 3: Frozen Sentinel
+  Biome: Mountains / Frozen Wastes
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Leírás: Ősi jég golem, lassú, masszív defense.
+
+  Statisztikák:
+    HP: 1200 | Armor: 20 | Damage: 30 | Speed: 30
+    Ajánlott szint: 8-12
+
+  Phase 1 (100%-50% HP): Ice Fortress
+    Ability 1: Ice Slam
+      Leírás: Öklöt a földre csapja, 3×3 AoE.
+      Damage: 40
+      Cooldown: 6s
+      Telegraph: 1.2s
+
+    Ability 2: Frost Breath
+      Leírás: Kúp alakú jég lehelet (4 tile, 60°).
+      Damage: 25 + 40% slow (3s)
+      Cooldown: 8s
+      Telegraph: 1.0s
+
+  Phase 2 (50%-0% HP): Crumbling
+    + Ability 3: Ice Spike Rain
+      Leírás: 5 random helyre jégszilánk esik (2×2 AoE mindegyik).
+      Damage: 35/spike
+      Cooldown: 10s
+      Telegraph: 1.5s (árnyék pozíciók)
+
+    Módosítások: Armor csökken 10-re, de damage +40%
+
+  Loot: Ice themed gear, crystal crafting material, Sentinel Core (rare)
+
+  ──────────────────────────────────────────────────────────────────────────────
+  MINI BOSS 4: Shadow Stalker
+  Biome: Cursed Forest / Ruins
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Leírás: Gyors, megfoghatatlan árnyék lény. Hit-and-run taktika.
+
+  Statisztikák:
+    HP: 500 | Armor: 3 | Damage: 35 | Speed: 120
+    Ajánlott szint: 8-12
+
+  Phase 1 (100%-50% HP): Predator
+    Ability 1: Shadow Dash
+      Leírás: Átsuhan a játékoson, sebzés közben. Rövid invulnerability.
+      Damage: 30
+      Cooldown: 4s
+
+    Ability 2: Shadow Pool
+      Leírás: Árnyék tócsa a földön (3 tile sugár). Benne állóknak DOT.
+      Damage: 10/sec
+      Duration: 5s
+      Cooldown: 8s
+
+  Phase 2 (50%-0% HP): Phantom
+    + Ability 3: Clone Split
+      Leírás: 2 klónt hoz létre (50 HP, 15 damage). A valódi stealth-be megy 3s-re.
+      Cooldown: 15s
+
+    Módosítások: Shadow Dash 2× gyorsabb, Shadow Pool 4 tile sugár
+
+  Loot: Shadow themed gear, dark essence, Stalker Fang (rare)
+
+================================================================================
+  5. TIER 2 – DUNGEON BOSSOK
+================================================================================
+
+  ──────────────────────────────────────────────────────────────────────────────
+  DUNGEON BOSS 1: Necromancer King
+  Dungeon: Crypt of the Fallen (Ruins / Plague Lands)
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Leírás: Ősi nekromanta király, undead hadsereg parancsnoka.
+
+  Statisztikák:
+    HP: 5000 | Armor: 8 | Damage: 40 | Speed: 50
+    Ajánlott szint: 15-20
+
+  Phase 1 (100%-60% HP): Summoner
+    Ability 1: Summon Undead
+      Leírás: 4-6 csontváz harcos megidézése (30 HP, 12 damage).
+      Cooldown: 12s
+      Max summon: 10 aktív
+
+    Ability 2: Death Bolt
+      Leírás: Sötét energia lövedék (tracking, lassú).
+      Damage: 50
+      Cooldown: 3s
+
+    Ability 3: Dark Shield
+      Leírás: Pajzs ami 500 damage-et elnyel. Aktív amíg vannak summon-ok.
+      Speciális: Summon-ok megölésével törhető
+
+  Phase 2 (60%-30% HP): Curse Master
+    + Ability 4: Curse Field
+      Leírás: Az aréna fele átkozott lesz (random fél). 
+              Benne állóknak: -30% damage, -20% speed.
+      Duration: 8s
+      Cooldown: 15s
+      Telegraph: 2.0s (lila köd terjedés)
+
+    Módosítások: Death Bolt 2 lövedéket lő egyszerre
+
+  Phase 3 (30%-0% HP): Rage Mode
+    + Ability 5: Bone Storm
+      Leírás: Csontok forognak körülötte (4 tile sugár). Folyamatos damage.
+      Damage: 20/sec
+      Duration: Folyamatos amíg él
+      Speciális: Közben továbbra is használja a többi ability-t
+
+    Módosítások: +50% attack speed, summon-ok 2× erősebbek,
+                 Revive Minions (halott summon-ok újra életre kelnek 10s-ként)
+
+  Aréna: 15×15 tile-os kripta terem, oszlopok mint fedezékek (4 db),
+         központi emelvény ahol a Necromancer áll.
+  
+  Loot: Necromancer Staff (Epic), Dark Essence ×50, Death Lord Armor set piece,
+        Bone Crown (cosmetic), Crypt Key (következő area nyitó)
+
+  ──────────────────────────────────────────────────────────────────────────────
+  DUNGEON BOSS 2: Spider Matriarch
+  Dungeon: Webbed Cavern (Cursed Forest)
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Leírás: Óriási pókanya, tojásokból kis pókokat kelt ki.
+
+  Statisztikák:
+    HP: 4000 | Armor: 12 | Damage: 35 | Speed: 60
+    Ajánlott szint: 12-16
+
+  Phase 1 (100%-50% HP): Broodmother
+    Ability 1: Web Shot
+      Leírás: Ragadós háló kilövés. Eltalált játékos: 2s root.
+      Damage: 15
+      Cooldown: 5s
+      Range: 8 tile
+
+    Ability 2: Spawn Eggs
+      Leírás: 3 tojás lerakása. 5s után kikelnek (kis pókok: 20 HP, 10 dmg).
+      Cooldown: 12s
+      Speciális: Tojások elpusztíthatók (30 HP)
+
+    Ability 3: Venom Spray
+      Leírás: Kúp alakú méreg spray (3 tile, 90°). Poison DOT.
+      Damage: 25 + 10/sec DOT (4s)
+      Cooldown: 7s
+
+  Phase 2 (50%-0% HP): Enraged Queen
+    + Ability 4: Web Carpet
+      Leírás: Az aréna 60%-a ragadós hálóval borítva → movement slow 50%.
+      Duration: 10s
+      Cooldown: 20s
+
+    + Ability 5: Ceiling Drop
+      Leírás: Felugrik a plafonra (untargetable 3s), majd lecsap a játékosra.
+      Damage: 60 (3×3 AoE csapódás)
+      Telegraph: Árnyék a célponton
+      Cooldown: 12s
+
+    Módosítások: Spawn Eggs 5 tojást rak, kis pókok mérgeznek is
+
+  Aréna: 12×12 kör alakú barlang, pókháló dekoráció, tojás fülkék a falaknál.
+
+  Loot: Spider Fang Dagger (Epic), Webweaver Armor, Silk crafting material,
+        Spider Eye gem
+
+  ──────────────────────────────────────────────────────────────────────────────
+  DUNGEON BOSS 3: Infernal Warden
+  Dungeon: Volcanic Pit (Ashlands)
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Leírás: Tűz elementál őr, a vulkán mélyéről.
+
+  Statisztikák:
+    HP: 6000 | Armor: 15 | Damage: 45 | Speed: 45
+    Ajánlott szint: 18-22
+
+  Phase 1 (100%-60% HP): Flame Guardian
+    Ability 1: Fire Breath
+      Leírás: Tűzcsóva egyenes vonalban (6 tile, 2 tile széles).
+      Damage: 55
+      Cooldown: 6s
+      Telegraph: 1.0s (vörös csík)
+
+    Ability 2: Lava Pool
+      Leírás: Láva tócsa a földön (3 tile sugár). DOT terület.
+      Damage: 15/sec
+      Duration: 12s (permanent az adott fázisban)
+      Cooldown: 10s
+      Speciális: Max 3 pool aktív
+
+    Ability 3: Flame Shield
+      Leírás: Tűz pajzs, közeli támadók 10 damage kapnak.
+      Duration: 5s
+      Cooldown: 15s
+
+  Phase 2 (60%-30% HP): Eruption
+    + Ability 4: Meteor Rain
+      Leírás: 6 random helyre meteoritok hullanak (2×2 AoE).
+      Damage: 45/meteor
+      Cooldown: 12s
+      Telegraph: 1.5s (piros célkörök)
+
+    Módosítások: Lava Pool-ok nem tűnnek el (aréna egyre kisebb),
+                 Fire Breath 3 tile széles
+
+  Phase 3 (30%-0% HP): Meltdown
+    + Ability 5: Infernal Nova
+      Leírás: 5 tile sugarú tűz robbanás (mindent megsebez).
+      Damage: 70
+      Cooldown: 8s
+      Telegraph: 2.0s (pulzáló vörös fény)
+      Speciális: Csak az aréna széle biztonságos
+
+    Módosítások: Folyamatos tűz aura (5 damage/sec 3 tile-on belül)
+
+  Aréna: 14×14, lávakő padló, láva folyó az aréna szélén, 4 kő pillér.
+
+  Loot: Infernal Blade (Epic), Warden Heart (legendary crafting mat),
+        Fire Elemental summon item, Ember gem
+
+  ──────────────────────────────────────────────────────────────────────────────
+  DUNGEON BOSS 4: The Forgotten Construct
+  Dungeon: Ancient Vault (Ruins)
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Leírás: Ősi mechanikus gólém, puzzle-boss.
+
+  Statisztikák:
+    HP: 5500 | Armor: 25 | Damage: 50 | Speed: 35
+    Ajánlott szint: 20-25
+
+  Phase 1 (100%-60% HP): Automated Defense
+    Ability 1: Gear Throw
+      Leírás: Fogaskereket dob (visszapattan faltól, 3×).
+      Damage: 30 / találat
+      Cooldown: 4s
+
+    Ability 2: Steam Vent
+      Leírás: 4 rács a padlón random gőzt fúj (2×2 area).
+      Damage: 25
+      Duration: 2s
+      Cooldown: 7s
+      Telegraph: 1.0s (gőz szivárgás)
+
+    Ability 3: Shield Mode
+      Leírás: Páncéllemezeket húz maga elé. 3s invulnerable.
+              Közben a 4 pillér világít – a világítót kell megütni.
+      Cooldown: 20s
+      Mechanika: Puzzle! Rossz pillér → 30 AoE damage
+
+  Phase 2 (60%-0% HP): Overload
+    + Ability 4: Laser Sweep
+      Leírás: Forgó energia sugár (360° sweep, 2s alatt körbe).
+      Damage: 60 (instant kill szintű)
+      Cooldown: 15s
+      Telegraph: 2.0s (sugár felépülés)
+      Elkerülés: Oszlopok mögé bújva
+
+    + Ability 5: Repair Protocol
+      Leírás: Ha van 3+ aktív pillér, 10% HP heal 5s-ként.
+      Mechanika: Pillérek elpusztíthatók (200 HP), de nélkülük
+                 Shield Mode puzzle nem működik → trade-off
+
+    Módosítások: Speed +30%, Gear Throw 2 kereket dob
+
+  Aréna: 16×16 mechanikus terem, 4 interaktív pillér, fogaskerék dekoráció,
+         rácsok a padlóban.
+
+  Loot: Construct Core (Epic weapon), Ancient Blueprint (crafting),
+        Mechanical Pet (cosmetic), Vault Key
+
+================================================================================
+  6. TIER 3 – WORLD BOSSOK
+================================================================================
+
+  ──────────────────────────────────────────────────────────────────────────────
+  WORLD BOSS 1: Abyss Dragon
+  Helyszín: Dragon's Maw (Ashlands / Mountains határ)
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Leírás: Hatalmas sárkány, a világ legfélelmetesebb teremtménye.
+          Open world boss, bárki csatlakozhat a harchoz.
+
+  Statisztikák:
+    HP: 25000 | Armor: 20 | Damage: 80 | Speed: 60
+    Ajánlott szint: 30+ | Játékosok: 2-4
+    Enrage timer: 5 perc
+
+  Méret: 4×3 tile (128×96 pixel sprite)
+
+  Phase 1 (100%-70% HP): Grounded
+    Ability 1: Fire Breath
+      Leírás: Széles tűzcsóva (8×3 tile). Jobbra-balra sweepel.
+      Damage: 90
+      Cooldown: 8s
+      Telegraph: 1.5s
+
+    Ability 2: Tail Swipe
+      Leírás: Hátsó 180° AoE (4 tile sugár).
+      Damage: 60 + knockback
+      Cooldown: 5s
+
+    Ability 3: Claw Strike
+      Leírás: Előre karom ütés (3×2 AoE).
+      Damage: 70
+      Cooldown: 4s
+
+  Phase 2 (70%-40% HP): Aerial Phase
+    A sárkány felszáll (untargetable 5s).
+    
+    Ability 4: Aerial Fire Rain
+      Leírás: 8 random helyre tűzgolyó esik (3×3 AoE mindegyik).
+      Damage: 50/golyó
+      Telegraph: 1.5s (árnyékok)
+      Ismétlés: 3× sorozat, majd leszáll
+
+    Ability 5: Map Destruction
+      Leírás: Az aréna szélei leomolnak (kisebb lesz a tér).
+      Speciális: Minden aerial phase után az aréna 10%-kal kisebb.
+
+    Visszaszállásnál: 5×5 AoE shockwave (40 damage)
+
+  Phase 3 (40%-15% HP): Fury
+    Ability 6: Dragon Roar
+      Leírás: 6 tile sugarú AoE, fear effect (játékosok 3s-ig
+              random irányba futnak, kontroll nélkül).
+      Cooldown: 20s
+
+    Módosítások: Minden ability +30% damage, Fire Breath 2× gyakoribb
+
+  Phase 4 (15%-0% HP): Last Stand
+    Ability 7: Infernal Meltdown
+      Leírás: Folyamatos tűz aura (6 tile, 15 damage/sec) + random
+              meteor impact-ok 4s-ként.
+      Speciális: DPS race – vagy megölitek gyorsan, vagy mindenki meghal.
+    
+    Módosítások: +50% damage, speed × 2
+
+  Aréna: 20×20 open area, sziklafalak, láva medencék a széleken.
+         Fázisról fázisra kisebb (Map Destruction).
+
+  Loot: Dragon Scale Armor set (Legendary, 4 piece), Abyss Fang weapon,
+        Dragon Heart (legendary mat), 500 gold, Dragon Pet egg (cosmetic)
+
+  ──────────────────────────────────────────────────────────────────────────────
+  WORLD BOSS 2: The Corruption Herald
+  Helyszín: Heart of Corruption (Plague Lands központ)
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Leírás: A corruption megtestesülése. Amorf, formát váltó szörnyeteg.
+
+  Statisztikák:
+    HP: 20000 | Armor: 12 | Damage: 65 | Speed: 50
+    Ajánlott szint: 28+ | Játékosok: 2-4
+    Enrage timer: 5 perc
+
+  Méret: 3×3 tile (változó formájú)
+
+  Phase 1 (100%-65% HP): Formless
+    Ability 1: Corruption Tentacle
+      Leírás: 4 csáp nyúlik ki random irányokba (6 tile hosszú).
+      Damage: 45/csáp
+      Cooldown: 6s
+      Telegraph: 1.0s (lila csíkok)
+
+    Ability 2: Toxic Pool
+      Leírás: Corruption tócsa (4 tile sugár). HP drain + slow.
+      Damage: 12/sec + 30% slow
+      Duration: 10s
+      Cooldown: 10s
+
+    Ability 3: Absorb
+      Leírás: Ha van halott add-on a közelben, elnyeli → heal 5% HP.
+
+  Phase 2 (65%-35% HP): Metamorphosis
+    Formát vált! 3 random forma közül:
+      A) Spider Form → gyors, web shot + leap attack
+      B) Beast Form → erős, charge + AoE slam
+      C) Phantom Form → stealth, backstab + fear
+
+    Forma váltás: 20s-ként másik formát vesz fel
+    Minden formának 2 egyedi ability-je van
+
+  Phase 3 (35%-0% HP): True Form
+    Ability 4: Corruption Blast
+      Leírás: 360° corruption robbanás (8 tile).
+      Damage: 80
+      Cooldown: 10s
+      Telegraph: 2.0s (pulzáló lila aura)
+
+    Ability 5: Mind Control
+      Leírás: 1 random játékost irányítás alá von 5s-re.
+              Az irányított játékos társait támadja.
+      Cooldown: 25s
+      Mechanika: Multiplayer-ben különösen veszélyes!
+
+    Módosítások: Folyamatos corruption aura (5 dmg/sec, 5 tile)
+
+  Aréna: 18×18 pusztult terep, corruption csápok a falakon, lila ködös.
+
+  Loot: Corruption Heart weapon (Legendary), Herald Armor set (4 piece),
+        Dark Essence ×200, Corruption Pet (cosmetic), Purification Crystal
+
+  ──────────────────────────────────────────────────────────────────────────────
+  WORLD BOSS 3: The Frost Empress
+  Helyszín: Frozen Throne (Frozen Wastes legmélyebb része)
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Leírás: Ősi jég királynő, az egész Frozen Wastes ura.
+
+  Statisztikák:
+    HP: 22000 | Armor: 18 | Damage: 70 | Speed: 55
+    Ajánlott szint: 32+ | Játékosok: 2-4
+    Enrage timer: 5 perc
+
+  Phase 1 (100%-65% HP): Winter Court
+    Ability 1: Ice Lance Barrage
+      Leírás: 6 jég lándzsa sorozat (tracking, lassan forduló).
+      Damage: 35/lándzsa
+      Cooldown: 6s
+
+    Ability 2: Blizzard Zone
+      Leírás: Az aréna egy negyede hóviharba kerül (rotáló).
+      Damage: 20/sec + 40% slow
+      Duration: 8s
+
+    Ability 3: Ice Summon
+      Leírás: 2 Ice Golem megidézése (500 HP, 25 damage).
+      Cooldown: 20s
+
+  Phase 2 (65%-35% HP): Absolute Zero
+    Ability 4: Flash Freeze
+      Leírás: 1 játékos teljesen befagy 4s-re.
+              Társaknak kell melee ütésekkel kiszabadítani.
+      Cooldown: 15s
+
+    Ability 5: Ice Wall
+      Leírás: Jég fal az aréna közepén (elválasztja a party-t 8s-re).
+      Speciális: Mindkét oldalon vannak Ice Golem-ek
+
+    Módosítások: Blizzard Zone 2 negyedet fed le
+
+  Phase 3 (35%-0% HP): Shatter
+    Ability 6: Shatter Storm
+      Leírás: Minden jég a területen (falak, golemek, frozen játékosok)
+              felrobban shrapnel-ként (3 tile AoE).
+      Damage: 55/robbanás
+      Cooldown: 12s
+
+    Módosítások: +40% attack speed, folyamatos slow aura (20%, 6 tile)
+
+  Aréna: 18×18 jégterem, jég oszlopok (fedezék + robbanó Phase 3-ban),
+         trón a hátsó falon.
+
+  Loot: Frost Empress Crown (Legendary), Winter's Edge weapon,
+        Frost Shard gem ×3, Ice Throne pet, 600 gold
+
+================================================================================
+  7. TIER 4 – RAID BOSSOK
+================================================================================
+
+  ──────────────────────────────────────────────────────────────────────────────
+  RAID BOSS 1: Ashen God (Final Boss)
+  Dungeon: The Ashen Sanctum (endgame raid)
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Leírás: A játék végső boss-a. Az Ashenfall kontinens pusztulásáért felelős
+          ős-entitás. A teljes party (4 fő) szükséges, role-megosztással.
+
+  Statisztikák:
+    HP: 60000 | Armor: 25 | Damage: 100 | Speed: 55
+    Ajánlott szint: 45+ | Játékosok: 4
+    Enrage timer: 8 perc
+
+  Méret: 5×5 tile (160×160 pixel sprite) – a legnagyobb entitás a játékban
+
+  Szükséges role-ok:
+    - 1 Tank (taunt + mitigation)
+    - 1-2 DPS (damage)
+    - 1 Healer/Support
+
+  Phase 1 (100%-75% HP): Awakening
+    Ability 1: Ashen Beam
+      Leírás: Fény sugár tracking (széles, forgó). Tank kell tartsa a pozíciót.
+      Damage: 40/sec (3s channel)
+      Cooldown: 8s
+      Mechanika: TANK BUSTER – csak heavy armor tank élheti túl
+
+    Ability 2: Summon Ash Guardians
+      Leírás: 4 Ash Guardian (800 HP, 30 damage). DPS-nek kell ölni.
+      Cooldown: 25s
+
+    Ability 3: Ground Pulse
+      Leírás: 360° shockwave (6 tile). Jump/dodge-olható.
+      Damage: 50
+      Cooldown: 10s
+      Telegraph: 1.5s
+
+  Phase 2 (75%-50% HP): Dominion
+    Ability 4: Soul Chain
+      Leírás: 2 random játékost összeláncol. Ha 4+ tile-ra mennek
+              egymástól → 80 damage/sec mindkettőnek.
+      Duration: 10s
+      Cooldown: 20s
+      Mechanika: Koordináció szükséges!
+
+    Ability 5: Corruption Zone
+      Leírás: Az aréna fele corruption zóna lesz (váltakozik 15s-ként).
+              Corruption zónában: -50% heal received, +25% damage taken.
+      Telegraph: 2.0s
+
+    Módosítások: Ashen Beam 2 sugarat lő (tank + 1 random)
+
+  Phase 3 (50%-25% HP): Metamorphosis
+    A boss formát vált – óriási szárnyak nőnek, felszáll:
+
+    Ability 6: Meteor Shower
+      Leírás: 10 meteor hullik (3×3 AoE). Szinte az egész aréna veszélyes.
+      Damage: 65/meteor
+      Telegraph: 1.5s
+      Cooldown: 12s
+      Safe zone: az aréna közepén 4×4 tile (de oda is csap Ground Pulse)
+
+    Ability 7: Mark of Ash
+      Leírás: 1 jelölt játékos. 6s múlva ott ahol áll → 5×5 robbanás.
+              A jelölt játékosnak az aréna szélére kell futnia.
+      Damage: 100 (instant kill közelben)
+      Cooldown: 18s
+
+    Módosítások: Ash Guardian-ok folyamatosan spawning (3-ként 2 db)
+
+  Phase 4 (25%-10% HP): Apocalypse
+    Ability 8: Ashen Apocalypse
+      Leírás: Az egész aréna lassan ég (3 damage/sec mindenhol).
+              Közben minden korábbi ability gyorsabban jön.
+      
+    Ability 9: Defiance
+      Leírás: A boss 5s-re invulnerable, közben 8 Guardian-t idéz.
+              Mind meg kell ölni az invulnerability lejárta előtt,
+              különben a boss full heal-t kap (wipe mechanika).
+      Cooldown: 30s (egyszer használja)
+
+    Módosítások: Minden ability +50% damage, -30% cooldown
+
+  Phase 5 (10%-0% HP): Last Breath
+    Nincs új ability, DE:
+      - Minden cooldown felezve
+      - Damage 2×
+      - Folyamatos 10 damage/sec az egész arénában
+      - DPS race: 60s alatt meg kell ölni vagy wipe
+
+  Aréna: 22×22 monumentális terem, 6 pillér (3 elpusztítható Phase 3-ban),
+         központi emelvény, Ashen tematikájú dekoráció.
+
+  Loot: Ashen God's Weapon (Legendary, class-specifikus),
+        God Slayer title, Ashen Armor set (teljes 5 piece Legendary),
+        Ashen Pet (cosmetic), 2000 gold, Relic Fragment ×50,
+        Achievement: "End of the Ash"
+
+  ──────────────────────────────────────────────────────────────────────────────
+  RAID BOSS 2: The Void Weaver
+  Dungeon: The Void Rift (post-game content)
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Leírás: Extra-dimensionális lény, a realitást hajlítja.
+          A legkeményebb encounter a játékban.
+
+  Statisztikák:
+    HP: 80000 | Armor: 20 | Damage: 110 | Speed: 65
+    Ajánlott szint: 50 (max level) | Játékosok: 4
+    Enrage timer: 8 perc
+
+  Phase 1 (100%-70%): Reality Fracture
+    Ability 1: Void Bolt → tracking projektilok
+    Ability 2: Dimension Shift → az aréna layout random változik
+    Ability 3: Gravity Well → behúzza a játékosokat a közepébe
+
+  Phase 2 (70%-40%): Mirror Dimension
+    A party 2 dimenzióba oszlik (2-2 fő). Mindkét dimenzióban
+    külön-külön kell mechanikákat csinálni, miközben a boss
+    mindkettőben jelen van.
+
+  Phase 3 (40%-10%): Convergence
+    Mindkét dimenzió összeolvad. Kaotikus phase – az összes
+    korábbi ability egyszerre jön random sorrendben.
+
+  Phase 4 (10%-0%): Annihilation
+    Végleges DPS check. 45s alatt kell megölni.
+
+  Loot: Void Weaver's Essence (BiS legendás accessory),
+        Dimensional Rift Opener (portal item), Void Armor set,
+        "Reality Breaker" title, 3000 gold
+
+================================================================================
+  8. BOSS PHASE RENDSZER
+================================================================================
+
+  8.1 Phase váltás implementáció
+  ────────────────────────────
+
+    A boss HP-ja alapján phase váltás:
+
+    func check_phase_transition():
+        var hp_percent = current_hp / max_hp * 100.0
+        
+        for phase in phases:
+            if hp_percent <= phase.threshold and current_phase != phase:
+                transition_to_phase(phase)
+                break
+
+    func transition_to_phase(new_phase: BossPhase):
+        # Átmenet animáció
+        play_transition_animation(new_phase.transition_anim)
+        
+        # Rövid invulnerability az átmenet alatt
+        set_invulnerable(true)
+        await get_tree().create_timer(2.0).timeout
+        set_invulnerable(false)
+        
+        # Új ability-k aktiválása
+        current_phase = new_phase
+        ability_pool = new_phase.abilities
+        
+        # Stat módosítók alkalmazása
+        apply_phase_modifiers(new_phase.modifiers)
+
+  8.2 Boss AI state machine
+  ────────────────────────────
+
+    States:
+      IDLE → várakozás (rövid, ability cooldown-ok között)
+      TELEGRAPH → ability telegraph megjelenítés
+      CASTING → ability végrehajtás
+      MOVING → pozíció váltás
+      TRANSITIONING → phase váltás animáció
+      ENRAGED → enrage timer lejárt
+      DEAD → halál animáció + loot drop
+
+    Döntési logika:
+      1. Ellenőrizd a phase transition-t
+      2. Válaszd a legmagasabb prioritású elérhető ability-t
+      3. Ha nincs elérhető (mind cooldown-on): mozogj a játékos felé
+      4. Telegraph → Cast → visszatérés IDLE-be
+
+================================================================================
+  9. BOSS LOOT RENDSZER
+================================================================================
+
+  9.1 Loot táblák
+  ──────────
+
+    Minden boss-nak egyedi loot table:
+      - Guaranteed drops: mindig kap (pl. gold, crafting mat)
+      - Rare drops: % esély (pl. weapon, armor piece)
+      - Ultra rare: < 5% esély (cosmetic, pet, title)
+
+  9.2 Példa loot table (Necromancer King)
+  ──────────
+
+    Guaranteed (100%):
+      - Gold: 100-200
+      - Dark Essence: 20-50
+      - Bone Fragment: 5-10
+
+    Rare (15-30%):
+      - Necromancer Staff (Epic weapon): 20%
+      - Death Lord Helm: 15%
+      - Death Lord Chest: 15%
+      - Death Lord Boots: 15%
+
+    Ultra Rare (<5%):
+      - Bone Crown (cosmetic): 3%
+      - Undead Minion pet: 2%
+      - "Lord of Death" title: 5%
+
+  9.3 Multiplayer loot elosztás
+  ──────────
+
+    Opciók:
+      A) Personal loot: mindenki saját loot-ot kap (ajánlott)
+      B) Group loot: need/greed szavazás
+      C) Round robin: felváltva
+
+    Ajánlott: Personal loot → nincs conflict
+
+================================================================================
+  10. MULTIPLAYER SCALING
+================================================================================
+
+  10.1 HP scaling
+  ──────────
+
+    Boss HP játékos szám alapján:
+
+    1 játékos: base HP × 1.0
+    2 játékos: base HP × 1.8
+    3 játékos: base HP × 2.5
+    4 játékos: base HP × 3.2
+
+    Nem lineáris! Több játékos = nem proporcionálisan több HP,
+    mert a koordináció overhead már nehezíti.
+
+  10.2 Damage scaling
+  ──────────
+
+    Boss damage NEM scalel játékos számmal
+    (különben a tank nem bírná).
+    Helyette: több ability-t használ egyszerre.
+
+  10.3 Mechanika scaling
+  ──────────
+
+    Solo: boss kevesebb ability-t használ, nincs multi-target mechanika
+    2 player: alap mechanikák
+    3-4 player: extra mechanikák (Soul Chain, Mirror Dimension, stb.)
+
+================================================================================
+  11. GODOT IMPLEMENTÁCIÓ
+================================================================================
+
+  11.1 Node struktúra
+  ──────────────
+
+    BossEntity (CharacterBody2D)
+    ├── BossSprite (AnimatedSprite2D) → nagy sprite sheet
+    ├── BossAnimationPlayer (AnimationPlayer) → attack, phase anim
+    ├── BossAI (Node) → state machine
+    │   ├── PhaseManager (Node)
+    │   ├── AbilityScheduler (Node)
+    │   └── ThreatTable (Node) → ki kit támad
+    ├── CollisionShape2D → hitbox
+    ├── HurtboxArea (Area2D) → sebezhetőség
+    ├── TelegraphManager (Node2D)
+    │   └── TelegraphVisuals (megosztott sprite-ok / shader)
+    ├── AbilitySpawner (Node2D) → ability effect instance-olás
+    ├── HealthBar (Control) → boss HP bar (képernyő tetején)
+    ├── BossMusic (AudioStreamPlayer) → boss track
+    └── LootDropper (Node) → loot generálás halálkor
+
+  11.2 Script struktúra
+  ──────────────
+
+    scripts/bosses/
+    ├── boss_base.gd             # Alap boss class
+    ├── boss_data.gd             # Resource: boss statisztikák
+    ├── boss_phase.gd            # Phase adatok
+    ├── boss_ability.gd          # Ability adatok
+    ├── boss_ai.gd               # AI state machine
+    ├── boss_phase_manager.gd    # Phase transition kezelés
+    ├── boss_threat_table.gd     # Aggro rendszer
+    ├── boss_telegraph.gd        # Telegraph vizuál
+    ├── boss_health_bar.gd       # HP bar UI
+    ├── boss_loot.gd             # Loot drop logika
+    └── specific/
+        ├── necromancer_king.gd  # Boss-specifikus logika
+        ├── abyss_dragon.gd
+        ├── corruption_herald.gd
+        ├── frost_empress.gd
+        ├── ashen_god.gd
+        └── void_weaver.gd
+
+================================================================================
+  12. AI-GENERÁLT BOSS SPRITE-OK ÉS ANIMÁCIÓK
+================================================================================
+
+  12.1 Boss sprite méretek
+  ──────────────
+
+    Tier 1 (Mini boss): 48×48 – 64×64 pixel
+    Tier 2 (Dungeon boss): 64×64 – 96×96 pixel
+    Tier 3 (World boss): 96×96 – 128×128 pixel
+    Tier 4 (Raid boss): 128×128 – 192×192 pixel
+
+  12.2 Animáció lista (boss-onként)
+  ──────────────
+
+    Alap animációk:
+      idle:           4-6 frame, 1.0s loop
+      walk:           6 frame, 0.8s loop
+      attack_1:       6-8 frame, 0.5s once
+      attack_2:       6-8 frame, 0.5s once
+      special_attack: 8-12 frame, 0.8s once (ultimate ability)
+      hit:            3 frame, 0.3s once
+      phase_transition: 8-12 frame, 2.0s once
+      death:          10-14 frame, 1.5s once
+      enrage:         6 frame, 0.5s once (enrage trigger)
+
+    Boss-specifikus extra animációk:
+      Abyss Dragon: flying (6 frame loop), landing (8 frame), breath (10 frame)
+      Necromancer: summoning (8 frame), curse (6 frame)
+      Spider Matriarch: eggs (6 frame), ceiling (8 frame)
+
+  12.3 AI generálási workflow
+  ──────────────
+
+    1. Concept generálás:
+       Prompt: "dark fantasy boss character concept art, [boss_name],
+               [description], 2D pixel art style, top-down RPG,
+               detailed, menacing, [color_palette]"
+       → 5-10 variáns → legjobb kiválasztása referenciának
+
+    2. Sprite sheet generálás:
+       Prompt: "pixel art sprite sheet, [boss_name], top-down view,
+               [size]px per frame, [animation_type], [frame_count] frames,
+               transparent background, dark fantasy, consistent style"
+       
+       ControlNet segítségével: pose guide sprite sheet alapján
+
+    3. LoRA használat:
+       "ashenfall_boss" LoRA, amit a kiválasztott concept-ről train-elünk
+       → konzisztens stílus minden animációs frame-en
+
+    4. Post-process:
+       - Aseprite: frame szeparálás, timing, onion skin correction
+       - Palette match: boss palettája illeszkedjen a biome-hoz
+       - Shadow/glow: manuális post-processing az olvashatóságért
+
+    5. Godot import:
+       - SpriteFrames resource
+       - AnimatedSprite2D → frame-ek és animációk beállítása
+       - AnimationPlayer: komplex animáció szekvenciák (phase transition)
+
+  12.4 Boss-specifikus sprite promptok
+  ──────────────
+
+    Necromancer King:
+      "skeletal king in tattered robes, glowing purple eyes,
+       crown of bones, dark aura, 96x96 pixel art"
+
+    Abyss Dragon:
+      "massive dark dragon, red and black scales, glowing eyes,
+       wings spread, fire particles, 128x128 pixel art"
+
+    Ashen God:
+      "colossal ash deity, crumbling stone body, molten core visible,
+       six arms, burning crown, apocalyptic, 192x192 pixel art"
+
+    Spider Matriarch:
+      "giant spider queen, purple and green, glowing eggs on back,
+       venomous fangs, web patterns, 96x96 pixel art"
+
+================================================================================
+  13. AI-GENERÁLT BOSS ARÉNÁK
+================================================================================
+
+  13.1 Aréna tile-ok
+  ──────────────
+
+    Minden boss-nak egyedi aréna TileSet:
+      - Floor tile-ok (4 variáns)
+      - Fal tile-ok (szélső + sarok)
+      - Dekoráció tile-ok (pillér, trón, oltár)
+      - Interaktív elemek (elpusztítható pillér, rács)
+
+    AI prompt (aréna tileset):
+      "pixel art dungeon floor tiles, [theme] style, 32x32,
+       seamless, top-down RPG, dark fantasy, [color_palette]"
+
+  13.2 Aréna layout-ok
+  ──────────────
+
+    Minden aréna pre-designed (nem procedurális):
+      - Godot TileMap scene
+      - Fix méret és elrendezés
+      - Interaktív elemek pozíciói fix
+
+    AI prompt (aréna háttér/overview):
+      "top-down pixel art boss arena, [theme], [size] tiles,
+       dark fantasy RPG, bird's eye view, detailed floor"
+
+  13.3 Aréna specifikus elemek (AI-generált)
+  ──────────────
+
+    Necromancer Crypt:
+      - Kriptaszer padlókövek, repedések, koporsók a falaknál
+      - 4 oszlop (fedezék), központi emelvény
+      - Csontváz dekoráció, gyertyák (animált, 3 frame)
+
+    Dragon's Maw:
+      - Vulkanikus kő, láva csatornák
+      - Szikla formációk
+      - Ég (a tetejé nyitott) → csillagos ég háttér
+
+    Ashen Sanctum:
+      - Monumentális kő padló, rúnák
+      - 6 pillér (fényes, pusztítható)
+      - Központi szimbolikus rajzolat a padlón
+      - Ashen thematikájú díszítés (hamu, szén, izzó rúnák)
+
+================================================================================
+  14. AI-GENERÁLT BOSS ATTACK EFFECT-EK
+================================================================================
+
+  14.1 Effect kategóriák
+  ──────────────
+
+    Projectile (lövedék):
+      - Death Bolt: lila sötét gömb, trail-lel (16×16, 6 frame)
+      - Fire Breath: narancs-vörös tűz sprite (64×32, 8 frame)
+      - Ice Lance Barrage: kék jég lándzsa (16×32, 4 frame)
+      - Void Bolt: fekete-lila örvény golyó (16×16, 6 frame)
+
+    AoE terület:
+      - Bone Storm: forgó csontok körív (128×128, 8 frame loop)
+      - Corruption Blast: lila robbanás gyűrű (160×160, 10 frame)
+      - Meteor impact: tűzgömb → robbanás (32×32 → 96×96, 12 frame)
+      - Frost Nova: jég kristály kirobbanás (128×128, 8 frame)
+
+    Telegraph (figyelmeztető jelzés):
+      - Piros kör/négyzet: damage zóna jelölés (átlátszó piros overlay)
+      - Célkereszt: single target ability
+      - Nyíl/vonal: irányított ability (fire breath irány)
+      Ezek egyszerűek → Godot ColorRect + Shader (nem feltétlenül AI-generált)
+
+    Buff/Debuff ikonok:
+      - Curse: lila koponya ikon (32×32)
+      - Fear: szem ikon sárga háttérrel (32×32)
+      - Soul Chain: lánc ikon lila izzással (32×32)
+      - Enrage: piros szív ikon tüskékkel (32×32)
+
+  14.2 AI prompt template-ek (effect-ekhez)
+  ──────────────
+
+    Projectile:
+      "pixel art magic projectile, [color] [type], transparent background,
+       sprite sheet, [frame_count] frames, dark fantasy, 16x16 pixels"
+
+    AoE:
+      "pixel art spell explosion, [type] effect, top-down view,
+       transparent background, [frame_count] frames, [size] pixels"
+
+    Impact:
+      "pixel art impact effect, [element] splash, small,
+       transparent background, 4 frames, 32x32 pixels"
+
+  14.3 Particle effect-ek (Godot natív)
+  ──────────────
+    
+    Sok boss effect kombinálható:
+      AI-generált sprite sheet + GPUParticles2D
+    
+    Példa - Bone Storm:
+      - Particle: AI-generált csont sprite-ok (4 variáns, 16×16)
+      - Emission: Ring shape, a boss körül
+      - Rotation: folyamatos forgás
+      - Collision: Area2D az actual damage-hez (nem a particle)
+
+    Példa - Corruption Aura:
+      - Particle: lila köd pötty (8×8)
+      - Emission: Circle shape, felfelé emelkedő
+      - Fade: alpha csökkenés
+      - Overlap: Area2D a damage zónához
+
+================================================================================
+  15. KAPCSOLÓDÓ RENDSZEREK
+================================================================================
+
+  Ez a modul kapcsolódik:
+    → 01_skill_tree_plan.txt – Skill-ek vs boss mechanikák
+    → 02_procedural_world_plan.txt – World boss spawn helyek
+    → 05_networking_plan.txt – Boss fight multiplayer szinkron
+    → 06_enemy_ai_plan.txt – Boss AI state machine alap
+    → 07_dungeon_generation_plan.txt – Boss room elhelyezés
+    → 08_loot_system_plan.txt – Boss loot table-ök
+    → 09_gem_system_plan.txt – Boss-only special gem drop-ok
+    → 10_godot_architecture_plan.txt – Boss modul helye
+
+================================================================================
+  VÉGE – 03_boss_design_plan.txt
+================================================================================

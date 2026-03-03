@@ -1,0 +1,35 @@
+[gd_scene format=3 uid="uid://loading_screen_scene"]
+
+[node name="LoadingScreen" type="CanvasLayer"]
+layer = 100
+
+[node name="Background" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.05, 0.05, 0.08, 1)
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -150.0
+offset_top = -40.0
+offset_right = 150.0
+offset_bottom = 40.0
+alignment = 1
+
+[node name="Title" type="Label" parent="VBoxContainer"]
+horizontal_alignment = 1
+text = "Loading..."
+
+[node name="ProgressBar" type="ProgressBar" parent="VBoxContainer"]
+custom_minimum_size = Vector2(300, 20)
+value = 0.0
+show_percentage = true
+
+[node name="Hint" type="Label" parent="VBoxContainer"]
+horizontal_alignment = 1
+text = "Tip: Explore dark areas carefully..."

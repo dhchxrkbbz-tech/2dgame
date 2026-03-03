@@ -1,0 +1,44 @@
+[gd_scene load_steps=3 format=3 uid="uid://boss_base_scene"]
+
+[ext_resource type="Script" path="res://scripts/bosses/boss_base.gd" id="1_boss"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(32, 20)
+
+[node name="BossBase" type="CharacterBody2D"]
+collision_layer = 2
+collision_mask = 5
+script = ExtResource("1_boss")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(0, -20)
+scale = Vector2(2, 2)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_body")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+
+[node name="Hitbox" type="Area2D" parent="."]
+collision_layer = 64
+collision_mask = 0
+
+[node name="HitboxShape" type="CollisionShape2D" parent="Hitbox"]
+shape = SubResource("RectangleShape2D_body")
+
+[node name="Hurtbox" type="Area2D" parent="."]
+collision_layer = 0
+collision_mask = 16
+
+[node name="HurtboxShape" type="CollisionShape2D" parent="Hurtbox"]
+shape = SubResource("RectangleShape2D_body")
+
+[node name="TelegraphLayer" type="Node2D" parent="."]
+
+[node name="AbilityTimers" type="Node" parent="."]
+
+[node name="BossHealthBar" type="Control" parent="."]
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = -50.0
+offset_bottom = -40.0

@@ -1,0 +1,65 @@
+[gd_scene format=3 uid="uid://crafting_station_scene"]
+
+[node name="CraftingStation" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.04, 0.04, 0.08, 0.95)
+
+[node name="Title" type="Label" parent="."]
+layout_mode = 1
+offset_left = 200.0
+offset_top = 10.0
+offset_right = 440.0
+offset_bottom = 30.0
+text = "CRAFTING"
+horizontal_alignment = 1
+
+[node name="RecipeList" type="ItemList" parent="."]
+layout_mode = 1
+offset_left = 20.0
+offset_top = 40.0
+offset_right = 250.0
+offset_bottom = 310.0
+
+[node name="CraftingArea" type="PanelContainer" parent="."]
+layout_mode = 1
+offset_left = 260.0
+offset_top = 40.0
+offset_right = 620.0
+offset_bottom = 310.0
+
+[node name="VBox" type="VBoxContainer" parent="CraftingArea"]
+layout_mode = 2
+
+[node name="ItemName" type="Label" parent="CraftingArea/VBox"]
+layout_mode = 2
+text = "Select a recipe"
+horizontal_alignment = 1
+
+[node name="MaterialsGrid" type="GridContainer" parent="CraftingArea/VBox"]
+layout_mode = 2
+columns = 4
+
+[node name="ResultPreview" type="TextureRect" parent="CraftingArea/VBox"]
+custom_minimum_size = Vector2(48, 48)
+layout_mode = 2
+
+[node name="CraftButton" type="Button" parent="CraftingArea/VBox"]
+layout_mode = 2
+text = "Craft"
+
+[node name="CloseButton" type="Button" parent="."]
+layout_mode = 1
+offset_left = 590.0
+offset_top = 10.0
+offset_right = 620.0
+offset_bottom = 35.0
+text = "X"

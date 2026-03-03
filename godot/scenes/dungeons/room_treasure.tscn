@@ -1,0 +1,20 @@
+[gd_scene format=3 uid="uid://room_treasure_scene"]
+
+[node name="RoomTreasure" type="Node2D"]
+
+[node name="TileMap" type="TileMapLayer" parent="."]
+
+[node name="ChestSpawns" type="Node2D" parent="."]
+
+[node name="MainChest" type="Marker2D" parent="ChestSpawns"]
+position = Vector2(0, -16)
+
+[node name="SideChest1" type="Marker2D" parent="ChestSpawns"]
+position = Vector2(-48, 16)
+
+[node name="SideChest2" type="Marker2D" parent="ChestSpawns"]
+position = Vector2(48, 16)
+
+[node name="Doors" type="Node2D" parent="."]
+
+[node name="Decorations" type="Node2D" parent="."]

@@ -1,0 +1,934 @@
+================================================================================
+  ASHENFALL – 01. SKILL TREE RENDSZER – TELJES IMPLEMENTÁCIÓS TERV
+================================================================================
+
+  Motor: Godot 4.x (GDScript)
+  Stílus: 2D top-down pixel art (Stardew Valley kamera, Diablo II combat)
+  AI Asset Pipeline: Stable Diffusion + ComfyUI + LoRA + Aseprite
+
+================================================================================
+  TARTALOMJEGYZÉK
+================================================================================
+
+  1. Rendszer áttekintés
+  2. Assassin osztály – 3 branch részletesen
+  3. Tank osztály – 3 branch részletesen
+  4. Mage/Healer osztály – 3 branch részletesen
+  5. Skill mechanikai rendszer (damage, cooldown, cost, scaling)
+  6. Skill pont rendszer és unlock logika
+  7. Godot implementáció (node struktúra, scene-ek, scriptek)
+  8. Skill Tree UI terv
+  9. AI-generált karakter animációk
+  10. AI-generált skill effect animációk
+  11. AI-generált UI elemek
+  12. Kapcsolódó rendszerek
+
+================================================================================
+  1. RENDSZER ÁTTEKINTÉS
+================================================================================
+
+  A játékban 3 játszható osztály van, mindegyik 3 skill branch-csel rendelkezik.
+  Minden branch 4 aktív skill-t és 1 ultimate-et tartalmaz.
+  Összesen: 3 class × 3 branch × 5 skill = 45 egyedi skill.
+
+  Osztályok:
+    - Assassin (Shadow / Poison / Blood)
+    - Tank (Guardian / Warbringer / Paladin Path)
+    - Mage/Healer (Arcane / Frost / Holy)
+
+  A játékos szabadon oszthat pontokat bármelyik branch-be, de az ultimate
+  csak akkor érhető el, ha az adott branch-ben minden korábbi skill legalább
+  1. szinten meg van tanulva.
+
+================================================================================
+  2. ASSASSIN OSZTÁLY
+================================================================================
+
+  Alap statisztikák (Level 1):
+    HP: 80 | Mana: 60 | Base Damage: 12 | Speed: 130
+    Armor: 5 | Crit Chance: 8% | Crit Multiplier: 1.5x
+
+  ──────────────────────────────────────────────────────────────────────────────
+  BRANCH 1 – SHADOW (Stealth és mobilitás)
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Téma: Gyors, megfoghatatlan karakter aki stealth-ből dolgozik.
+
+  Skill 1: Shadow Step
+    Típus: Mobility / Teleport
+    Leírás: Azonnali teleport a célpontra (max 6 tile távolság).
+    Damage: 0
+    Cooldown: 8s (max rank: 5s)
+    Mana Cost: 15
+    Ranks: 5
+    Scaling: -0.6s cooldown / rank
+    Speciális: Rank 3-tól 1s invisibility teleport után
+    Animáció: Árnyék dissolve → megjelenés particle burst
+
+  Skill 2: Smoke Bomb
+    Típus: AoE / Utility
+    Leírás: Füstfelhő (3x3 tile), ellenségek 40%-kal csökkentett accuracy.
+    Damage: 0
+    Cooldown: 14s (max rank: 10s)
+    Mana Cost: 20
+    Ranks: 5
+    Duration: 3s (max rank: 5s)
+    Scaling: +0.4s duration, -0.8s cooldown / rank
+    Speciális: Rank 5-nél slow effect is (20%)
+    Animáció: Bomba dobás ív → füst particle spread
+
+  Skill 3: Backstab
+    Típus: Single Target / Burst
+    Leírás: Hátulról támadva 200% damage. Stealth-ből 300%.
+    Damage: 200% weapon damage (300% stealth-ből)
+    Cooldown: 6s
+    Mana Cost: 25
+    Ranks: 5
+    Scaling: +15% damage / rank
+    Speciális: Guaranteed crit stealth-ből Rank 4 felett
+    Animáció: Gyors lunge forward → dagger slash → blood particle
+
+  Skill 4: Shadow Clone
+    Típus: Summon / Decoy
+    Leírás: Árnyék klón létrehozása ami 4 másodpercig támad.
+    Damage: A karakter damage-ének 30%-a (max rank: 50%)
+    Cooldown: 20s (max rank: 15s)
+    Mana Cost: 35
+    Ranks: 5
+    Duration: 4s (max rank: 6s)
+    Scaling: +4% clone damage, +0.4s duration / rank
+    Animáció: Karakter silhouette kiválás → önálló attack animáció
+
+  ULTIMATE: Nightfall
+    Típus: AoE Burst
+    Leírás: 5x5 tile-os AoE sötétség robbanás. Minden ellenség kap damage-et
+             és 2 másodpercig vakok (nem támadnak).
+    Damage: 500% weapon damage
+    Cooldown: 60s
+    Mana Cost: 50
+    Ranks: 3
+    Scaling: +100% damage / rank, +0.5s blind / rank
+    Követelmény: Shadow Step, Smoke Bomb, Backstab, Shadow Clone mind ≥1 rank
+    Animáció: Képernyő elsötétedés → központi robbanás → shadow wave
+
+  ──────────────────────────────────────────────────────────────────────────────
+  BRANCH 2 – POISON (DOT build)
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Téma: Damage over Time, ellenségek lassú mérgezése, spread mechanika.
+
+  Skill 1: Poison Daggers
+    Típus: Single Target / DOT
+    Leírás: Mérgezett dobótőr. 4s DOT.
+    Damage: 50% weapon damage instant + 80% DOT (4s)
+    Cooldown: 3s
+    Mana Cost: 10
+    Ranks: 5
+    Scaling: +15% DOT damage / rank
+    Animáció: Zöld trail-es tőr repülés → becsapódás zöld splash
+
+  Skill 2: Venom Cloud
+    Típus: AoE / DOT
+    Leírás: 4x4 méreg felhő terület. Benne állóknak DOT.
+    Damage: 30% weapon damage / sec
+    Cooldown: 12s (max rank: 9s)
+    Mana Cost: 25
+    Duration: 5s (max rank: 7s)
+    Ranks: 5
+    Scaling: +8% damage, +0.4s duration / rank
+    Animáció: Zöld köd particle → buborékok felemelkedése
+
+  Skill 3: Toxic Strike
+    Típus: Melee / DOT Stack
+    Leírás: Mérgező ütés, stackelhető (max 5 stack). Minden stack +20% DOT.
+    Damage: 100% weapon damage + 40% DOT/stack (3s)
+    Cooldown: 2s
+    Mana Cost: 12
+    Ranks: 5
+    Scaling: +5% DOT / stack / rank
+    Animáció: Zölden izzó fegyver slash → méreg cseppek
+
+  Skill 4: Infection Spread
+    Típus: Passive / Utility
+    Leírás: Ha egy mérgezett ellenség meghal, a méreg átterjed 3 tile
+             sugarú körben minden ellenségre.
+    Damage: Az eredeti DOT 60%-a (max rank: 100%)
+    Cooldown: Passive (nincs)
+    Mana Cost: 0
+    Ranks: 5
+    Scaling: +8% spread damage / rank, +0.5 tile range / rank
+    Animáció: Halott ellenségből zöld köd terjedés
+
+  ULTIMATE: Plague Storm
+    Típus: AoE / Massive DOT
+    Leírás: Hatalmas méreg vihar (8x8 terület). 8s DOT minden ellenségre.
+    Damage: 60% weapon damage / sec, 8 másodpercig
+    Cooldown: 60s
+    Mana Cost: 55
+    Ranks: 3
+    Scaling: +20% damage/sec / rank
+    Követelmény: Poison branch összes skill ≥1 rank
+    Animáció: Zöld vihar felhők → méreg eső particle → terület zöld overlay
+
+  ──────────────────────────────────────────────────────────────────────────────
+  BRANCH 3 – BLOOD (High risk DPS)
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Téma: HP-t áldoz damage-ért, életlopás, berserker mód.
+
+  Skill 1: Blood Slash
+    Típus: Melee / Burst
+    Leírás: Erős vágás ami HP-t koszál (a karakter max HP 8%-a).
+    Damage: 180% weapon damage
+    Cooldown: 4s
+    Mana Cost: 0 (HP cost: 8% max HP)
+    Ranks: 5
+    Scaling: +20% damage / rank, -1% HP cost / rank
+    Animáció: Piros ív slash → vér particle spray
+
+  Skill 2: Lifesteal Aura
+    Típus: Toggle / Aura
+    Leírás: Aktív aura: minden ütés 10% lifesteal. Másodpercenként 2% HP drain.
+    Damage: 0
+    Cooldown: 1s (toggle)
+    Mana Cost: 5/sec drain
+    Ranks: 5
+    Scaling: +2% lifesteal / rank
+    Animáció: Piros pulzáló aura körül a karakter
+
+  Skill 3: Frenzy
+    Típus: Self Buff
+    Leírás: 6s attack speed +50%, de 20%-kal több damage-et kap.
+    Damage: 0 (indirect DPS buff)
+    Cooldown: 18s (max rank: 14s)
+    Mana Cost: 20
+    Duration: 6s (max rank: 8s)
+    Ranks: 5
+    Scaling: +5% attack speed, +0.4s duration / rank
+    Animáció: Piros aura flare → karakter mozgás gyorsulás
+
+  Skill 4: Blood Pact
+    Típus: Active / Risk-Reward
+    Leírás: Feláldoz 25% max HP-t, cserébe 10s-ig +40% all damage.
+    Damage: 0 (damage buff)
+    Cooldown: 30s
+    Mana Cost: 0 (HP cost: 25% max HP)
+    Duration: 10s (max rank: 14s)
+    Ranks: 5
+    Scaling: +5% damage buff, +0.8s duration / rank
+    Animáció: Vér körök rajzolás → HP bar csökkenés animált → piros glow
+
+  ULTIMATE: Crimson Rage
+    Típus: Transformation / Mega Buff
+    Leírás: 12s berserker mód. +80% damage, +30% attack speed,
+             minden kill +5% max HP heal. De közben 3% HP drain/sec.
+    Damage: Buff (nem közvetlen damage)
+    Cooldown: 90s
+    Mana Cost: 0 (HP drain: 3%/sec)
+    Duration: 12s
+    Ranks: 3
+    Scaling: +15% damage, +5% speed / rank
+    Követelmény: Blood branch összes skill ≥1 rank
+    Animáció: Vör transzformáció → piros szemek → piros energy particle
+
+================================================================================
+  3. TANK OSZTÁLY
+================================================================================
+
+  Alap statisztikák (Level 1):
+    HP: 150 | Mana: 40 | Base Damage: 8 | Speed: 90
+    Armor: 15 | Block Chance: 10% | Threat Multiplier: 1.3x
+
+  ──────────────────────────────────────────────────────────────────────────────
+  BRANCH 1 – GUARDIAN (Shield gameplay)
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Téma: Pajzs-alapú védekezés, damage reduction, taunt.
+
+  Skill 1: Shield Block
+    Típus: Active Defense
+    Leírás: 3s-ig minden frontális támadást blokkol (100% damage reduction elölről).
+    Cooldown: 10s (max rank: 7s)
+    Mana Cost: 15
+    Ranks: 5
+    Scaling: +0.4s duration, -0.6s cooldown / rank
+    Animáció: Pajzs felemelés → impact spark-ok blokkolt ütéseknél
+
+  Skill 2: Taunt
+    Típus: AoE Aggro
+    Leírás: 5 tile sugarú körben minden ellenség a Tankot támadja 5s-ig.
+    Cooldown: 12s
+    Mana Cost: 10
+    Ranks: 5
+    Scaling: +0.5 tile range, +0.5s duration / rank
+    Animáció: Kiáltás hanghullám vizuál → ellenségeken piros jelzés
+
+  Skill 3: Shield Slam
+    Típus: Melee / Stun
+    Leírás: Pajzzsal ütés + 1.5s stun.
+    Damage: 120% weapon damage
+    Cooldown: 8s
+    Mana Cost: 20
+    Ranks: 5
+    Scaling: +15% damage, +0.2s stun / rank
+    Animáció: Pajzs swing → impact shockwave → stun csillagok
+
+  Skill 4: Fortify
+    Típus: Self Buff
+    Leírás: +30% armor 8s-ig. Nem mozoghat.
+    Cooldown: 15s
+    Mana Cost: 20
+    Duration: 8s (max rank: 12s)
+    Ranks: 5
+    Scaling: +5% armor buff, +0.8s duration / rank
+    Animáció: Kő textúra overlay a karakteren → ground crack
+
+  ULTIMATE: Bulwark
+    Típus: AoE Shield
+    Leírás: 6 tile sugarú védőburok. Szövetségesek 50% damage reduction 8s-ig.
+    Cooldown: 60s
+    Mana Cost: 50
+    Duration: 8s
+    Ranks: 3
+    Scaling: +10% damage reduction, +1s duration / rank
+    Követelmény: Guardian branch összes skill ≥1 rank
+    Animáció: Arany energia dóm kiépülése → pulzáló shield effect
+
+  ──────────────────────────────────────────────────────────────────────────────
+  BRANCH 2 – WARBRINGER (Aggro + AoE)
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Téma: Offenzív tank, AoE threat generálás, crowd pull.
+
+  Skill 1: War Cry
+    Típus: AoE Buff / Debuff
+    Leírás: Szövetségesek +15% damage. Ellenségek -15% damage. 6s.
+    Cooldown: 14s
+    Mana Cost: 15
+    Ranks: 5
+    Scaling: +3% buff/debuff / rank
+    Animáció: Hanghullám gyűrűk terjedése
+
+  Skill 2: Ground Slam
+    Típus: AoE Damage
+    Leírás: Földre csapás, 4x4 AoE. Slow effect 2s.
+    Damage: 150% weapon damage
+    Cooldown: 10s
+    Mana Cost: 20
+    Ranks: 5
+    Scaling: +20% damage, +0.3s slow / rank
+    Animáció: Fegyver földre csapás → repedések terjedése → kődarabok
+
+  Skill 3: Chain Pull
+    Típus: Single Target / CC
+    Leírás: Lánc kidobás (max 7 tile), behúzza az ellenséget.
+    Damage: 60% weapon damage
+    Cooldown: 12s
+    Mana Cost: 20
+    Ranks: 5
+    Scaling: +1 tile range / rank
+    Animáció: Lánc kidobás → ellenség slide animáció
+
+  Skill 4: Rage Burst
+    Típus: Self Buff / AoE
+    Leírás: Felhalmozott threat-et damage-re konvertálja (AoE robbanás).
+    Damage: Threat × 0.5 (max rank: Threat × 0.8)
+    Cooldown: 20s
+    Mana Cost: 25
+    Ranks: 5
+    Scaling: +0.06 threat multiplier / rank
+    Animáció: Piros energia felhalmozás → robbanás shockwave
+
+  ULTIMATE: Battlefield Control
+    Típus: AoE / CC
+    Leírás: 8x8 terület, minden ellenség 3s root + 40% slow utána 5s-ig.
+    Cooldown: 60s
+    Mana Cost: 50
+    Ranks: 3
+    Scaling: +0.5s root, +1s slow duration / rank
+    Követelmény: Warbringer branch összes skill ≥1 rank
+    Animáció: Földrengés → lánc/gyökér animáció ellenségeken
+
+  ──────────────────────────────────────────────────────────────────────────────
+  BRANCH 3 – PALADIN PATH (Support tank)
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Téma: Védelmi support, heal, blessing buffs.
+
+  Skill 1: Holy Shield
+    Típus: Shield / Absorb
+    Leírás: Fényburok ami elnyel 200 damage-et (max rank: 400).
+    Cooldown: 14s
+    Mana Cost: 20
+    Duration: 10s vagy amíg el nem fogy
+    Ranks: 5
+    Scaling: +40 absorb / rank
+    Animáció: Arany burok megjelenés → törés particle
+
+  Skill 2: Light Heal
+    Típus: Single Target Heal
+    Leírás: Magát vagy szövetségest gyógyít.
+    Heal: 15% max HP (max rank: 25%)
+    Cooldown: 10s
+    Mana Cost: 25
+    Ranks: 5
+    Scaling: +2% heal / rank
+    Animáció: Arany fény felszállás → HP bar zöld flash
+
+  Skill 3: Blessing Aura
+    Típus: Toggle / Aura
+    Leírás: 4 tile körül szövetségesek +10% armor, +5% HP regen.
+    Cooldown: Toggle (1s)
+    Mana Cost: 3/sec
+    Ranks: 5
+    Scaling: +2% armor, +1% HP regen / rank
+    Animáció: Arany kör effekt lábak alatt → particle felemelkedés
+
+  Skill 4: Radiant Strike
+    Típus: Melee / Holy Damage
+    Leírás: Fénnyel átitatott ütés, undead ellen 2× damage.
+    Damage: 140% weapon damage (280% vs undead)
+    Cooldown: 6s
+    Mana Cost: 18
+    Ranks: 5
+    Scaling: +20% damage / rank
+    Animáció: Fénylő fegyver swing → fény robbanás becsapódásnál
+
+  ULTIMATE: Divine Protection
+    Típus: Party Shield / Resurrect
+    Leírás: 8s-ig a party 60% damage reduction. Ha valaki meghalna,
+             ehelyett 30% HP-val túléli (egyszer/cast).
+    Cooldown: 90s
+    Mana Cost: 60
+    Duration: 8s
+    Ranks: 3
+    Scaling: +10% damage reduction / rank
+    Követelmény: Paladin branch összes skill ≥1 rank
+    Animáció: Mennyei fény oszlop → arany burok minden party tagra
+
+================================================================================
+  4. MAGE / HEALER OSZTÁLY
+================================================================================
+
+  Alap statisztikák (Level 1):
+    HP: 60 | Mana: 120 | Base Damage: 15 (spell) | Speed: 100
+    Armor: 3 | Spell Crit: 6% | Mana Regen: 3/sec
+
+  ──────────────────────────────────────────────────────────────────────────────
+  BRANCH 1 – ARCANE (Damage)
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Téma: Tiszta mágikus damage, teleport, mana management.
+
+  Skill 1: Arcane Bolt
+    Típus: Projectile / Ranged
+    Leírás: Mágikus lövedék (max range: 10 tile).
+    Damage: 130% spell damage
+    Cooldown: 2s
+    Mana Cost: 12
+    Ranks: 5
+    Scaling: +15% damage / rank
+    Animáció: Lila energia golyó repülés → becsapódás lila burst
+
+  Skill 2: Arcane Orb
+    Típus: AoE Projectile
+    Leírás: Lassan mozgó energia gömb (áttöri az ellenségeket).
+    Damage: 100% spell damage mindenkinek akit elér
+    Cooldown: 8s
+    Mana Cost: 22
+    Ranks: 5
+    Scaling: +12% damage, +1 tile range / rank
+    Animáció: Nagy lila gömb mozgás → trail effect → piercing
+
+  Skill 3: Mana Burst
+    Típus: AoE / Nuke
+    Leírás: Az aktuális mana 40%-át felhasználva hatalmas robbanás.
+    Damage: Felhasznált mana × 3 (max rank: × 5)
+    Cooldown: 15s
+    Mana Cost: 40% aktuális mana
+    Ranks: 5
+    Scaling: +0.4× mana multiplier / rank
+    Animáció: Mana összegyűjtés spirál → robbanás shockwave
+
+  Skill 4: Teleport
+    Típus: Mobility
+    Leírás: Azonnali teleport (max 8 tile).
+    Cooldown: 12s (max rank: 8s)
+    Mana Cost: 20
+    Ranks: 5
+    Scaling: +1 tile range, -0.8s cooldown / rank
+    Animáció: Lila portál nyílás → eltűnés → megjelenés particle
+
+  ULTIMATE: Arcane Collapse
+    Típus: Channel / Mega AoE
+    Leírás: 3s channel → 7x7 AoE robbanás.
+    Damage: 800% spell damage
+    Cooldown: 60s
+    Mana Cost: 60
+    Ranks: 3
+    Scaling: +150% damage / rank
+    Követelmény: Arcane branch összes skill ≥1 rank
+    Animáció: Lila energia vortex felhalmozás → masszív robbanás
+
+  ──────────────────────────────────────────────────────────────────────────────
+  BRANCH 2 – FROST (Crowd control)
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Téma: Lassítás, fagyasztás, area denial.
+
+  Skill 1: Ice Lance
+    Típus: Projectile / Slow
+    Leírás: Jég lándzsa, 30% slow 3s.
+    Damage: 120% spell damage
+    Cooldown: 3s
+    Mana Cost: 12
+    Ranks: 5
+    Scaling: +12% damage, +5% slow / rank
+    Animáció: Kék jég projektil → becsapódás jég kristály
+
+  Skill 2: Blizzard
+    Típus: AoE / Channel
+    Leírás: 5x5 AoE jégvihar, 5s-ig damage + slow.
+    Damage: 40% spell damage / sec
+    Cooldown: 15s
+    Mana Cost: 30
+    Duration: 5s
+    Ranks: 5
+    Scaling: +8% damage/sec, +0.4s duration / rank
+    Animáció: Kék felhők → jégdarabok hullás → terület befagyás
+
+  Skill 3: Frost Nova
+    Típus: AoE / Root
+    Leírás: 3 tile sugarú fagyasztó robbanás. 2s root.
+    Damage: 80% spell damage
+    Cooldown: 10s
+    Mana Cost: 20
+    Ranks: 5
+    Scaling: +10% damage, +0.3s root / rank
+    Animáció: Jég spike-ok kirobbanás → fagyott ellenségek
+
+  Skill 4: Ice Barrier
+    Típus: Self Shield
+    Leírás: Jég pajzs ami elnyel 150 damage-et. Közeli támadók 20% slow.
+    Cooldown: 16s
+    Mana Cost: 22
+    Duration: 10s
+    Ranks: 5
+    Scaling: +30 absorb, +3% slow / rank
+    Animáció: Jég burok kiépülés → támadók fagyos particle
+
+  ULTIMATE: Frozen Realm
+    Típus: AoE / Mega CC
+    Leírás: 8x8 terület teljesen befagy. Minden ellenség 4s freeze.
+             Freeze alatt +30% damage vulnerability.
+    Cooldown: 60s
+    Mana Cost: 55
+    Ranks: 3
+    Scaling: +1s freeze, +10% vulnerability / rank
+    Követelmény: Frost branch összes skill ≥1 rank
+    Animáció: Jég terjedés a talajra → pillérek kiemelkedés → freeze
+
+  ──────────────────────────────────────────────────────────────────────────────
+  BRANCH 3 – HOLY (Healing)
+  ──────────────────────────────────────────────────────────────────────────────
+
+  Téma: Gyógyítás, tisztítás, party support.
+
+  Skill 1: Heal
+    Típus: Single Target Heal
+    Leírás: Egy célpont gyógyítása.
+    Heal: 20% max HP (max rank: 35%)
+    Cooldown: 6s
+    Mana Cost: 18
+    Ranks: 5
+    Scaling: +3% heal / rank
+    Animáció: Fehér/arany fénysugár → HP bar animáció
+
+  Skill 2: Chain Heal
+    Típus: Multi Target Heal
+    Leírás: Gyógyítás ami 3 szövetségesre pattan (50% hatékonyság csökkenés).
+    Heal: 15% max HP első célpont, -50% bouncing
+    Cooldown: 10s
+    Mana Cost: 28
+    Ranks: 5
+    Scaling: +2% base heal, -5% bouncing penalty / rank
+    Animáció: Fénygömb ugráló a játékosok között → trail
+
+  Skill 3: Protective Shield
+    Típus: Single Target / Shield
+    Leírás: Szövetségesre pajzs (250 absorb).
+    Cooldown: 12s
+    Mana Cost: 22
+    Duration: 8s
+    Ranks: 5
+    Scaling: +50 absorb / rank
+    Animáció: Arany burok megjelenés a célponton
+
+  Skill 4: Purify
+    Típus: Dispel / Cleanse
+    Leírás: Eltávolít minden debuff-ot + kis heal.
+    Heal: 5% max HP
+    Cooldown: 8s
+    Mana Cost: 15
+    Ranks: 5
+    Scaling: +1% heal / rank, -0.8s cooldown / rank
+    Animáció: Fehér fény burst → debuff ikonok eltűnése
+
+  ULTIMATE: Sanctuary
+    Típus: AoE / Mega Heal
+    Leírás: 6 tile sugarú terület, 10s-ig: +5% HP/sec regen minden
+             szövetségesnek + damage immunity az első 2s-ben.
+    Cooldown: 90s
+    Mana Cost: 65
+    Duration: 10s
+    Ranks: 3
+    Scaling: +1% HP/sec, +0.5s immunity / rank
+    Követelmény: Holy branch összes skill ≥1 rank
+    Animáció: Fény oszlop leszállás → arany kör a földön → particle rain
+
+================================================================================
+  5. SKILL MECHANIKAI RENDSZER
+================================================================================
+
+  5.1 Damage kalkuláció
+  ──────────────────────
+    final_damage = base_damage × skill_multiplier × (1 + bonus_percent)
+    final_damage *= crit_multiplier (ha crit)
+    final_damage -= target_armor × armor_effectiveness
+    final_damage = max(1, final_damage)
+
+  5.2 Cooldown rendszer
+  ──────────────────────
+    Minden skill-nek van base cooldown.
+    Cooldown Reduction (CDR) stat:
+      effective_cd = base_cd × (1 - CDR%)
+      CDR cap: 40%
+    Global Cooldown (GCD): 0.5s minden skill után.
+
+  5.3 Mana rendszer
+  ──────────────────────
+    Mana regen: base_regen + bonus_regen
+    Mana potion: 30% max mana instant
+    Mana per level: +5 (Mage), +3 (Assassin), +2 (Tank)
+
+  5.4 Skill Level Scaling
+  ──────────────────────
+    Minden skill 5 rank-os (ultimate-ek 3).
+    Skill pont szerzés: minden 2. szinten 1 skill pont.
+    Max level: 50 → 25 skill pont összesen.
+    Ezzel nem tudja az összes branch-et maxolni → build diversity.
+
+================================================================================
+  6. SKILL PONT RENDSZER ÉS UNLOCK LOGIKA
+================================================================================
+
+  6.1 Skill pont szerzés
+  ──────────────────────
+    Level 2, 4, 6, ... 50 → 25 skill pont.
+    Nincs skill reset alapból (opcionális: drága NPC skill reset).
+
+  6.2 Unlock szabályok
+  ──────────────────────
+    Branch-en belül: lineáris
+      Skill 1 → Skill 2 (Skill 1 ≥1 rank kell)
+      Skill 2 → Skill 3 (Skill 2 ≥1 rank kell)
+      Skill 3 → Skill 4 (Skill 3 ≥1 rank kell)
+      Skill 4 → Ultimate (Skill 1-4 mind ≥1 rank kell)
+
+    Branch-ek között: nincs dependency
+      Bármelyik branch-be szabadon tehetsz pontot.
+
+  6.3 Ajánlott build-ek
+  ──────────────────────
+    Assassin: Shadow 5/5/5/5/3 → "Phantom"
+    Assassin: Poison 3/5/5/5/3 + Blood 3/0/0/0/0 → "Plague Bearer"
+    Tank: Guardian 5/5/5/5/3 → "Fortress"
+    Tank: Warbringer 3/5/3/3/0 + Paladin 3/3/3/0/0 → "Holy Warrior"
+    Mage: Frost 5/5/5/3/3 → "Ice Queen"
+    Mage: Arcane 3/3/0/5/0 + Holy 3/3/5/3/3 → "Battle Priest"
+
+================================================================================
+  7. GODOT IMPLEMENTÁCIÓ
+================================================================================
+
+  7.1 Node struktúra
+  ──────────────────────
+
+    Player (CharacterBody2D)
+    ├── Sprite2D (karakter sprite)
+    ├── AnimationPlayer
+    ├── CollisionShape2D
+    ├── SkillManager (Node)
+    │   ├── SkillSlot1 (Node) → assigned skill resource
+    │   ├── SkillSlot2 (Node)
+    │   ├── SkillSlot3 (Node)
+    │   ├── SkillSlot4 (Node)
+    │   └── UltimateSlot (Node)
+    ├── SkillTreeData (Resource - .tres)
+    ├── CooldownManager (Node)
+    ├── StatusEffectManager (Node)
+    └── SkillEffectSpawner (Node2D)
+
+  7.2 Skill Resource (.tres)
+  ──────────────────────
+
+    class_name SkillData extends Resource
+
+    @export var skill_name: String
+    @export var skill_id: String
+    @export var branch: String
+    @export var icon: Texture2D
+    @export var description: String
+    @export var max_rank: int = 5
+    @export var base_damage_multiplier: float
+    @export var base_cooldown: float
+    @export var base_mana_cost: float
+    @export var scaling_per_rank: Dictionary
+    @export var skill_type: SkillType  # enum
+    @export var target_type: TargetType  # enum
+    @export var effect_scene: PackedScene
+    @export var animation_name: String
+    @export var sound_effect: AudioStream
+    @export var prerequisites: Array[String]  # skill_id lista
+
+  7.3 SkillTree Scene
+  ──────────────────────
+
+    SkillTreeUI (Control)
+    ├── Background (TextureRect)
+    ├── BranchTabs (TabContainer)
+    │   ├── Branch1Panel (VBoxContainer)
+    │   │   ├── SkillNode1 (SkillNodeUI.tscn)
+    │   │   ├── ConnectionLine (Line2D)
+    │   │   ├── SkillNode2
+    │   │   ├── ConnectionLine
+    │   │   ├── SkillNode3
+    │   │   ├── ConnectionLine
+    │   │   ├── SkillNode4
+    │   │   ├── ConnectionLine
+    │   │   └── UltimateNode
+    │   ├── Branch2Panel
+    │   └── Branch3Panel
+    ├── SkillPointCounter (Label)
+    ├── Tooltip (PanelContainer)
+    └── ResetButton (Button)
+
+  7.4 Fő scriptek
+  ──────────────────────
+
+    scripts/skills/
+    ├── skill_data.gd          # Resource class
+    ├── skill_manager.gd       # Aktív skill-ek kezelése
+    ├── skill_tree_data.gd     # Unlock/rank állapotok
+    ├── skill_executor.gd      # Skill végrehajtás (damage, effect spawn)
+    ├── cooldown_manager.gd    # Cooldown tracking
+    ├── skill_effect_base.gd   # Alap effect class
+    └── status_effect.gd       # DOT, buff, debuff kezelés
+
+    scripts/skills/effects/
+    ├── projectile_effect.gd   # Lövedék (Arcane Bolt, Ice Lance)
+    ├── aoe_effect.gd          # Terület (Blizzard, Plague Storm)
+    ├── buff_effect.gd         # Buff (Frenzy, Blessing Aura)
+    ├── summon_effect.gd       # Summon (Shadow Clone)
+    ├── teleport_effect.gd     # Teleport (Shadow Step, Teleport)
+    └── heal_effect.gd         # Heal (Heal, Chain Heal)
+
+    ui/skill_tree/
+    ├── skill_tree_ui.gd       # Fő UI controller
+    ├── skill_node_ui.gd       # Egyedi skill node
+    ├── skill_tooltip.gd       # Tooltip megjelenítés
+    └── skill_tree_ui.tscn     # Scene file
+
+================================================================================
+  8. SKILL TREE UI TERV
+================================================================================
+
+  8.1 Layout
+  ──────────
+    - Teljes képernyős overlay (ESC vagy K billentyű nyitja)
+    - Bal oldalon: class ikon + név + statisztikák
+    - Közepen: 3 tab (branch-ek) – mindegyikben vertikális skill fa
+    - Skill node-ok: 64×64px kör/négyzet ikonok, vonalakkal összekötve
+    - Unlocked: szines ikon, rank szám jelzéssel
+    - Locked: szürke/sötét ikon, lakat overlay
+    - Jobb klikk: tooltip (stat részletek, scaling)
+    - Bal klikk: pont beletevés (ha van szabad pont és prereq teljesítve)
+
+  8.2 Tooltip tartalom
+  ──────────
+    Skill neve
+    Rank: X/5
+    Típus: [Projectile / AoE / Buff / ...]
+    Damage/Heal: [aktuális érték] → [következő rank értéke]
+    Cooldown: Xs
+    Mana Cost: X
+    Leírás szöveg
+    Prereq: [ha locked, mit kell előbb megtanulni]
+
+  8.3 Vizuális feedback
+  ──────────
+    - Pont beletevés: fény particle + hang effekt
+    - Branch maxolás: arany glow a teljes branch-ön
+    - Ultimate unlock: speciális animáció + hang
+    - Available pont: pulzáló zöld keret az elérhető skill-eken
+
+================================================================================
+  9. AI-GENERÁLT KARAKTER ANIMÁCIÓK
+================================================================================
+
+  9.1 Tool Stack
+  ──────────────
+    Generálás: Stable Diffusion XL (vagy Flux) + ComfyUI
+    Konzisztencia: LoRA fine-tune modell (class-onként 1 LoRA)
+    Sprite Sheet: TexturePacker vagy AI batch generálás
+    Post-process: Aseprite (cleanup, frame timing)
+    Upscale (ha kell): 4× AI upscaler (ESRGAN pixel art model)
+
+  9.2 Karakter sprite méret
+  ──────────────
+    Base tile: 32×32px
+    Karakter: 32×48px (1 tile széles, 1.5 tile magas)
+    Sprite sheet: soronként 1 animáció, oszloponként frame-ek
+
+  9.3 Animáció lista (minden class-ra)
+  ──────────────
+    Alap animációk (8 irány: N, NE, E, SE, S, SW, W, NW – vagy 4 irány + flip):
+
+    idle:        4 frame, 0.8s loop
+    walk:        6 frame, 0.6s loop
+    run:         6 frame, 0.4s loop
+    attack_1:    5 frame, 0.4s once
+    attack_2:    5 frame, 0.4s once
+    cast:        6 frame, 0.5s once
+    hit:         3 frame, 0.3s once
+    death:       6 frame, 0.8s once
+    dodge:       4 frame, 0.3s once
+
+  9.4 AI generálási workflow
+  ──────────────
+    1. Prompt engineering: class leírás + szín paletta + stílus referencia
+       Példa prompt (Assassin):
+       "pixel art sprite sheet, top-down RPG character, dark hooded assassin,
+        32x48 pixels, 4 directional, dark purple and black color palette,
+        Stardew Valley style, transparent background"
+
+    2. LoRA training (opcionális, ajánlott):
+       - 20-30 referencia kép a kívánt stílusban
+       - Training: 1500-2000 lépés, learning rate 1e-4
+       - Trigger word: "ashenfall_style"
+
+    3. Batch generálás ComfyUI workflow-val:
+       - Input: karakter design prompt
+       - ControlNet: pose referencia (stick figure sprite sheet)
+       - Output: nyers sprite sheet
+       - Post-process: Aseprite-ban frame szeparálás + cleanup
+
+    4. Godot import:
+       - SpriteFrames resource létrehozás
+       - AnimatedSprite2D node setup
+       - AnimationPlayer alternatívaként (komplexebb animációkhoz)
+
+  9.5 Eszköz specifikus sprite-ok
+  ──────────────
+    Assassin: tőrök, mérgezett pengék, sötét köpeny
+    Tank: pajzs, nehéz páncél, sisak, buzogány
+    Mage: bot/staff, könyv, köpeny, rúnák
+
+    Mindegyikhez külön weapon sprite (16×16) az inventory/equipment UI-hoz.
+
+================================================================================
+  10. AI-GENERÁLT SKILL EFFECT ANIMÁCIÓK
+================================================================================
+
+  10.1 Effect típusok és generálás
+  ───────────────────────────────
+
+  Projectile effects (lövedékek):
+    Méret: 16×16 vagy 32×32
+    Frame-ek: 4-6 (repülés loop) + 3-4 (becsapódás)
+    AI prompt: "pixel art magic projectile, [color] energy ball,
+               transparent background, sprite sheet, 6 frames"
+    Példák: Arcane Bolt (lila), Ice Lance (kék), Poison Dagger (zöld)
+
+  AoE effects (területi):
+    Méret: 64×64 – 128×128 (a terület méretétől függően)
+    Frame-ek: 8-12
+    AI prompt: "pixel art spell effect, [type] explosion, top-down view,
+               transparent background, sprite sheet animation"
+    Példák: Blizzard (jégdarabok), Venom Cloud (zöld köd), Ground Slam (repedések)
+
+  Buff/Aura effects:
+    Méret: 48×48 (karakter körül)
+    Frame-ek: 4-6 (loop)
+    AI prompt: "pixel art aura effect, glowing [color] circle,
+               transparent background, looping animation"
+    Példák: Lifesteal Aura (piros), Blessing Aura (arany), Ice Barrier (kék)
+
+  Impact/Hit effects:
+    Méret: 32×32
+    Frame-ek: 4-5
+    AI prompt: "pixel art hit impact, [type] splash effect,
+               transparent background"
+    Példák: Blood splash (piros), Holy hit (fehér), Frost hit (kék kristály)
+
+  10.2 Particle System alternatíva
+  ───────────────────────────────
+    Godot GPUParticles2D használata egyszerűbb effect-ekhez:
+    - Particle texture: AI-generált 8×8 vagy 16×16 particle sprite
+    - Konfiguráció: GDScript-ből / editor-ból
+    - Előny: kevesebb sprite sheet, dinamikusabb
+    - Használat: trail-ek, ambient particle-ök, aura-k
+
+  10.3 Skill effect → Godot pipeline
+  ───────────────────────────────
+    1. AI-val generálni a nyers effect sprite sheet-et
+    2. Aseprite: cleanup, timing, export (PNG sequence vagy sheet)
+    3. Godot: SpriteFrames resource → AnimatedSprite2D
+    4. Effect scene (.tscn): AnimatedSprite2D + Area2D (hitbox) + Timer (lifetime)
+    5. SkillEffectSpawner: instance-olja a scene-t a megfelelő pozícióba
+    6. Multiplayer: effect spawn RPC-vel szinkronizálva
+
+================================================================================
+  11. AI-GENERÁLT UI ELEMEK
+================================================================================
+
+  11.1 Skill ikonok
+  ──────────────
+    Méret: 64×64px
+    Stílus: pixel art, arany keret, sötét háttér
+    AI prompt: "pixel art RPG skill icon, [skill description], dark fantasy style,
+               64x64, detailed, golden border"
+    Szükséges: 45 skill ikon (15 skill × 3 class)
+    Batch generálás: ComfyUI batch workflow, consistens stílus LoRA-val
+
+  11.2 Skill tree háttér
+  ──────────────
+    Méret: 1920×1080 (UI overlay méret)
+    Stílus: sötét pergamen / dark fantasy háttér
+    AI prompt: "dark fantasy parchment background, RPG skill tree,
+               dark tones, ornate borders"
+
+  11.3 Elemek listája
+  ──────────────
+    - Skill node keret (locked/unlocked/maxed variánsok)
+    - Vonalak (branch connection) – Godot Line2D-vel
+    - Tab háttér (branch selector)
+    - Tooltip keret
+    - Pont counter UI
+    - Rank jelzés (csillagok vagy számok)
+
+================================================================================
+  12. KAPCSOLÓDÓ RENDSZEREK
+================================================================================
+
+  Ez a modul kapcsolódik:
+    → 06_enemy_ai_plan.txt – Skill damage vs enemy HP/armor
+    → 03_boss_design_plan.txt – Ultimate-ek boss mechanikában
+    → 05_networking_plan.txt – Skill cast multiplayer szinkron
+    → 08_loot_system_plan.txt – Gear stat-ok befolyásolják a skill damage-et
+    → 09_gem_system_plan.txt – Gem-ek módosítják a skill stat-okat
+    → 10_godot_architecture_plan.txt – Modul elhelyezés a projekt struktúrában
+
+================================================================================
+  VÉGE – 01_skill_tree_plan.txt
+================================================================================

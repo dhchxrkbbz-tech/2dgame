@@ -1,0 +1,195 @@
+{
+  "legendary_gems": [
+    {
+      "gem_id": "gem_of_devastation",
+      "gem_name": "Gem of Devastation",
+      "description": "Kills grant +5% damage (stacks up to 10×, lasts 10s).",
+      "trigger": "ON_KILL",
+      "cooldown": 0.0,
+      "icon_color": "#FF4400",
+      "effect_params": {
+        "damage_per_stack": 5.0,
+        "max_stacks": 10,
+        "duration": 10.0
+      },
+      "drop_sources": ["world_boss", "raid_boss"]
+    },
+    {
+      "gem_id": "gem_of_fortitude",
+      "gem_name": "Gem of Fortitude",
+      "description": "When HP < 30%: +25% Damage Reduction.",
+      "trigger": "ON_LOW_HP",
+      "cooldown": 0.0,
+      "icon_color": "#4488FF",
+      "effect_params": {
+        "hp_threshold": 0.3,
+        "damage_reduction": 0.25,
+        "stat_bonuses": {"damage_reduction": 25.0}
+      },
+      "drop_sources": ["world_boss", "raid_boss"]
+    },
+    {
+      "gem_id": "gem_of_swiftness",
+      "gem_name": "Gem of Swiftness",
+      "description": "After dodging: +40% attack speed for 3s.",
+      "trigger": "ON_DODGE",
+      "cooldown": 0.0,
+      "icon_color": "#44FF88",
+      "effect_params": {
+        "attack_speed_bonus": 0.4,
+        "duration": 3.0
+      },
+      "drop_sources": ["world_boss", "dungeon_boss"]
+    },
+    {
+      "gem_id": "gem_of_the_leech",
+      "gem_name": "Gem of the Leech",
+      "description": "Critical hits heal 5% of max HP.",
+      "trigger": "ON_CRIT",
+      "cooldown": 0.0,
+      "icon_color": "#AA00AA",
+      "effect_params": {
+        "heal_percent": 0.05
+      },
+      "drop_sources": ["world_boss", "dungeon_boss"]
+    },
+    {
+      "gem_id": "gem_of_chaos",
+      "gem_name": "Gem of Chaos",
+      "description": "Attacks have 10% chance to unleash a random elemental burst.",
+      "trigger": "ON_ATTACK",
+      "cooldown": 1.0,
+      "icon_color": "#FF00FF",
+      "effect_params": {
+        "proc_chance": 0.10,
+        "burst_damage_percent": 0.5
+      },
+      "drop_sources": ["raid_boss"]
+    },
+    {
+      "gem_id": "gem_of_thorns",
+      "gem_name": "Gem of Thorns",
+      "description": "Melee attackers receive 15% reflected damage.",
+      "trigger": "ON_HIT_RECEIVED",
+      "cooldown": 0.0,
+      "icon_color": "#886600",
+      "effect_params": {
+        "reflect_percent": 0.15
+      },
+      "drop_sources": ["world_boss", "dungeon_boss"]
+    },
+    {
+      "gem_id": "gem_of_shadows",
+      "gem_name": "Gem of Shadows",
+      "description": "Killing an enemy grants 2s invisibility (does not stack).",
+      "trigger": "ON_KILL",
+      "cooldown": 5.0,
+      "icon_color": "#222244",
+      "effect_params": {
+        "invisibility_duration": 2.0
+      },
+      "drop_sources": ["world_boss"]
+    },
+    {
+      "gem_id": "gem_of_resurrection",
+      "gem_name": "Gem of Resurrection",
+      "description": "On death: revive once with 30% HP (300s cooldown).",
+      "trigger": "ON_DEATH",
+      "cooldown": 300.0,
+      "icon_color": "#FFD700",
+      "effect_params": {
+        "revive_hp_percent": 0.3
+      },
+      "drop_sources": ["raid_boss"]
+    },
+    {
+      "gem_id": "gem_of_the_storm",
+      "gem_name": "Gem of the Storm",
+      "description": "20% chance on attack to trigger chain lightning (hits 3 targets).",
+      "trigger": "ON_ATTACK",
+      "cooldown": 0.5,
+      "icon_color": "#00AAFF",
+      "effect_params": {
+        "proc_chance": 0.20,
+        "chain_targets": 3
+      },
+      "drop_sources": ["world_boss", "raid_boss"]
+    },
+    {
+      "gem_id": "gem_of_eternity",
+      "gem_name": "Gem of Eternity",
+      "description": "Cooldowns recover 15% faster.",
+      "trigger": "PASSIVE",
+      "cooldown": 0.0,
+      "icon_color": "#8844FF",
+      "effect_params": {
+        "cooldown_reduction": 0.15,
+        "stat_bonuses": {"cooldown_reduction": 15.0}
+      },
+      "drop_sources": ["world_boss", "raid_boss"]
+    },
+    {
+      "gem_id": "gem_of_greed",
+      "gem_name": "Gem of Greed",
+      "description": "+50% Gold Find, but -10% Max HP.",
+      "trigger": "PASSIVE",
+      "cooldown": 0.0,
+      "icon_color": "#FFCC00",
+      "effect_params": {
+        "stat_bonuses": {"gold_find": 50.0, "max_hp_percent": -10.0}
+      },
+      "drop_sources": ["dungeon_boss", "secret_room"]
+    },
+    {
+      "gem_id": "gem_of_vampirism",
+      "gem_name": "Gem of Vampirism",
+      "description": "All damage heals 3% as lifesteal, but -5% damage dealt.",
+      "trigger": "PASSIVE",
+      "cooldown": 0.0,
+      "icon_color": "#CC0033",
+      "effect_params": {
+        "lifesteal": 0.03,
+        "damage_penalty": -0.05,
+        "stat_bonuses": {"lifesteal": 3.0, "damage_percent": -5.0}
+      },
+      "drop_sources": ["world_boss"]
+    },
+    {
+      "gem_id": "gem_of_the_colossus",
+      "gem_name": "Gem of the Colossus",
+      "description": "+100 Max HP, but -10% Movement Speed.",
+      "trigger": "PASSIVE",
+      "cooldown": 0.0,
+      "icon_color": "#668866",
+      "effect_params": {
+        "stat_bonuses": {"max_hp": 100.0, "move_speed_percent": -10.0}
+      },
+      "drop_sources": ["world_boss", "raid_boss"]
+    },
+    {
+      "gem_id": "gem_of_precision",
+      "gem_name": "Gem of Precision",
+      "description": "+10% Critical Chance, but -15% Max HP.",
+      "trigger": "PASSIVE",
+      "cooldown": 0.0,
+      "icon_color": "#FF6644",
+      "effect_params": {
+        "stat_bonuses": {"crit_chance": 10.0, "max_hp_percent": -15.0}
+      },
+      "drop_sources": ["world_boss", "dungeon_boss"]
+    },
+    {
+      "gem_id": "gem_of_convergence",
+      "gem_name": "Gem of Convergence",
+      "description": "Heals grant 20% additional shield for 5s.",
+      "trigger": "ON_HEAL",
+      "cooldown": 0.0,
+      "icon_color": "#AAFFAA",
+      "effect_params": {
+        "shield_percent": 0.20,
+        "shield_duration": 5.0
+      },
+      "drop_sources": ["world_boss", "raid_boss"]
+    }
+  ]
+}

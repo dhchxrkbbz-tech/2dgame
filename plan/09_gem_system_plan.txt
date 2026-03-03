@@ -1,0 +1,604 @@
+================================================================================
+  ASHENFALL – 09. GEM SYSTEM – TELJES IMPLEMENTÁCIÓS TERV
+================================================================================
+
+  Motor: Godot 4.x (GDScript)
+  Stílus: 2D top-down pixel art
+  AI Asset Pipeline: Stable Diffusion + ComfyUI + LoRA + Aseprite
+
+================================================================================
+  TARTALOMJEGYZÉK
+================================================================================
+
+  1. Rendszer áttekintés
+  2. Gem típusok (6 alap + Legendary)
+  3. Gem tier rendszer
+  4. Socket rendszer
+  5. Gem behelyezés és eltávolítás
+  6. Gem kombinálás (upgrade)
+  7. Gem stat-ok részletes táblázatok
+  8. Legendary gem-ek
+  9. Gem drop és szerzés
+  10. Gem + Item szinergiák
+  11. Godot implementáció
+  12. AI-generált gem sprite-ok
+  13. AI-generált gem effekt animációk
+  14. Kapcsolódó rendszerek
+
+================================================================================
+  1. RENDSZER ÁTTEKINTÉS
+================================================================================
+
+  A gem rendszer item customization-t ad.
+  Gear-ek socket-ekbe gem-eket helyezhetünk → extra stat-ok.
+  6 alap gem típus + speciális Legendary gem-ek.
+  Gem-ek upgradolhatóak (3 azonos → 1 magasabb tier).
+
+  Diablo III gem rendszer inspiráció, egyszerűsítve.
+
+================================================================================
+  2. GEM TÍPUSOK (6 ALAP + LEGENDARY)
+================================================================================
+
+  ┌──────┬──────────────────┬────────────────────────┬────────────────────┐
+  │ #    │ Gem típus        │ Primary Stat           │ Szín               │
+  ├──────┼──────────────────┼────────────────────────┼────────────────────┤
+  │  1   │ Ruby             │ +Physical Damage       │ Piros              │
+  │  2   │ Emerald          │ +Critical Chance/Dmg   │ Zöld               │
+  │  3   │ Sapphire         │ +Max HP / Armor        │ Kék                │
+  │  4   │ Amethyst         │ +Lifesteal             │ Lila               │
+  │  5   │ Topaz            │ +Elemental Damage      │ Sárga              │
+  │  6   │ Diamond          │ +Damage Reduction      │ Fehér/átlátszó     │
+  │  7   │ Legendary Gem    │ Unique effect          │ Változó (izzó)     │
+  └──────┴──────────────────┴────────────────────────┴────────────────────┘
+
+  Fontos: a gem stat függ attól, MELYIK slot-ba kerül!
+    Weapon socket → offensive stat
+    Armor socket → defensive stat
+    Accessory socket → utility stat
+
+================================================================================
+  3. GEM TIER RENDSZER
+================================================================================
+
+  ┌──────┬──────────────────┬─────────────────┬────────────────────────────┐
+  │ Tier │ Név              │ Upgrade recept  │ Vizuális                   │
+  ├──────┼──────────────────┼─────────────────┼────────────────────────────┤
+  │  1   │ Chipped          │ -               │ Halvány, kis darab         │
+  │  2   │ Flawed           │ 3× Tier 1       │ Kicsit nagyobb, világosabb │
+  │  3   │ Normal           │ 3× Tier 2       │ Normál méret, tiszta szín  │
+  │  4   │ Flawless         │ 3× Tier 3       │ Nagy, ragyogó              │
+  │  5   │ Perfect          │ 3× Tier 4       │ Tökéletes, izzó            │
+  │  6   │ Radiant          │ 3× Tier 5 + mat │ Csillagszerű, particle     │
+  └──────┴──────────────────┴─────────────────┴────────────────────────────┘
+
+  Upgrade cost:
+    Tier 1→2: 3× Tier 1 gem + 50 gold
+    Tier 2→3: 3× Tier 2 gem + 200 gold
+    Tier 3→4: 3× Tier 3 gem + 500 gold
+    Tier 4→5: 3× Tier 4 gem + 1500 gold
+    Tier 5→6: 3× Tier 5 gem + 5000 gold + 1 Relic Fragment
+
+  Összesen 1 Radiant gem-hez: 3^5 = 243 Chipped gem
+
+================================================================================
+  4. SOCKET RENDSZER
+================================================================================
+
+  4.1 Socket count item rarity szerint
+  ──────────────────
+
+    ┌──────────┬──────────────┬─────────────────────────────────────────┐
+    │ Rarity   │ Socket count │ Megjegyzés                             │
+    ├──────────┼──────────────┼─────────────────────────────────────────┤
+    │ Common   │ 0            │ Nincs socket                           │
+    │ Uncommon │ 0-1          │ 30% esély 1 socket-re                  │
+    │ Rare     │ 1-2          │ Garantált 1, 40% esély 2-re            │
+    │ Epic     │ 1-3          │ Garantált 1, +1 50%, +1 25%            │
+    │ Legendary│ 2-4          │ Garantált 2, +1 50%, +1 30%            │
+    └──────────┴──────────────┴─────────────────────────────────────────┘
+
+  4.2 Socket típus korlátok
+  ──────────────────
+
+    Weapon socket: bármely gem (de offensive stat-ot ad)
+    Armor socket: bármely gem (de defensive stat-ot ad)
+    Accessory socket: bármely gem (de utility stat-ot ad)
+
+    Legendary gem: CSAK Accessory socket-be! (ring, amulet, belt, cloak)
+    Maximum: 1 Legendary gem item-enként
+
+  4.3 Socket bővítés (NPC service)
+  ──────────────────
+
+    Jeweler NPC:
+      +1 socket hozzáadása item-hez (max a rarity limit-ig)
+      Ár: 500 gold × (jelenlegi socket count + 1) + 1 Dark Essence
+      Csak rare+ item-ekre
+
+================================================================================
+  5. GEM BEHELYEZÉS ÉS ELTÁVOLÍTÁS
+================================================================================
+
+  5.1 Behelyezés
+  ──────────────────
+    Hol: Inventory UI → drag gem → drop socket-be
+    Vagy: Jeweler NPC → "Socket Gem" opció
+    Költség: ingyenes
+    Korlátozás: socket nem üres → először ki kell venni a régit
+
+  5.2 Eltávolítás
+  ──────────────────
+    Jeweler NPC → "Remove Gem" opció
+    Költség: 100 gold × gem tier
+    Gem megmarad (visszakapod)
+    
+    Alternativa: "Destroy Gem" → ingyenes, de a gem elpusztul
+    (szegény játékosoknak, akik nem akarnak fizetni a removal-ért)
+
+  5.3 Gem csere (swap)
+  ──────────────────
+    Ha socket-ben van gem és másikat akarod berakni:
+      → Régi gem automatikusan kikerül (removal cost)
+      → Új gem bekerül
+      Nettó: removal cost egyszer
+
+================================================================================
+  6. GEM KOMBINÁLÁS (UPGRADE)
+================================================================================
+
+  6.1 Kombinálás mechanika
+  ──────────────────
+    Jeweler NPC → "Combine Gems" opció
+
+    Recept: 3× azonos gem típus + azonos tier → 1× következő tier
+    + Gold költség (tier-függő, lásd 3. fejezet)
+
+    Példa:
+      3× Chipped Ruby + 50 gold → 1× Flawed Ruby
+      3× Flawed Ruby + 200 gold → 1× Normal Ruby
+
+  6.2 Kombinálás UI
+  ──────────────────
+    3 slot + eredmény preview
+    Drag & drop 3 azonos gem → "Combine" gomb → animáció → eredmény
+
+  6.3 Downgrade (bontás)
+  ──────────────────
+    NINCS downgrade – gem upgrade egyirányú
+    Ez gold sink-ként is funkcionál
+
+================================================================================
+  7. GEM STAT-OK RÉSZLETES TÁBLÁZATOK
+================================================================================
+
+  7.1 Ruby (Piros – Physical Damage)
+  ──────────────────
+
+    ┌──────────┬───────────────────┬──────────────────┬──────────────────┐
+    │ Tier     │ Weapon socket     │ Armor socket     │ Accessory socket │
+    ├──────────┼───────────────────┼──────────────────┼──────────────────┤
+    │ Chipped  │ +3 Phys Damage    │ +5 Max HP        │ +1% Damage       │
+    │ Flawed   │ +6 Phys Damage    │ +10 Max HP       │ +2% Damage       │
+    │ Normal   │ +10 Phys Damage   │ +20 Max HP       │ +3% Damage       │
+    │ Flawless │ +16 Phys Damage   │ +35 Max HP       │ +5% Damage       │
+    │ Perfect  │ +24 Phys Damage   │ +55 Max HP       │ +7% Damage       │
+    │ Radiant  │ +35 Phys Damage   │ +80 Max HP       │ +10% Damage      │
+    └──────────┴───────────────────┴──────────────────┴──────────────────┘
+
+  7.2 Emerald (Zöld – Critical)
+  ──────────────────
+
+    ┌──────────┬───────────────────┬──────────────────┬──────────────────┐
+    │ Tier     │ Weapon socket     │ Armor socket     │ Accessory socket │
+    ├──────────┼───────────────────┼──────────────────┼──────────────────┤
+    │ Chipped  │ +1% Crit Chance   │ +2 Armor         │ +5% Crit Damage  │
+    │ Flawed   │ +1.5% Crit Chance │ +4 Armor         │ +8% Crit Damage  │
+    │ Normal   │ +2% Crit Chance   │ +7 Armor         │ +12% Crit Damage │
+    │ Flawless │ +3% Crit Chance   │ +11 Armor        │ +18% Crit Damage │
+    │ Perfect  │ +4% Crit Chance   │ +16 Armor        │ +25% Crit Damage │
+    │ Radiant  │ +5% Crit Chance   │ +22 Armor        │ +35% Crit Damage │
+    └──────────┴───────────────────┴──────────────────┴──────────────────┘
+
+  7.3 Sapphire (Kék – Defense)
+  ──────────────────
+
+    ┌──────────┬───────────────────┬──────────────────┬──────────────────┐
+    │ Tier     │ Weapon socket     │ Armor socket     │ Accessory socket │
+    ├──────────┼───────────────────┼──────────────────┼──────────────────┤
+    │ Chipped  │ +2% Slow on Hit   │ +3 Armor         │ +5 Max HP        │
+    │ Flawed   │ +3% Slow on Hit   │ +6 Armor         │ +12 Max HP       │
+    │ Normal   │ +5% Slow on Hit   │ +10 Armor        │ +20 Max HP       │
+    │ Flawless │ +7% Slow on Hit   │ +16 Armor        │ +35 Max HP       │
+    │ Perfect  │ +10% Slow on Hit  │ +24 Armor        │ +55 Max HP       │
+    │ Radiant  │ +14% Slow on Hit  │ +34 Armor        │ +80 Max HP       │
+    └──────────┴───────────────────┴──────────────────┴──────────────────┘
+
+  7.4 Amethyst (Lila – Lifesteal)
+  ──────────────────
+
+    ┌──────────┬───────────────────┬──────────────────┬──────────────────┐
+    │ Tier     │ Weapon socket     │ Armor socket     │ Accessory socket │
+    ├──────────┼───────────────────┼──────────────────┼──────────────────┤
+    │ Chipped  │ +1% Lifesteal     │ +1 HP Regen      │ +2% Heal Eff.    │
+    │ Flawed   │ +1.5% Lifesteal   │ +2 HP Regen      │ +4% Heal Eff.    │
+    │ Normal   │ +2% Lifesteal     │ +3 HP Regen      │ +6% Heal Eff.    │
+    │ Flawless │ +3% Lifesteal     │ +5 HP Regen      │ +9% Heal Eff.    │
+    │ Perfect  │ +4% Lifesteal     │ +8 HP Regen      │ +12% Heal Eff.   │
+    │ Radiant  │ +6% Lifesteal     │ +12 HP Regen     │ +16% Heal Eff.   │
+    └──────────┴───────────────────┴──────────────────┴──────────────────┘
+
+  7.5 Topaz (Sárga – Elemental)
+  ──────────────────
+
+    ┌──────────┬───────────────────┬──────────────────┬──────────────────┐
+    │ Tier     │ Weapon socket     │ Armor socket     │ Accessory socket │
+    ├──────────┼───────────────────┼──────────────────┼──────────────────┤
+    │ Chipped  │ +3 Elem Damage    │ +3% Elem Resist  │ +5% Gold Find    │
+    │ Flawed   │ +6 Elem Damage    │ +5% Elem Resist  │ +8% Gold Find    │
+    │ Normal   │ +10 Elem Damage   │ +8% Elem Resist  │ +12% Gold Find   │
+    │ Flawless │ +16 Elem Damage   │ +12% Elem Resist │ +18% Gold Find   │
+    │ Perfect  │ +24 Elem Damage   │ +16% Elem Resist │ +25% Gold Find   │
+    │ Radiant  │ +35 Elem Damage   │ +22% Elem Resist │ +35% Gold Find   │
+    └──────────┴───────────────────┴──────────────────┴──────────────────┘
+
+  7.6 Diamond (Fehér – Damage Reduction)
+  ──────────────────
+
+    ┌──────────┬───────────────────┬──────────────────┬──────────────────┐
+    │ Tier     │ Weapon socket     │ Armor socket     │ Accessory socket │
+    ├──────────┼───────────────────┼──────────────────┼──────────────────┤
+    │ Chipped  │ +1% All Damage    │ +1% Dmg Reduce   │ +3% Magic Find   │
+    │ Flawed   │ +2% All Damage    │ +2% Dmg Reduce   │ +5% Magic Find   │
+    │ Normal   │ +3% All Damage    │ +3% Dmg Reduce   │ +8% Magic Find   │
+    │ Flawless │ +4% All Damage    │ +4% Dmg Reduce   │ +12% Magic Find  │
+    │ Perfect  │ +6% All Damage    │ +6% Dmg Reduce   │ +17% Magic Find  │
+    │ Radiant  │ +8% All Damage    │ +8% Dmg Reduce   │ +24% Magic Find  │
+    └──────────┴───────────────────┴──────────────────┴──────────────────┘
+
+================================================================================
+  8. LEGENDARY GEM-EK
+================================================================================
+
+  8.1 Legendary gem jellemzők
+  ──────────────────
+    - NAGYON ritka (boss drop, 1-5% esély)
+    - Csak Accessory socket-be (ring, amulet, belt, cloak)
+    - Max 1 per item
+    - Nem kombinálható (nincs tier, egyedi)
+    - Nem eltávolítható ingyen (2000 gold removal)
+    - Egyedi ability/passzív effekt
+
+  8.2 Legendary gem lista
+  ──────────────────
+
+    ┌───────────────────────┬────────────────────────────────────────────────┐
+    │ Gem neve              │ Egyedi effekt                                 │
+    ├───────────────────────┼────────────────────────────────────────────────┤
+    │ Gem of Devastation    │ Kill-ek után +5% damage stack (max 10×, 10s) │
+    │ Gem of Fortitude      │ Ha HP < 30%: +25% Damage Reduction           │
+    │ Gem of Swiftness      │ Dodge után +40% attack speed 3s-ra           │
+    │ Gem of the Leech      │ Crit hit heal 5% max HP                      │
+    │ Gem of Chaos          │ Attack-ok 10% chance random elemental burst  │
+    │ Gem of Thorns         │ Melee attackerek 15% damage reflektálva      │
+    │ Gem of Shadows        │ Kill → 2s invisibility (nem stackel)         │
+    │ Gem of Resurrection   │ Halálkor 1× revive 30% HP-val (300s cd)     │
+    │ Gem of the Storm      │ 20% chance attack-kor chain lightning (3 tgt)│
+    │ Gem of Eternity       │ Cooldowns 15% gyorsabban regenerálódnak      │
+    │ Gem of Greed          │ +50% Gold Find, de -10% Max HP              │
+    │ Gem of Vampirism      │ Összes damage 3% lifesteal, de -5% damage   │
+    │ Gem of the Colossus   │ +100 Max HP, de -10% Move Speed             │
+    │ Gem of Precision      │ +10% Crit Chance, de -15% Max HP            │
+    │ Gem of Convergence    │ Heal-ek 20% extra shield-et adnak (5s)       │
+    └───────────────────────┴────────────────────────────────────────────────┘
+
+  8.3 Legendary gem szerzés
+  ──────────────────
+    - World Boss kill: 5% esély random legendary gem
+    - Raid Boss kill: 10% esély
+    - Dungeon Boss (Tier 2+): 2% esély
+    - Secret Room chest: 1% esély
+    - Crafting: NEM craftolható (csak drop)
+
+================================================================================
+  9. GEM DROP ÉS SZERZÉS
+================================================================================
+
+  9.1 Gem drop rarity
+  ──────────────────
+
+    Normál enemy: 5% chance Chipped gem
+    Elite enemy: 15% chance Chipped/Flawed gem (70/30)
+    Boss (T1): 50% chance Flawed/Normal gem (60/40)
+    Boss (T2): 80% chance Normal/Flawless gem (60/40)
+    Boss (T3): 100% chance Flawless/Perfect gem (60/40) + 5% Legendary
+    Boss (T4): 100% chance Perfect/Radiant gem (60/40) + 10% Legendary
+
+    Dungeon chest: 10% chance Chipped-Normal gem (tier-függő)
+
+  9.2 Gem mining (gathering)
+  ──────────────────
+    Gem node-ok a világban (ritka):
+      Mountains biome: gyakoribb (20% node chance)
+      Más biome-ok: ritkább (5% node chance)
+
+    Mining skill (profession) → jobb gem drop rate
+    Mining level 1-10: +10% gem quality / level
+
+  9.3 Gem kereskedelem
+  ──────────────────
+    Gem-ek eladhatóak NPC-nek (alacsony ár)
+    Gem-ek tradolhatóak player→player
+    Marketplace-en listázhatóak
+
+    NPC sell price: tier × 50 gold
+    Marketplace: player-set price
+
+================================================================================
+  10. GEM + ITEM SZINERGIÁK
+================================================================================
+
+  10.1 Matching bonus
+  ──────────────────
+    Ha MINDEN socket-ben azonos gem típus → +20% gem stat bonus.
+    Példa: 3× Ruby egy weapon-ban → mindegyik Ruby +20% erősebb.
+
+  10.2 Rainbow bonus
+  ──────────────────
+    Ha egy item-ben 3+ KÜLÖNBÖZŐ gem típus → +5% All Stats.
+    Kevésbé erős mint matching, de versatilis.
+
+  10.3 Set + Gem szinergia
+  ──────────────────
+    Egyes set bónuszok erősebbek ha specifikus gem van:
+      "Venomweave" set + Topaz (Elemental) → extra poison damage stack
+    Ez implicit (a set bónusz hat a gem stat-ra is).
+
+================================================================================
+  11. GODOT IMPLEMENTÁCIÓ
+================================================================================
+
+  11.1 Script struktúra
+  ──────────────────
+
+    scripts/items/gems/
+    ├── gem_data.gd            # Resource: gem alap adatok
+    ├── gem_instance.gd        # Egy konkrét gem (típus + tier)
+    ├── gem_stat_table.gd      # Stat értékek tier+slot kombinációnként
+    ├── legendary_gem_data.gd  # Resource: legendary gem definíciók
+    ├── socket_system.gd       # Socket kezelés (behelyezés/eltávolítás)
+    ├── gem_combiner.gd        # Gem kombinálás logika
+    └── gem_ui.gd              # Gem UI (drag & drop, tooltip)
+
+  11.2 GemData Resource
+  ──────────────────
+
+    class_name GemData extends Resource
+
+    enum GemType { RUBY, EMERALD, SAPPHIRE, AMETHYST, TOPAZ, DIAMOND, LEGENDARY }
+    enum GemTier { CHIPPED, FLAWED, NORMAL, FLAWLESS, PERFECT, RADIANT }
+
+    @export var gem_type: GemType
+    @export var gem_tier: GemTier
+    @export var gem_name: String
+    @export var icon: Texture2D
+
+    # Stat-ok slot-típus alapján
+    @export var weapon_stat_type: StatType
+    @export var weapon_stat_value: float
+    @export var armor_stat_type: StatType
+    @export var armor_stat_value: float
+    @export var accessory_stat_type: StatType
+    @export var accessory_stat_value: float
+
+  11.3 Socket System
+  ──────────────────
+
+    class_name SocketSystem
+
+    func insert_gem(item: ItemInstance, socket_index: int, gem: GemInstance) -> bool:
+        if socket_index >= item.sockets.size():
+            return false
+        if item.sockets[socket_index] != null:
+            return false  # socket foglalt
+        if gem.gem_type == GemType.LEGENDARY:
+            if not is_accessory_slot(item.slot):
+                return false  # legendary csak accessory-ba
+            if has_legendary_gem(item):
+                return false  # max 1 legendary per item
+        
+        item.sockets[socket_index] = gem
+        recalculate_stats(item)
+        return true
+
+    func remove_gem(item: ItemInstance, socket_index: int, pay_gold: bool) -> GemInstance:
+        if socket_index >= item.sockets.size():
+            return null
+        var gem = item.sockets[socket_index]
+        if gem == null:
+            return null
+        
+        var cost = get_removal_cost(gem)
+        if pay_gold:
+            if not PlayerEconomy.spend_gold(cost):
+                return null  # nincs elég gold
+            item.sockets[socket_index] = null
+            recalculate_stats(item)
+            return gem  # visszakapja
+        else:
+            item.sockets[socket_index] = null
+            recalculate_stats(item)
+            return null  # gem elpusztul
+
+    func get_removal_cost(gem: GemInstance) -> int:
+        if gem.is_legendary:
+            return 2000
+        return 100 * (gem.tier + 1)
+
+  11.4 Gem Combiner
+  ──────────────────
+
+    class_name GemCombiner
+
+    const GEMS_NEEDED = 3
+    const GOLD_COSTS = [50, 200, 500, 1500, 5000]
+    const NEEDS_RELIC = [false, false, false, false, true]
+
+    func can_combine(gems: Array[GemInstance]) -> bool:
+        if gems.size() != GEMS_NEEDED:
+            return false
+        var type = gems[0].gem_type
+        var tier = gems[0].gem_tier
+        if tier >= GemTier.RADIANT:
+            return false  # max tier
+        for gem in gems:
+            if gem.gem_type != type or gem.gem_tier != tier:
+                return false
+        var gold_cost = GOLD_COSTS[tier]
+        if not PlayerEconomy.has_gold(gold_cost):
+            return false
+        if NEEDS_RELIC[tier] and not PlayerInventory.has_item("relic_fragment"):
+            return false
+        return true
+
+    func combine(gems: Array[GemInstance]) -> GemInstance:
+        if not can_combine(gems):
+            return null
+        
+        var type = gems[0].gem_type
+        var new_tier = gems[0].gem_tier + 1
+        var gold_cost = GOLD_COSTS[gems[0].gem_tier]
+        
+        PlayerEconomy.spend_gold(gold_cost)
+        if NEEDS_RELIC[gems[0].gem_tier]:
+            PlayerInventory.remove_item("relic_fragment", 1)
+        
+        for gem in gems:
+            PlayerInventory.remove_gem(gem)
+        
+        var new_gem = GemInstance.new()
+        new_gem.gem_type = type
+        new_gem.gem_tier = new_tier
+        new_gem.initialize()
+        
+        PlayerInventory.add_gem(new_gem)
+        return new_gem
+
+================================================================================
+  12. AI-GENERÁLT GEM SPRITE-OK
+================================================================================
+
+  12.1 Gem sprite méret
+  ──────────────────
+    Inventory ikon: 32×32px
+    Socket megjelenítés: 16×16px (item tooltip-ban)
+    Droppolt gem (föld): 16×16px + glow FX
+
+  12.2 Sprite count
+  ──────────────────
+    6 gem típus × 6 tier = 36 normál gem sprite
+    15 legendary gem sprite
+    Összesen: 51 gem sprite
+
+  12.3 AI gem sprite generálás
+  ──────────────────
+
+    Alap gem prompt:
+      "pixel art gemstone, [color], [tier_description],
+       32x32 icon, transparent background, RPG item,
+       crystal, cut gem, shiny, [quality_adjective]"
+
+    Tier-specifikus leírás:
+      Chipped: "small, rough, cracked, dull"
+      Flawed: "small, slightly polished, minor imperfections"
+      Normal: "medium, polished, clean cut, clear"
+      Flawless: "large, brilliantly cut, gleaming, pristine"
+      Perfect: "large, perfect cut, radiant glow, flawless"
+      Radiant: "large, otherworldly glow, star-like, celestial sheen"
+
+    Példák:
+      "pixel art ruby gemstone, deep red, small rough cracked,
+       32x32 icon, transparent background, RPG item, Chipped quality"
+
+      "pixel art emerald gemstone, vivid green, large perfect cut,
+       radiant glow, 32x32 icon, transparent background, RPG item"
+
+      "pixel art diamond gemstone, white crystal, otherworldly glow,
+       star-like, celestial sheen, 32x32 icon, transparent background"
+
+  12.4 Legendary gem sprite generálás
+  ──────────────────
+
+    Prompt: "pixel art legendary magical gemstone, [unique_description],
+            [color], glowing, ethereal, powerful aura,
+            32x32 icon, transparent background, RPG item"
+
+    Példák:
+      "Gem of Devastation":
+        "pixel art legendary gem, fiery red-orange, cracked with inner fire,
+         pulsing energy, lava-like core, powerful aura, 32x32 icon"
+
+      "Gem of Resurrection":
+        "pixel art legendary gem, golden white, angelic glow, holy light,
+         phoenix symbol inside, divine crystal, 32x32 icon"
+
+      "Gem of the Storm":
+        "pixel art legendary gem, electric blue, lightning inside crystal,
+         sparking energy, storm power, charged, 32x32 icon"
+
+  12.5 LoRA style consistency
+  ──────────────────
+    "ashenfall_gem" LoRA → minden gem azonos pixel art stílusban
+    Tanító adat: 20-30 manuálisan készített pixel art gem referencia
+    Training steps: ~1500
+    LoRA weight: 0.7
+
+================================================================================
+  13. AI-GENERÁLT GEM EFFEKT ANIMÁCIÓK
+================================================================================
+
+  13.1 Socket glow animáció
+  ──────────────────
+    Amikor gem be van helyezve → az item socket-je csillog:
+      - 4 frame pulse loop (halvány → erős → halvány)
+      - Szín = gem típus szín
+      - Méret: 16×16px overlay az item sprite-on
+
+    AI prompt: "[color] glow pulse animation, 4 frames,
+               pixel art, small gemstone glow, transparent background"
+
+  13.2 Gem kombálás animáció
+  ──────────────────
+    3 gem → összeolvadás → 1 új gem
+      - 8 frame animáció
+      - 3 kis gem → közelednek → flash → 1 nagyobb gem
+      - Szín: gem típus szín
+      - Particle: szikrák + fény burst
+
+    AI prompt: "pixel art gem fusion animation, 8 frames,
+               [color] crystals merging, magical flash,
+               sparkle particles, transparent background"
+
+  13.3 Legendary gem equipped effekt
+  ──────────────────
+    Ha legendary gem van az accessory-ban → karakter körüli aura:
+      - 6 frame subtle aura loop
+      - Szín: legendary gem specifikus
+      - Megjelenik a karakter sprite alatt/körül
+
+    Implementáció: shader overlay (hasonló az elite enemy aura-hoz)
+
+================================================================================
+  14. KAPCSOLÓDÓ RENDSZEREK
+================================================================================
+
+  Ez a modul kapcsolódik:
+    → 01_skill_tree_plan.txt – Gem stat + skill stat interaction
+    → 04_economy_system_plan.txt – Gem eladás, NPC, marketplace
+    → 08_loot_system_plan.txt – Gem drop és item socket count
+    → 03_boss_design_plan.txt – Boss legendary gem drop
+    → 10_godot_architecture_plan.txt – Gem modul helye
+
+================================================================================
+  VÉGE – 09_gem_system_plan.txt
+================================================================================

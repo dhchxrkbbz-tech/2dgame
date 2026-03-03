@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://room_safe_scene"]
+
+[node name="RoomSafe" type="Node2D"]
+
+[node name="TileMap" type="TileMapLayer" parent="."]
+
+[node name="Decorations" type="Node2D" parent="."]
+
+[node name="Doors" type="Node2D" parent="."]
+
+[node name="RestPoint" type="Marker2D" parent="."]
+position = Vector2(0, 0)

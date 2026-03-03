@@ -1,0 +1,119 @@
+[gd_scene format=3 uid="uid://loot_filter_settings_scene"]
+
+[node name="LootFilterSettings" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.04, 0.04, 0.08, 0.95)
+
+[node name="Title" type="Label" parent="."]
+layout_mode = 1
+offset_left = 200.0
+offset_top = 10.0
+offset_right = 440.0
+offset_bottom = 30.0
+text = "LOOT FILTER"
+horizontal_alignment = 1
+
+[node name="ScrollContainer" type="ScrollContainer" parent="."]
+layout_mode = 1
+offset_left = 20.0
+offset_top = 40.0
+offset_right = 620.0
+offset_bottom = 310.0
+
+[node name="FilterList" type="VBoxContainer" parent="ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RaritySection" type="VBoxContainer" parent="ScrollContainer/FilterList"]
+layout_mode = 2
+
+[node name="RarityLabel" type="Label" parent="ScrollContainer/FilterList/RaritySection"]
+layout_mode = 2
+text = "Show by Rarity"
+
+[node name="ShowNormal" type="CheckBox" parent="ScrollContainer/FilterList/RaritySection"]
+layout_mode = 2
+button_pressed = true
+text = "Normal"
+
+[node name="ShowMagic" type="CheckBox" parent="ScrollContainer/FilterList/RaritySection"]
+layout_mode = 2
+button_pressed = true
+text = "Magic"
+
+[node name="ShowRare" type="CheckBox" parent="ScrollContainer/FilterList/RaritySection"]
+layout_mode = 2
+button_pressed = true
+text = "Rare"
+
+[node name="ShowLegendary" type="CheckBox" parent="ScrollContainer/FilterList/RaritySection"]
+layout_mode = 2
+button_pressed = true
+text = "Legendary"
+
+[node name="ShowSet" type="CheckBox" parent="ScrollContainer/FilterList/RaritySection"]
+layout_mode = 2
+button_pressed = true
+text = "Set"
+
+[node name="TypeSection" type="VBoxContainer" parent="ScrollContainer/FilterList"]
+layout_mode = 2
+
+[node name="TypeLabel" type="Label" parent="ScrollContainer/FilterList/TypeSection"]
+layout_mode = 2
+text = "Show by Type"
+
+[node name="ShowWeapons" type="CheckBox" parent="ScrollContainer/FilterList/TypeSection"]
+layout_mode = 2
+button_pressed = true
+text = "Weapons"
+
+[node name="ShowArmor" type="CheckBox" parent="ScrollContainer/FilterList/TypeSection"]
+layout_mode = 2
+button_pressed = true
+text = "Armor"
+
+[node name="ShowAccessories" type="CheckBox" parent="ScrollContainer/FilterList/TypeSection"]
+layout_mode = 2
+button_pressed = true
+text = "Accessories"
+
+[node name="ShowConsumables" type="CheckBox" parent="ScrollContainer/FilterList/TypeSection"]
+layout_mode = 2
+button_pressed = true
+text = "Consumables"
+
+[node name="ShowMaterials" type="CheckBox" parent="ScrollContainer/FilterList/TypeSection"]
+layout_mode = 2
+button_pressed = true
+text = "Materials"
+
+[node name="ShowGems" type="CheckBox" parent="ScrollContainer/FilterList/TypeSection"]
+layout_mode = 2
+button_pressed = true
+text = "Gems"
+
+[node name="SaveButton" type="Button" parent="."]
+layout_mode = 1
+offset_left = 250.0
+offset_top = 320.0
+offset_right = 390.0
+offset_bottom = 345.0
+text = "Save Filter"
+
+[node name="CloseButton" type="Button" parent="."]
+layout_mode = 1
+offset_left = 590.0
+offset_top = 10.0
+offset_right = 620.0
+offset_bottom = 35.0
+text = "X"

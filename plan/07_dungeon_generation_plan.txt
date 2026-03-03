@@ -1,0 +1,917 @@
+================================================================================
+  ASHENFALL – 07. DUNGEON GENERATION – TELJES IMPLEMENTÁCIÓS TERV
+================================================================================
+
+  Motor: Godot 4.x (GDScript)
+  Stílus: 2D top-down pixel art
+  AI Asset Pipeline: Stable Diffusion + ComfyUI + LoRA + Aseprite
+
+================================================================================
+  TARTALOMJEGYZÉK
+================================================================================
+
+  1. Rendszer áttekintés
+  2. Dungeon típusok
+  3. Layout generálás (BSP algoritmus)
+  4. Room típusok részletesen
+  5. Folyosó generálás
+  6. Enemy spawn rendszer (dungeon)
+  7. Trap és Hazard rendszer
+  8. Boss room mechanika
+  9. Loot elhelyezés
+  10. Dungeon difficulty scaling
+  11. Biome-specifikus dungeon témák
+  12. Procedurális puzzle rendszer
+  13. Dungeon életciklus
+  14. Multiplayer dungeon sync
+  15. Godot implementáció
+  16. AI-generált dungeon tile-ok
+  17. AI-generált dungeon props
+  18. AI-generált dungeon dekoráció
+  19. Kapcsolódó rendszerek
+
+================================================================================
+  1. RENDSZER ÁTTEKINTÉS
+================================================================================
+
+  Dungeon-ök a fő endgame content.
+  Procedurálisan generált, biome-specifikus elrendezés.
+  Minden dungeon egyedi – nincs két azonos layout.
+
+  Dungeon paraméterek:
+    - Biome: meghatározza a vizuális témát és enemy típusokat
+    - Difficulty: 1-10 skála (biome + player level alapján)
+    - Room count: 8-20 (difficulty-függő)
+    - Floor count: 1-3 (Tier 2+ dungeon-öknél)
+    - Boss room: utolsó room, garantált
+
+  A dungeon bejáratkor generálódik (nem előre).
+  Minden bejáratnál új layout → replayability.
+
+================================================================================
+  2. DUNGEON TÍPUSOK
+================================================================================
+
+  ┌──────┬────────────────────┬───────────┬──────────┬──────────────────────┐
+  │ Tier │ Típus              │ Rooms     │ Floors   │ Boss                 │
+  ├──────┼────────────────────┼───────────┼──────────┼──────────────────────┤
+  │  1   │ Small Dungeon      │ 8-10      │ 1        │ Mini Boss            │
+  │  2   │ Medium Dungeon     │ 12-16     │ 1-2      │ Dungeon Boss         │
+  │  3   │ Large Dungeon      │ 16-20     │ 2-3      │ Dungeon Boss + Rare  │
+  │  4   │ Raid Dungeon       │ 20-25     │ 3        │ Raid Boss            │
+  └──────┴────────────────────┴───────────┴──────────┴──────────────────────┘
+
+  Minden biome-ban 1-3 dungeon bejárat a procedurális világban.
+  Bejárat: vizuálisan kiemelkedő a környezetből (pl. barlang szája, rom kapu).
+
+================================================================================
+  3. LAYOUT GENERÁLÁS (BSP ALGORITMUS)
+================================================================================
+
+  3.1 Binary Space Partitioning (BSP) áttekintés
+  ──────────────────
+
+    BSP: a dungeon térkép téglalap területét rekurzívan kettéosztjuk,
+    amíg elég kis részeket nem kapunk → ezek lesznek a room-ok.
+
+    Előnyök: garantáltan nem fedik át egymást, jó térkitöltés
+    Hátrányt: téglalap alakú room-ok (dekorációval oldjuk)
+
+  3.2 BSP algoritmus lépések
+  ──────────────────
+
+    1. Kiinduló terület: pl. 80×60 tile (dungeon mérettől függően)
+    2. Rekurzív felosztás:
+       - Random: vízszintes VAGY függőleges vágás
+       - Min room méret: 8×8 tile
+       - Max room méret: 20×16 tile
+       - Vágás pozíció: 35-65% (ne legyen túl szélsőséges)
+    3. Levél node-ok = room pozíciók
+    4. Room padding: 1-2 tile fal a room szélén
+    5. Random room méret a leaf-en belül (nem tölti ki teljesen)
+    6. Folyosók generálása a BSP fában szomszédos room-ok között
+
+  3.3 BSP GDScript implementáció
+  ──────────────────
+
+    class BSPNode:
+        var rect: Rect2i        # terület határ
+        var left: BSPNode       # bal gyerek
+        var right: BSPNode      # jobb gyerek
+        var room: Rect2i        # tényleges room (csak leaf-ben)
+        var is_leaf: bool
+
+    func generate_bsp(area: Rect2i, depth: int) -> BSPNode:
+        var node = BSPNode.new()
+        node.rect = area
+
+        # Megáll ha elég kicsi vagy elértük a max mélységet
+        if area.size.x < MIN_ROOM_SIZE * 2 or area.size.y < MIN_ROOM_SIZE * 2:
+            node.is_leaf = true
+            node.room = create_room_in_area(area)
+            return node
+        if depth >= MAX_DEPTH:
+            node.is_leaf = true
+            node.room = create_room_in_area(area)
+            return node
+
+        # Vízszintes vagy függőleges vágás
+        var split_horizontal = randf() > 0.5
+        if area.size.x > area.size.y * 1.25:
+            split_horizontal = false
+        elif area.size.y > area.size.x * 1.25:
+            split_horizontal = true
+
+        var split_pos: int
+        if split_horizontal:
+            split_pos = randi_range(
+                area.position.y + MIN_ROOM_SIZE,
+                area.end.y - MIN_ROOM_SIZE
+            )
+            var left_area = Rect2i(area.position, Vector2i(area.size.x, split_pos - area.position.y))
+            var right_area = Rect2i(Vector2i(area.position.x, split_pos), Vector2i(area.size.x, area.end.y - split_pos))
+            node.left = generate_bsp(left_area, depth + 1)
+            node.right = generate_bsp(right_area, depth + 1)
+        else:
+            split_pos = randi_range(
+                area.position.x + MIN_ROOM_SIZE,
+                area.end.x - MIN_ROOM_SIZE
+            )
+            var left_area = Rect2i(area.position, Vector2i(split_pos - area.position.x, area.size.y))
+            var right_area = Rect2i(Vector2i(split_pos, area.position.y), Vector2i(area.end.x - split_pos, area.size.y))
+            node.left = generate_bsp(left_area, depth + 1)
+            node.right = generate_bsp(right_area, depth + 1)
+
+        node.is_leaf = false
+        return node
+
+    func create_room_in_area(area: Rect2i) -> Rect2i:
+        var padding = 2
+        var room_w = randi_range(MIN_ROOM_SIZE, min(MAX_ROOM_SIZE, area.size.x - padding * 2))
+        var room_h = randi_range(MIN_ROOM_SIZE, min(MAX_ROOM_SIZE, area.size.y - padding * 2))
+        var room_x = randi_range(area.position.x + padding, area.end.x - room_w - padding)
+        var room_y = randi_range(area.position.y + padding, area.end.y - room_h - padding)
+        return Rect2i(room_x, room_y, room_w, room_h)
+
+  3.4 Room shape variáció
+  ──────────────────
+    BSP alapból téglalapokat ad → variáció szükséges:
+    
+    Post-process lépések room shape-re:
+      - L-shape: random sarok eltávolítás (25% esély)
+      - Cross: két átfedő téglalap (+) (10% esély)
+      - Circular: sarkok levágása (Bresenham-kör approximáció) (15% esély)
+      - Irregular: random tile hozzáadás/eltávolítás a széleken (20% esély)
+
+================================================================================
+  4. ROOM TÍPUSOK RÉSZLETESEN
+================================================================================
+
+  4.1 Room típus eloszlás
+  ──────────────────
+
+    ┌──────────────────┬────────────┬──────────────────────────────────────┐
+    │ Room típus       │ Arány      │ Leírás                              │
+    ├──────────────────┼────────────┼──────────────────────────────────────┤
+    │ Combat Room      │ 50-60%     │ Enemy encounter                     │
+    │ Treasure Room    │ 10-15%     │ Loot chest-ek                       │
+    │ Puzzle Room      │ 10-15%     │ Rejtvény / mechanika                │
+    │ Trap Room        │ 10%        │ Csapdák + jutalommal                │
+    │ Safe Room        │ 5%         │ Pihenő, heal, save point            │
+    │ Boss Room        │ 1 / floor  │ Mindig az utolsó a floor-on        │
+    │ Secret Room      │ 0-2 /dung  │ Rejtett fal mögött, jó loot        │
+    │ Entrance/Exit    │ 1-1 fixe   │ Bejárat / következő emelet ajtó   │
+    └──────────────────┴────────────┴──────────────────────────────────────┘
+
+  4.2 Combat Room részletek
+  ──────────────────
+
+    Méret: 10×10 - 16×12 tile
+    Enemy count: 3-8 (difficulty alapján)
+    Wave-ek: 1-3 wave (difficulty alapján)
+    
+    Mechanika:
+      - Belépésnél ajtók záródnak
+      - Wave-ek sorban spawn
+      - Utolsó enemy halálánál → ajtók nyílnak
+      - Loot drop (enemy loot + kiegészítő chest 30% esély)
+
+    Cover elemek (AI obstacle):
+      - Oszlopok: blokkolja Line of Sight
+      - Alacsony falak: ranged lövedéket bloákolja, melee átjön
+      - Lyukak: nem járható, be lehet esni (damage)
+
+    Combat Room altípusok:
+      ARENA: nagy, nyílt, nincs cover (általában nehezebb enemy-k)
+      CORRIDOR: hosszú, keskeny (ranged enemy előny)
+      AMBUSH: kis room, enemy-k rejtve vannak (surprise attack)
+      HORDE: nagyon sok gyenge enemy (swarmer wave)
+
+  4.3 Treasure Room részletek
+  ──────────────────
+
+    Méret: 8×8 - 10×10 tile (kisebb)
+    Tartalom:
+      1x Main chest (garantált): rare+ loot
+      0-2x Side chest: common-uncommon loot
+      Opcionális: Mimic (20% esély → chest = enemy!)
+
+    Mechanika:
+      - Nincs enemy (kivéve Mimic)
+      - Lehet trap (50% esély a chest-ek körül)
+      - Vizuálisan gazdagabb dekoráció (arany halmok, gyertyák stb.)
+
+  4.4 Puzzle Room részletek
+  ──────────────────
+
+    Méret: 10×10 - 14×14 tile
+    
+    Puzzle típusok (lásd részletesen 12. fejezet):
+      SWITCH_ORDER: kapcsolók helyes sorrendben nyomása
+      PRESSURE_PLATE: nyomólapok + mozgatható kövek
+      LIGHT_BEAM: fénysugár tükrökkel irányítás
+      SYMBOL_MATCH: szimbólumok párosítása
+      TIMED_CHALLENGE: idő alatt teljesítendő feladat
+
+    Jutalom: jobb loot mint combat room + XP bonus
+
+  4.5 Safe Room részletek
+  ──────────────────
+
+    Méret: 8×8 tile
+    Tartalom:
+      - Heal fountain: teljes HP gyógyítás (1x használat)
+      - Checkpoint: halálkor ide respawn (dungeon-ön belül)
+      - NPC (ritka): kereskedő vagy lore NPC (10% esély)
+    
+    Mechanika:
+      - Nincs enemy, nincs trap
+      - Mindig az emelet közepén körül (félidős pihenő)
+
+  4.6 Secret Room
+  ──────────────────
+
+    Nem látható a mini-map-en!
+    Bejárat: fal ami eltűnik ha a játékos közel megy + interaktál
+    Jelzés: apró vizuális hint (repedés a falon, eltérő tile)
+    Tartalom: kiváló loot + unique item esély
+
+    Spawn: 0-2 per dungeon (50% esély 1-re, 20% esély 2-re, 30% 0)
+
+================================================================================
+  5. FOLYOSÓ GENERÁLÁS
+================================================================================
+
+  5.1 BSP folyosó logika
+  ──────────────────
+
+    A BSP fa testvér node-jainak room-jait összekötjük:
+      1. Megkeressük a két room legközelebbi pontjait
+      2. L-alakú folyosó (vízszintes + függőleges szegmens)
+      3. Folyosó szélesség: 2-3 tile (hogy 2 karakter elférjen)
+
+    func connect_rooms(room_a: Rect2i, room_b: Rect2i):
+        var center_a = room_a.get_center()
+        var center_b = room_b.get_center()
+
+        # L-shape corridor
+        if randf() > 0.5:
+            carve_horizontal(center_a.x, center_b.x, center_a.y)
+            carve_vertical(center_a.y, center_b.y, center_b.x)
+        else:
+            carve_vertical(center_a.y, center_b.y, center_a.x)
+            carve_horizontal(center_a.x, center_b.x, center_b.y)
+
+  5.2 Folyosó dekoráció
+  ──────────────────
+    - Fáklyák a falakon (4-6 tile-onként)
+    - Csontok, kövek, repedések (random floor dekor)
+    - Folyosóban is lehet trap (10% esély tile-onként)
+
+  5.3 Ajtó rendszer
+  ──────────────────
+    Room↔folyosó határán ajtó:
+      - Normál ajtó: nyitva (sima átjárás)
+      - Locked ajtó: kulcs szükséges (kulcs másik room-ban)
+      - Combat ajtó: bezáródik combat közben, utána nyílik
+      - Boss ajtó: speciális kulcs / mindent cleared → nyílik
+
+    Ajtó állapotok: OPEN, CLOSED, LOCKED, SEALED (boss fight közben)
+
+================================================================================
+  6. ENEMY SPAWN RENDSZER (DUNGEON)
+================================================================================
+
+  6.1 Dungeon-specifikus spawning
+  ──────────────────
+
+    Dungeon enemy-k a biome spawn table-ből jönnek
+    (lásd 06_enemy_ai_plan.txt 10. fejezet)
+
+    De módosítva:
+      - Dungeon enemy-k +20% stat bonus a world enemy-khez képest
+      - Több caster/ranged arány (nehezebb zárt térben)
+      - Elite spawn esély: 15% (vs world 10%)
+
+  6.2 Wave rendszer
+  ──────────────────
+
+    Combat Room difficulty → wave szám:
+      Difficulty 1-3: 1 wave
+      Difficulty 4-6: 2 wave
+      Difficulty 7-8: 2-3 wave
+      Difficulty 9-10: 3 wave
+
+    Wave enemy count:
+      Wave 1: base_count
+      Wave 2: base_count × 0.8 (kicsit kevesebb, de erősebb)
+      Wave 3: base_count × 0.6 + 1 Elite (garantált)
+
+    Enemy spawn pozíció:
+      - Room szélei (ajtóktól távol)
+      - Spawn animation: föld alól jön elő / teleport flash
+      - 0.5s invulnerability spawn után (ne instant haljon meg)
+
+  6.3 Floor-ok közötti enemy scaling
+  ──────────────────
+
+    Floor 1: base difficulty
+    Floor 2: difficulty + 2
+    Floor 3: difficulty + 4
+
+    Magasabb floor = erősebb enemy-k + több elite + jobb loot
+
+================================================================================
+  7. TRAP ÉS HAZARD RENDSZER
+================================================================================
+
+  7.1 Trap típusok
+  ──────────────────
+
+    ┌──────────────────┬──────────────────┬──────────────────┬───────────┐
+    │ Trap             │ Damage           │ Effect           │ Trigger   │
+    ├──────────────────┼──────────────────┼──────────────────┼───────────┤
+    │ Spike Trap       │ 15% max HP       │ none             │ pressure  │
+    │ Poison Gas       │ 5% max HP/sec    │ poison 3s        │ proximity │
+    │ Fire Jet         │ 20% max HP       │ burn DOT 3s      │ timed     │
+    │ Arrow Trap       │ 10% max HP       │ none             │ tripwire  │
+    │ Falling Rocks    │ 25% max HP       │ stun 1.5s        │ proximity │
+    │ Pit Trap         │ 30% max HP       │ fall → prev room │ invisible │
+    │ Curse Totem      │ 0                │ -20% dmg debuff  │ aura      │
+    └──────────────────┴──────────────────┴──────────────────┴───────────┘
+
+  7.2 Trap elhelyezés
+  ──────────────────
+    - Folyosókon: 10% esély tile-onként
+    - Trap Room-ban: 4-8 trap, sűrűn
+    - Treasure Room előtt: 2-3 trap (őrzik a kincseket)
+    - Vizuális jelzés: halvány (de megfigyelhető) repedés/szín eltérés
+    - Detection skill: Assassin Shadow branch → trap detect ability
+
+  7.3 Environmental Hazard-ok
+  ──────────────────
+    Nem trap, hanem állandó veszély:
+      - Lava tile: DOT ha rálép (Ashlands dungeon)
+      - Ice tile: csúszik (Frozen Wastes dungeon)
+      - Swamp tile: slow effect (Dark Swamp dungeon)
+      - Corruption tile: max HP csökken ideiglenesen (Plague dungeon)
+      - Darkness: csökkentett visibility (Cursed Forest dungeon)
+
+================================================================================
+  8. BOSS ROOM MECHANIKA
+================================================================================
+
+  8.1 Boss Room elrendezés
+  ──────────────────
+
+    Méret: 20×16 - 24×20 tile (dupla méretű room)
+    
+    Jellemzők:
+      - Mindig az utolsó room a floor-on
+      - Bejárat előtt Safe Room (heal/checkpoint)
+      - Boss ajtó: speciális vizuális (fenyegető)
+      - Belépés után SEALED – nem lehet kilépni a fight végéig
+      - Boss death → loot + exit portal megjelenés
+
+  8.2 Boss Room layout-ok
+  ──────────────────
+
+    OPEN_ARENA: nagy nyílt tér, oszlopok a széleken
+    PILLAR_MAZE: oszlopok a közepén (cover, de boss lerombálhatja)
+    SPLIT_ARENA: két szint (fent/lent), boss ugrál közöttük
+    HAZARD_ARENA: lava/poison széleken, kisebb safe terület
+
+    Boss típus → preferált layout (lásd 03_boss_design_plan.txt)
+
+  8.3 Boss fight fázisok (dungeon boss)
+  ──────────────────
+    Phase 1 (100-60% HP): alap attack pattern
+    Phase 2 (60-30% HP): + AoE, + adds spawn
+    Phase 3 (30-0% HP): enrage, gyorsabb, erősebb, environment change
+
+    Részletes boss mechanikák: lásd 03_boss_design_plan.txt
+
+================================================================================
+  9. LOOT ELHELYEZÉS
+================================================================================
+
+  9.1 Chest típusok
+  ──────────────────
+
+    Common Chest (fa):
+      Tartalom: 1-3 common item + gold
+      Megjelenik: combat room (30% esély), folyosók (5%)
+
+    Uncommon Chest (vas):
+      Tartalom: 1-2 uncommon item + gold + crafting mat
+      Megjelenik: combat room (15%), treasure room
+
+    Rare Chest (arany):
+      Tartalom: 1 rare+ item + gold + dark essence
+      Megjelenik: treasure room, secret room
+
+    Boss Chest (legendás):
+      Tartalom: 1-2 rare/epic item + bőséges gold + dark essence
+      Megjelenik: boss room (garantált 1db)
+
+  9.2 Mimic rendszer
+  ──────────────────
+    Bármely chest 20% eséllyel Mimic:
+      - Kinézete: normál chest, de ha interaktálsz: enemy-vé változik
+      - Mimic enemy: Melee/Brute, erős, de jó loot ha megölöd
+      - Mimic loot: garantált rare item
+
+    Jelzés: nagyon halvány lélegzés animáció a chest-en (megfigyelhető)
+
+  9.3 Loot minőség és dungeon difficulty
+  ──────────────────
+
+    ┌────────────┬──────────────────────────────────────────────┐
+    │ Difficulty │ Loot rarity esélyek                         │
+    ├────────────┼──────────────────────────────────────────────┤
+    │ 1-3        │ Common 60%, Uncommon 30%, Rare 9%, Epic 1%  │
+    │ 4-6        │ Common 40%, Uncommon 40%, Rare 17%, Epic 3% │
+    │ 7-8        │ Common 20%, Uncommon 40%, Rare 30%, Epic 10%│
+    │ 9-10       │ Common 10%, Uncommon 30%, Rare 40%, Epic 20%│
+    └────────────┴──────────────────────────────────────────────┘
+
+================================================================================
+  10. DUNGEON DIFFICULTY SCALING
+================================================================================
+
+  10.1 Difficulty kiszámítás
+  ──────────────────
+
+    dungeon_difficulty = biome_base_difficulty + distance_modifier + level_modifier
+
+    biome_base_difficulty:
+      Starting Meadow: 1
+      Cursed Forest: 3
+      Dark Swamp: 4
+      Ruins: 5
+      Mountains: 6
+      Frozen Wastes: 7
+      Ashlands: 8
+      Plague Lands: 9
+
+    distance_modifier: floor(distance_from_biome_center / 50) × 0.5
+    level_modifier: max(0, (avg_player_level - biome_min_level) / 10)
+
+  10.2 Difficulty hatás
+  ──────────────────
+
+    Difficulty → enemy count per room:
+      D1: 3  | D2: 3  | D3: 4  | D4: 4  | D5: 5
+      D6: 5  | D7: 6  | D8: 7  | D9: 8  | D10: 8
+
+    Difficulty → enemy level bonus:
+      +difficulty × 2
+
+    Difficulty → room count:
+      D1-3: 8-10  | D4-6: 12-16  | D7-8: 16-20  | D9-10: 20-25
+
+    Difficulty → trap density:
+      D1-3: alacsony | D4-6: közepes | D7-10: magas
+
+================================================================================
+  11. BIOME-SPECIFIKUS DUNGEON TÉMÁK
+================================================================================
+
+  11.1 Cursed Forest Dungeon
+  ──────────────────
+    Téma: "Witch's Hollow" – boszorkány barlang
+    Tile-ok: sötét fa, moha, gomba, gyökér
+    Világítás: halvány zöld fény, gomba glow
+    Speciális: Darkness hazard (csökkentett látótáv)
+    Boss: Dark Witch / Corrupted Treant boss
+    Egyedi room: Mushroom garden (heal room + poison trap)
+
+  11.2 Dark Swamp Dungeon
+  ──────────────────
+    Téma: "Sunken Temple" – elsüllyedt templom
+    Tile-ok: kő + moha + víz, romok
+    Világítás: halvány kék, víztükröződés
+    Speciális: Swamp tile hazard (slow), víz területek (nem járható)
+    Boss: Bog Horror / Swamp Hydra
+    Egyedi room: Flooded room (emelkedő vízszint – timed challenge)
+
+  11.3 Ruins Dungeon
+  ──────────────────
+    Téma: "Ancient Crypt" – ősi kripta
+    Tile-ok: kő fal, koporsók, sírkövek
+    Világítás: fáklya fény, árnyékok
+    Speciális: Skeleton respawn (megölt skeleton 30% feltámad)
+    Boss: Necromancer King (lásd 03_boss_design_plan.txt)
+    Egyedi room: Coffin room (koporsók kinyílnak → enemy spawn)
+
+  11.4 Mountains Dungeon
+  ──────────────────
+    Téma: "Deep Mine" – mély bánya
+    Tile-ok: kő, ásványok, bánya sín, létra
+    Világítás: fáklya + kristály glow
+    Speciális: Falling rocks hazard, mine cart (gyors utazás)
+    Boss: Rock Titan / Crystal Golem
+    Egyedi room: Crystal cavern (shiny, gyönyörű + erős enemy)
+
+  11.5 Frozen Wastes Dungeon
+  ──────────────────
+    Téma: "Frost Citadel" – jégvár
+    Tile-ok: jég fal, jég padló, hó, fagyott dekor
+    Világítás: kék-fehér, hideg tónus
+    Speciális: Ice tile hazard (csúszás), frozen enemy (felolvad ha közel)
+    Boss: Frost Guardian / Ice Lich
+    Egyedi room: Frozen lake (csúszós padló, lyukak → vízbe esés)
+
+  11.6 Ashlands Dungeon
+  ──────────────────
+    Téma: "Molten Forge" – olvadt kohó
+    Tile-ok: obsidian, láva, vasrács, kovácsműhely
+    Világítás: narancssárga, lávafény
+    Speciális: Lava tile hazard (DOT), emelkedő lava (timed escape)
+    Boss: Infernal Warden (lásd 03_boss_design_plan.txt)
+    Egyedi room: Forge room (crafting station – ritka recipe!)
+
+  11.7 Plague Lands Dungeon
+  ──────────────────
+    Téma: "Plague Sanctum" – pestis szentély
+    Tile-ok: romlott kő, mérgezett növényzet, csöpögő méregzöld folyadék
+    Világítás: sárgás-zöld, beteg aurájú
+    Speciális: Corruption hazard (max HP csökkentés), poison pools
+    Boss: Plague Lord / Corruption Avatar
+    Egyedi room: Lab room (pestis orvos NPC – speciális potion-ök)
+
+================================================================================
+  12. PROCEDURÁLIS PUZZLE RENDSZER
+================================================================================
+
+  12.1 SWITCH_ORDER puzzle
+  ──────────────────
+    N db kapcsoló (3-5) a room-ban, helyes sorrendben kell aktiválni.
+    Jelzés: szimbólumok a falon (sorrend hint)
+    Rossz sorrend: trap aktiválás (damage + reset)
+    Jutalom: ajtó/fal nyílik → loot chest
+
+  12.2 PRESSURE_PLATE puzzle
+  ──────────────────
+    Nyomólapok a padlón + mozgatható kövek.
+    Minden nyomólapot le kell nyomni egyszerre.
+    Solo: kő ráhúzás | Multiplayer: játékosok állnak rá
+    Jutalom: ajtó nyílik
+
+  12.3 LIGHT_BEAM puzzle
+  ──────────────────
+    Fényforrás + tükrök (forgathatóak) → fénysugarat a célpontra irányít.
+    Implementáció: raycasting a fénysugárnak, 4 irány (90° forgatás)
+    Jutalom: rejtett ajtó kinyílik
+
+  12.4 SYMBOL_MATCH puzzle
+  ──────────────────
+    Szimbólumok a falon, párosítsd az azonosakat (memory game light).
+    2D grid + interakció → ha párba áll → eltűnik
+    Jutalom: chest spawn
+
+  12.5 TIMED_CHALLENGE puzzle
+  ──────────────────
+    Időlimit alatt kell elvégezni:
+      - Összes switch megnyomása (15s)
+      - Room végéig elfutás csapdák között (20s)
+      - Enemy-k megölése időlimit alatt (30s)
+    Jutalom: bonus loot chest (csak ha időben teljesít)
+
+================================================================================
+  13. DUNGEON ÉLETCIKLUS
+================================================================================
+
+  13.1 Dungeon belépés
+  ──────────────────
+    1. Játékos interaktál a dungeon bejárattal
+    2. Loading screen
+    3. Dungeon generálás (BSP + room assignment + enemy spawn table)
+    4. Játékos spawn az Entrance Room-ban
+    5. Minimap: csak a felfedezett területet mutatja
+
+  13.2 Dungeon felfedezés
+  ──────────────────
+    - Fog of War: csak a látott room-ok és folyosók láthatóak
+    - Minimap frissül ahogy halad
+    - Room-ok "cleared" státuszt kapnak (icon a minimap-on)
+    - Backtrack lehetséges (nincs one-way kapu, kivéve boss room)
+
+  13.3 Dungeon befejezés
+  ──────────────────
+    - Boss megölve → loot chest + portal megjelenés
+    - Portal: visszavisz a dungeon bejárathoz (világ)
+    - Dungeon reset: azonnal (új belépés → teljesen új layout)
+    - XP bonus: dungeon completion bonus (+20% total gained XP)
+
+  13.4 Dungeon failure
+  ──────────────────
+    - Ha minden játékos meghal:
+      - Respawn az utolsó Safe Room-ban (ha volt)
+      - VAGY dungeon kilépés → világ -10% XP penalty
+    - Dungeon NEM reset-elődik amíg aktív (10 perc timeout)
+
+================================================================================
+  14. MULTIPLAYER DUNGEON SYNC
+================================================================================
+
+  14.1 Dungeon generálás sync
+  ──────────────────
+    - Host generálja a dungeon-t (seed-based)
+    - Seed elküldése a klienseknek → azonos generálás mindkét oldalon
+    - Enemy spawn: host authoritative (lásd 05_networking_plan.txt)
+    - Chest loot: host generálja, személyes loot rendszer
+
+  14.2 Room state sync
+  ──────────────────
+    - Room cleared → RPC broadcast
+    - Ajtó state → sync (OPEN/CLOSED/LOCKED/SEALED)
+    - Trap state → host oldali (triggert a host számolja)
+    - Puzzle state → host oldali (client input → host validation)
+
+  14.3 Dungeon belépés multiplayer
+  ──────────────────
+    - Host belépés → várakozás a party-ra (30s timeout)
+    - Minden játékos "Ready" → dungeon generate
+    - Ha valaki disconnect: folytatható kevesebb játékossal
+    - Reconnect: visszajön a dungeon-be (ha még aktív)
+
+================================================================================
+  15. GODOT IMPLEMENTÁCIÓ
+================================================================================
+
+  15.1 Scene struktúra
+  ──────────────────
+
+    DungeonManager (Node)
+    ├── BSPGenerator (Node) → layout generálás
+    ├── RoomFactory (Node) → room scene instantiation
+    ├── CorridorBuilder (Node) → folyosók
+    ├── DungeonTileMap (TileMap) → padló + fal tile-ok
+    ├── DecorationLayer (Node2D) → props, dekoráció
+    ├── TrapManager (Node) → trap-ek
+    ├── LightingManager (Node) → CanvasModulate + fáklyák
+    ├── FogOfWar (Node2D) → fog shader
+    ├── EnemySpawner (Node) → dungeon-specifikus enemy spawn
+    ├── LootSpawner (Node) → chest-ek és loot
+    ├── PuzzleManager (Node) → puzzle logika
+    ├── DoorManager (Node) → ajtó állapotok
+    ├── Minimap (Control) → dungeon minimap
+    └── MultiplayerSynchronizer
+
+  15.2 Script struktúra
+  ──────────────────
+
+    scripts/dungeons/
+    ├── dungeon_manager.gd           # Fő dungeon vezérlő
+    ├── bsp_generator.gd             # BSP layout generátor
+    ├── room_data.gd                 # Resource: room adatok
+    ├── room_factory.gd              # Room scene builder
+    ├── corridor_builder.gd          # Folyosó generátor
+    ├── dungeon_tilemap_painter.gd   # TileMap kitöltés
+    ├── door_controller.gd           # Ajtó logika
+    ├── trap_system.gd               # Trap kezelés
+    ├── trap_data.gd                 # Resource: trap típusok
+    ├── fog_of_war.gd                # FoW shader vezérlés
+    ├── dungeon_minimap.gd           # Minimap rajzolás
+    ├── dungeon_enemy_spawner.gd     # Dungeon-specifikus spawning
+    ├── dungeon_loot_spawner.gd      # Chest elhelyezés és loot
+    ├── puzzle_base.gd               # Alap puzzle class
+    ├── puzzles/
+    │   ├── switch_puzzle.gd
+    │   ├── pressure_plate_puzzle.gd
+    │   ├── light_beam_puzzle.gd
+    │   ├── symbol_match_puzzle.gd
+    │   └── timed_challenge_puzzle.gd
+    └── biome_themes/
+        ├── theme_cursed_forest.gd
+        ├── theme_dark_swamp.gd
+        ├── theme_ruins.gd
+        ├── theme_mountains.gd
+        ├── theme_frozen_wastes.gd
+        ├── theme_ashlands.gd
+        └── theme_plague_lands.gd
+
+  15.3 TileMap layer struktúra
+  ──────────────────
+
+    DungeonTileMap (TileMap):
+      Layer 0: Floor tiles (padló)
+      Layer 1: Wall tiles (falak)
+      Layer 2: Decoration (fix dekor – repedések, mohák, stb.)
+      Layer 3: Overlay (fél-átlátszó – shadow, lighting hint)
+
+    Tile méret: 32×32px (konzisztens a world tile-okkal)
+    Tileset: biome-specifikus (7 tileset, biome-onként 1)
+
+  15.4 Fog of War shader
+  ──────────────────
+
+    shader_type canvas_item;
+    uniform sampler2D fog_texture;  # dinamikusan frissített texture
+    uniform float explored_alpha = 0.4;  # felfedezett de nem látott
+    uniform float visible_alpha = 0.0;   # jelenleg látott (átlátszó)
+    uniform float hidden_alpha = 1.0;    # nem felfedezett (fekete)
+
+    void fragment() {
+        float fog_value = texture(fog_texture, UV).r;
+        float alpha;
+        if (fog_value > 0.9) {
+            alpha = visible_alpha;     // most látja
+        } else if (fog_value > 0.1) {
+            alpha = explored_alpha;    // korábban látta
+        } else {
+            alpha = hidden_alpha;      // soha nem látta
+        }
+        COLOR = vec4(0.0, 0.0, 0.0, alpha);
+    }
+
+    A fog_texture Image-ként frissül ahogy a játékos mozog.
+    Látótáv: kör alakú, 8 tile sugár (a karakter körül).
+
+================================================================================
+  16. AI-GENERÁLT DUNGEON TILE-OK
+================================================================================
+
+  16.1 Tile típusok biome-onként
+  ──────────────────
+
+    Minden biome dungeon-hez:
+      Floor tile-ok: 4-6 variáns (variety)
+      Wall tile-ok: 4 irány + sarok (16 autotile)
+      Door tile-ok: 2 állapot (open/closed) × 2 orientáció
+      Stair tile-ok: fel/le
+      Speciális tile-ok: hazard tile-ok (lava, jég, mocsár, stb.)
+
+    Összesen: ~50 tile / biome × 7 biome = ~350 dungeon tile
+
+  16.2 AI tile generálás workflow
+  ──────────────────
+
+    1. Alap tile set generálás:
+       Prompt: "pixel art dungeon tileset, [biome_theme],
+               32x32 tiles, top-down view, seamless,
+               floor wall door stairs, dark fantasy,
+               [color_palette], consistent style"
+
+    2. Autotile setup:
+       - AI generál 16 tile-os autotile set-et (3×3 minimal)
+       - Vagy: 47 tile-os full blob autotile (legjobb minőség)
+       - Godot TileSet → Terrain → Auto-tile szabályok beállítás
+
+    3. LoRA stílus:
+       "ashenfall_dungeon" LoRA → konzisztens stílus
+       + biome modifier: "dark_swamp_dungeon", "frost_citadel", stb.
+
+    4. Post-process (Aseprite):
+       - Seamless tiling ellenőrzés és javítás
+       - Palette lock (biome-specifikus 16-24 szín)
+       - AI artifact cleanup
+       - Tile edge match ellenőrzés
+
+  16.3 Biome-specifikus prompt-ok (tile)
+  ──────────────────
+
+    Cursed Forest dungeon:
+      "pixel art dark cave tileset, twisted roots, mushrooms,
+       dark green and brown, mossy stone floor, gnarled wood walls,
+       bioluminescent glow, 32x32 tiles"
+
+    Ruins dungeon:
+      "pixel art ancient crypt tileset, stone bricks, cobwebs,
+       skulls, torches, gray and dark blue, coffin detail,
+       carved symbols, 32x32 tiles"
+
+    Ashlands dungeon:
+      "pixel art volcanic forge tileset, obsidian floor, lava cracks,
+       metal grate, molten steel, orange glow, dark rock walls,
+       forge elements, 32x32 tiles"
+
+    Frozen Wastes dungeon:
+      "pixel art ice citadel tileset, frozen stone, ice crystals,
+       snow covered, blue and white, frost patterns, icicles,
+       cold atmosphere, 32x32 tiles"
+
+================================================================================
+  17. AI-GENERÁLT DUNGEON PROPS
+================================================================================
+
+  17.1 Prop lista (minden dungeon-ben közös)
+  ──────────────────
+
+    Chest-ek: wood_chest, iron_chest, gold_chest, boss_chest, mimic
+    Fáklyák: wall_torch, standing_torch, chandelier
+    Bútorok: table, chair, shelf, barrel, crate
+    Dekor: skull_pile, bone_pile, broken_pot, cobweb, blood_stain
+    Interaktív: lever, pressure_plate, door, stair, portal
+    Trap prop: spike_plate, arrow_slit, fire_vent, pit_cover
+
+    Összesen: ~30 prop típus × 2-3 variáns = ~80 prop sprite
+
+  17.2 AI prop generálás
+  ──────────────────
+
+    Prompt: "pixel art dungeon props, [biome_theme],
+            32x32 sprites, top-down view, transparent background,
+            [prop_name], dark fantasy RPG style"
+
+    Példák:
+      "pixel art treasure chest, wooden, iron bands,
+       32x32 sprite, top-down, closed and open states,
+       dark fantasy, transparent background"
+
+      "pixel art wall torch, burning flame,
+       32x32 sprite, side view mounted on wall,
+       warm glow, transparent background"
+
+      "pixel art pressure plate, stone,
+       32x32 sprite, top-down, pressed and unpressed states,
+       ancient dungeon, transparent background"
+
+  17.3 Animált prop-ok
+  ──────────────────
+    Torch: 4 frame fire flicker loop
+    Chest open: 4 frame (zárt → nyílik → nyitva)
+    Portal: 6 frame swirl loop
+    Trap spike: 3 frame (hidden → extend → retract)
+    Mimic transform: 6 frame (chest → shaking → maw + legs)
+    Fountain: 4 frame water flow loop
+
+================================================================================
+  18. AI-GENERÁLT DUNGEON DEKORÁCIÓ
+================================================================================
+
+  18.1 Dekoráció per biome
+  ──────────────────
+
+    Cursed Forest:
+      Gomba cluster, inda, gyökér, pókhálók, méreg gombák
+      
+    Dark Swamp:
+      Tócsák, moha, nád, úszó levelek, mérgező buborékok
+
+    Ruins:
+      Szobor romok, feliratos kő, könyvhalmok, oltár, gyertyák
+
+    Mountains:
+      Kristályok, sziklák, bánya sín, rozsda eszközök
+
+    Frozen Wastes:
+      Jégcsapok, hó halmok, fagyott holttestek, jég kristályok
+
+    Ashlands:
+      Láva buborékok, hamu halmok, izzó rések, kovács szerszámok
+
+    Plague Lands:
+      Méregzöld tócsák, rothadó bútorok, méreg palackok, csontváz kupac
+
+  18.2 AI dekoráció generálás
+  ──────────────────
+
+    Prompt template:
+      "pixel art dungeon decoration pack, [biome_theme],
+       various small sprites, top-down view,
+       transparent background, dark fantasy,
+       [specific_items], consistent pixel art style"
+
+    Post-process:
+      - Háttér eltávolítás
+      - Méret normalizálás (16×16 vagy 32×32)
+      - Szín paletta illesztés a biome tile set-hez
+      - Elhelyezés: random scatter a room-on belül
+
+================================================================================
+  19. KAPCSOLÓDÓ RENDSZEREK
+================================================================================
+
+  Ez a modul kapcsolódik:
+    → 02_procedural_world_plan.txt – Dungeon bejárat elhelyezés a világban
+    → 03_boss_design_plan.txt – Dungeon boss mechanikák
+    → 06_enemy_ai_plan.txt – Dungeon enemy típusok és wave rendszer
+    → 08_loot_system_plan.txt – Dungeon chest loot és rarity
+    → 05_networking_plan.txt – Multiplayer dungeon sync
+    → 10_godot_architecture_plan.txt – Dungeon modul helye
+
+================================================================================
+  VÉGE – 07_dungeon_generation_plan.txt
+================================================================================

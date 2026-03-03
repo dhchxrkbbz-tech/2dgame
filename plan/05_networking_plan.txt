@@ -1,0 +1,801 @@
+================================================================================
+  ASHENFALL – 05. NETWORKING ARCHITEKTÚRA – TELJES IMPLEMENTÁCIÓS TERV
+================================================================================
+
+  Motor: Godot 4.x (GDScript)
+  Multiplayer API: Godot High-Level Multiplayer (ENetMultiplayerPeer)
+  Modell: Host-Authoritative (Host-Client)
+  Max játékosok: 4 (co-op)
+
+================================================================================
+  TARTALOMJEGYZÉK
+================================================================================
+
+  1. Rendszer áttekintés
+  2. Host-Client modell
+  3. Godot Multiplayer API alapok
+  4. Lobby rendszer
+  5. Entity szinkronizáció
+  6. Player szinkronizáció
+  7. Enemy szinkronizáció
+  8. Projectile szinkronizáció
+  9. Loot szinkronizáció
+  10. Combat szinkronizáció
+  11. World/Chunk szinkronizáció
+  12. Client Prediction és Lag Compensation
+  13. Netcode optimalizáció
+  14. Animáció szinkronizáció (AI-generált sprite-ok)
+  15. Session management és reconnect
+  16. Anti-cheat alapok
+  17. Godot implementáció
+  18. AI-generált multiplayer UI elemek
+  19. Kapcsolódó rendszerek
+
+================================================================================
+  1. RENDSZER ÁTTEKINTÉS
+================================================================================
+
+  Az Ashenfall 1-4 fős co-op multiplayer játék.
+  A host (aki létrehozza a session-t) autoritatív –
+  ő futtatja a világ szimulációt, az AI-t és a loot rendszert.
+  A kliensek inputot küldenek és vizuální feedback-et kapnak.
+
+  NEM MMO server – nincs dedikált szerver.
+  Peer-to-peer host-client modell (mint Terraria, Valheim).
+
+  Sávszélesség becslés:
+    Update rate: 20 tick/sec (50ms)
+    Packet méret: ~200-500 byte / entity / tick
+    4 játékos + 20 enemy: ~5-10 KB/sec upstream (host)
+
+================================================================================
+  2. HOST-CLIENT MODELL
+================================================================================
+
+  2.1 Host felelősségei
+  ──────────────────
+
+    Host (Szerver) kezel:
+      ┌─────────────────────────────────────────────┐
+      │  Világ generálás (seed → chunk → biome)     │
+      │  Enemy AI (mozgás, támadás, döntések)        │
+      │  Loot generálás (drop table kiértékelés)     │
+      │  Damage kalkuláció (végleges)                │
+      │  Economy (shop árak, marketplace)            │
+      │  Boss mechanikák (phase, ability timing)     │
+      │  Dungeon állapot (room clear, key, lock)     │
+      │  Entity spawn / despawn                      │
+      │  World state (corruption, time of day)       │
+      │  Szinkronizáció broadcast                    │
+      └─────────────────────────────────────────────┘
+
+  2.2 Client felelősségei
+  ──────────────────
+
+    Client kezel (lokálisan):
+      ┌─────────────────────────────────────────────┐
+      │  Input (mozgás, skill, interact)             │
+      │  Animáció lejátszás (lokális + remote)       │
+      │  UI (inventory, skill tree, chat)            │
+      │  Particle effect-ek (vizuális, nincs sync)   │
+      │  Hang / zene                                 │
+      │  Camera                                      │
+      │  Client-side prediction (mozgás)             │
+      │  Interpolation (remote entity pozíciók)     │
+      └─────────────────────────────────────────────┘
+
+  2.3 Autoritás szabályok
+  ──────────────────
+
+    Entity Authority:
+      Saját Player → az adott client owner (de szerver validálja)
+      Enemy → HOST authority
+      Projectile → HOST authority (de client spawn-olja vizuálisan)
+      Loot → HOST authority
+      World tile → HOST authority
+
+================================================================================
+  3. GODOT MULTIPLAYER API ALAPOK
+================================================================================
+
+  3.1 ENetMultiplayerPeer (ajánlott)
+  ──────────────────
+
+    var peer = ENetMultiplayerPeer.new()
+
+    # Host létrehozás:
+    peer.create_server(PORT, MAX_CLIENTS)
+    multiplayer.multiplayer_peer = peer
+
+    # Client csatlakozás:
+    peer.create_client(HOST_IP, PORT)
+    multiplayer.multiplayer_peer = peer
+
+    Konstansok:
+      PORT: 7777
+      MAX_CLIENTS: 3 (+ host = 4 játékos)
+      TICK_RATE: 20 (50ms update)
+
+  3.2 Szinkronizációs primitívek
+  ──────────────────
+
+    MultiplayerSynchronizer:
+      - Automatikus property szinkronizáció
+      - Konfigurálható: melyik property-t, milyen gyakran
+      - Delta compression beépítve
+
+    MultiplayerSpawner:
+      - Automatikus node spawn szinkronizáció
+      - Ha a host spawn-ol egy node-ot, a klienseken is megjelenik
+
+    RPC (Remote Procedure Call):
+      @rpc("any_peer")             # bárki hívhatja
+      @rpc("authority")            # csak az authority
+      @rpc("call_local")           # lokálisan is végrehajtódik
+      @rpc("reliable")             # megbízható (TCP-like)
+      @rpc("unreliable")           # nem megbízható (UDP-like, gyors)
+      @rpc("unreliable_ordered")   # rendezett de nem megbízható
+
+  3.3 Mikor mit használunk
+  ──────────────────
+
+    Pozíció sync → MultiplayerSynchronizer (unreliable, gyakori)
+    Entity spawn → MultiplayerSpawner
+    Skill cast → RPC reliable (fontos, ne vesszen el)
+    Damage event → RPC reliable
+    Chat message → RPC reliable
+    Animation state → RPC unreliable_ordered
+    Particle spawn → NEM sync-elve (lokális)
+
+================================================================================
+  4. LOBBY RENDSZER
+================================================================================
+
+  4.1 Lobby flow
+  ──────────────────
+
+    1. Főmenü → "Multiplayer" gomb
+    2. Host Game / Join Game választás
+    3. Host: port kiválasztás → lobby szoba létrehozás
+    4. Join: IP:Port megadás → csatlakozás kérés
+    5. Lobby UI: játékos lista, class választás, ready state
+    6. Host: "Start Game" gomb (ha mindenki ready)
+    7. World generálás (host) → chunk-ok küldése klienseknek
+    8. Játék indulás (spawn pontok)
+
+  4.2 Lobby adatstruktúra
+  ──────────────────
+
+    class LobbyPlayer:
+        var peer_id: int
+        var player_name: String
+        var selected_class: ClassType
+        var is_ready: bool
+        var color: Color  # player megkülönböztetés szín
+
+  4.3 Lobby RPC-k
+  ──────────────────
+
+    @rpc("any_peer", "reliable")
+    func request_join(player_name: String, class_type: ClassType):
+        # Host validálja: van-e szabad hely, engedélyezett-e
+
+    @rpc("authority", "reliable")
+    func lobby_state_update(players: Array[LobbyPlayer]):
+        # Host broadcast-olja a teljes lobby állapotot
+
+    @rpc("any_peer", "reliable")
+    func set_ready(is_ready: bool):
+        # Játékos ready state változás
+
+    @rpc("authority", "reliable")
+    func start_game(world_seed: int, spawn_positions: Array[Vector2]):
+        # Host indítja a játékot
+
+  4.4 Disconnection kezelés lobby-ban
+  ──────────────────
+    - Játékos kilép → lobby frissül
+    - Host kilép → session megszűnik, kliensek főmenübe
+
+================================================================================
+  5. ENTITY SZINKRONIZÁCIÓ (általános)
+================================================================================
+
+  5.1 Sync kategóriák
+  ──────────────────
+
+    SZINKRONIZÁLT (fontos, gameplay-affecting):
+      - Player pozíció és state
+      - Enemy pozíció és state
+      - Projectile pozíció
+      - Loot drop pozíció és típus
+      - Boss mechanikák (telegraph, phase)
+      - Dungeon állapot (ajtó nyitva/zárva)
+      - Chest állapot (zárt/nyitott)
+      - World time (nap/éj ciklus)
+
+    NEM SZINKRONIZÁLT (vizuális, kliens-oldali):
+      - Particle effect-ek (minden client saját maga generálja)
+      - UI (inventory, skill tree)
+      - Camera pozíció
+      - Ambient sound
+      - Screen shake
+      - Post-processing effect-ek
+
+  5.2 Entity ID rendszer
+  ──────────────────
+    
+    Minden szinkronizált entity kap egy unique ID-t:
+      - Player: peer_id (Godot adja)
+      - Enemy: host-generált auto-increment ID
+      - Projectile: owner_peer_id × 10000 + local_projectile_counter
+      - Loot: host-generált auto-increment ID
+
+    A MultiplayerSpawner automatikusan kezeli az entity ID-ket
+    ha jól van konfigurálva.
+
+================================================================================
+  6. PLAYER SZINKRONIZÁCIÓ
+================================================================================
+
+  6.1 Player sync adatok
+  ──────────────────
+
+    Folyamatosan sync (20 tick/sec):
+      - position: Vector2 (unreliable)
+      - velocity: Vector2 (unreliable)
+      - facing_direction: Vector2 (unreliable)
+      - animation_state: String (unreliable_ordered)
+
+    Event-alapú sync (amikor változik):
+      - hp: int (reliable)
+      - mana: int (reliable)
+      - level: int (reliable)
+      - equipped_items: Array (reliable)
+      - active_buffs: Array (reliable)
+      - is_dead: bool (reliable)
+
+  6.2 Player node MultiplayerSynchronizer config
+  ──────────────────
+
+    Player.tscn:
+      CharacterBody2D
+      ├── MultiplayerSynchronizer
+      │   ├── sync property: position (unreliable, 50ms)
+      │   ├── sync property: velocity (unreliable, 50ms)
+      │   ├── sync property: animation_state (unreliable_ordered, 100ms)
+      │   └── sync property: facing_direction (unreliable, 100ms)
+      ├── Sprite2D
+      ├── AnimationPlayer
+      └── CollisionShape2D
+
+  6.3 Mozgás input → server validáció
+  ──────────────────
+
+    Client oldal:
+      1. Input beolvasás (WASD)
+      2. Lokális mozgatás (client prediction)
+      3. Input küldés a hostnak RPC-vel (timestamp-pel)
+
+    Host oldal:
+      1. Input fogadás a client-től
+      2. Server-side mozgatás szimulálás (validáció)
+      3. Ha eltérés > threshold → correction küldés
+      4. Pozíció broadcast minden client-nek
+
+    @rpc("any_peer", "unreliable")
+    func send_input(input_vector: Vector2, timestamp: float):
+        # Host feldolgozza
+
+    @rpc("authority", "unreliable")
+    func position_correction(pos: Vector2, vel: Vector2):
+        # Client korrigálja a saját pozícióját (smooth lerp)
+
+================================================================================
+  7. ENEMY SZINKRONIZÁCIÓ
+================================================================================
+
+  7.1 Enemy sync modell
+  ──────────────────
+    HOST generálja és szimulálva az enemy AI-t.
+    Kliensek csak a pozíció + animáció frissítést kapják.
+
+  7.2 Enemy sync adatok
+  ──────────────────
+
+    Folyamatosan (10 tick/sec – ritkábban mint player):
+      - position: Vector2
+      - velocity: Vector2
+      - animation_state: String
+      - target_player_id: int (kit támad)
+
+    Event-alapú:
+      - hp_percent: float (HP bar megjelenítés)
+      - status_effects: Array (buff/debuff ikonok)
+      - is_dead: bool → halál animáció + despawn
+
+  7.3 Enemy spawn sync
+  ──────────────────
+    MultiplayerSpawner: host spawn-olja → automatikusan megjelenik klienseken
+    Spawn adat: enemy_type + position + level
+
+  7.4 Enemy death sync
+  ──────────────────
+    Host: enemy meghal → RPC broadcast "enemy_died(id, position)"
+    Client: halál animáció lejátszás → despawn
+    Host: loot drop generálás a halál pozíciójában
+
+================================================================================
+  8. PROJECTILE SZINKRONIZÁCIÓ
+================================================================================
+
+  8.1 Projectile spawn
+  ──────────────────
+
+    Kliens-oldalon:
+      1. Játékos skill-t cast-ol → lokális projectile spawn (azonnali feedback)
+      2. RPC → Host-nak: "cast_skill(skill_id, position, direction, timestamp)"
+
+    Host-oldalon:
+      1. Validálja a cast-ot (van-e mana, cooldown OK, stb.)
+      2. Ha valid: saját projectile spawn + broadcast más klienseknek
+      3. Ha invalid: deny RPC → kliens visszavonja a lokális projectile-t
+
+  8.2 Projectile hit detection
+  ──────────────────
+    CSAK a host számolja a hit-eket (Area2D collision a host-on).
+    Client: vizuális projectile (nincs collision)
+    Host → Client: "hit_confirmed(target_id, damage)" RPC
+
+  8.3 Optimalizáció
+  ──────────────────
+    - Projectile-ok NEM frissítik pozíciójukat tick-enként
+    - Ehelyett: spawn pozíció + irány + speed → kliensek lokálisan szimulálják
+    - Csak a host detektál hit-et, kliens előre lejátssza a röptét
+
+================================================================================
+  9. LOOT SZINKRONIZÁCIÓ
+================================================================================
+
+  9.1 Loot modell: Personal Loot
+  ──────────────────
+
+    Minden játékos saját loot-ot kap:
+      - Host generálja a loot-ot minden jogosult játékosnak
+      - Minden loot entity-hoz owner peer_id
+      - Csak az owner látja és veheti fel a saját loot-ját
+      - Más játékosok NEM látják mások loot-ját
+
+    Előnyök:
+      - Nincs loot conflict / ninja-looting
+      - Egyszerűbb sync (kevesebb adat)
+      - Fairebb élmény
+
+  9.2 Loot sync flow
+  ──────────────────
+
+    Host:
+      1. Enemy meghal → minden party tagnak loot generálás
+      2. RPC (targeted, reliable): "spawn_loot(items, position)" → az adott clientnek
+
+    Client:
+      1. Loot entity megjelenítés
+      2. Interact (E gomb) → RPC (reliable): "pickup_loot(loot_id)"
+      3. Host validálja → RPC (reliable): "loot_confirmed(item_data)"
+      4. Client: inventory-ba kerül
+
+================================================================================
+  10. COMBAT SZINKRONIZÁCIÓ
+================================================================================
+
+  10.1 Skill cast flow
+  ──────────────────
+
+    1. Client: input detektálás (skill gomb lenyomva)
+    2. Client: lokális validáció (cooldown, mana) → azonnali feedback
+    3. Client: RPC → Host: "request_skill_cast(skill_id, target_pos, timestamp)"
+    4. Host: szerver-oldali validáció (cooldown, mana, range)
+    5. Host: skill végrehajtás (damage, effect, projectile spawn)
+    6. Host: RPC → ALL clients: "skill_casted(caster_id, skill_id, target_pos)"
+    7. Clients: animáció + effect lejátszás
+
+    Ha a host elutasítja (3-4 lépés közt):
+      Host → Client: "skill_denied(skill_id, reason)"
+      Client: lokális feedback visszavonás (pl. cooldown reset)
+
+  10.2 Damage event flow
+  ──────────────────
+
+    1. Host: collision detektálás (skill effect vs enemy/player)
+    2. Host: damage kalkuláció (stat, armor, buff, debuff)
+    3. Host: HP csökkentés
+    4. Host: RPC → relevant clients: "damage_dealt(target_id, amount, type)"
+    5. Client: HP bar update, damage number popup, hit animáció
+
+  10.3 Buff/Debuff sync
+  ──────────────────
+    Host kezeli az aktív buff/debuff-okat.
+    Változáskor: RPC → affected client(s)
+    Client: ikon megjelenítés, stat overlay
+
+  10.4 Boss fight sync
+  ──────────────────
+    Boss mechanikák teljes egészében HOST-on futnak.
+    Host RPC-zik minden boss event-et:
+      - Phase transition
+      - Ability telegraph pozíció
+      - Ability végrehajtás
+      - Boss HP update (szinkron boss HP bar)
+      - Enrage timer
+      - Loot generation boss halál után
+
+================================================================================
+  11. WORLD / CHUNK SZINKRONIZÁCIÓ
+================================================================================
+
+  11.1 Világ init
+  ──────────────────
+    Host:
+      1. Világ seed meghatározás
+      2. Seed elküldés klienseknek: "init_world(seed)"
+      3. Minden kliens lokálisan generálja a saját világ nézetet a seed-ből
+         (determinisztikus → ugyanaz a világ)
+
+    Előny: NEM kell az egész világot hálózaton küldeni!
+    A seed elég (egyetlen szám → teljes világ).
+
+  11.2 Módosított chunk sync
+  ──────────────────
+    Ha a host világa módosul (pl. elpusztított fa, kinyitott chest):
+      Host: RPC → clients: "world_modification(chunk_pos, tile_pos, new_state)"
+      Client: lokális módosítás
+
+    Egy kliensnek csatlakozáskor a host elküldi az összes módosítást
+    ami a session során történt (delta list).
+
+  11.3 Chunk loading sync
+  ──────────────────
+    Minden kliens a saját pozíciója alapján tölti be a chunk-okat.
+    A seed determinisztikus → nem kell chunk adatot küldeni.
+    Csak a módosítások (delta) szinkronizálandók.
+
+================================================================================
+  12. CLIENT PREDICTION ÉS LAG COMPENSATION
+================================================================================
+
+  12.1 Client-side prediction (mozgás)
+  ──────────────────
+
+    A kliens NEM várja meg a host visszajelzését mozgáshoz.
+    Ehelyett:
+      1. Input → lokális mozgatás (azonnal)
+      2. Input küldése host-nak (timestamp-pel)
+      3. Host megerősíti / korrigálja
+
+    Prediction buffer:
+      - Inputok tárolása timestamp-pel
+      - Ha a host correction érkezik → replay a bufferből
+
+    func apply_server_correction(server_pos: Vector2, server_timestamp: float):
+        position = server_pos
+        # Replay minden input amit a server_timestamp után küldtünk
+        for input in input_buffer:
+            if input.timestamp > server_timestamp:
+                apply_input(input)
+
+  12.2 Entity interpolation
+  ──────────────────
+    Más játékosok és enemy-k pozícióját interpoláljuk:
+      - 2 snapshot tárulása (elülső + hátsó)
+      - Megjelenítés: 100ms késleltetéssel (smooth)
+      - Lerp a 2 snapshot között
+    
+    var interp_delay = 0.1  # 100ms
+    var render_time = server_time - interp_delay
+    # Interpoláljuk az entity pozícióját render_time-ra
+
+  12.3 Lag compensation (skill hit)
+  ──────────────────
+    Skill cast-nál a kliens elküldi a saját timestamp-jét.
+    Host: visszatekeri az állapotot arra a timestamp-re (lag comp)
+    és abban az állapotban nézi, hogy a skill eltalálta-e a célt.
+
+    Egyszerűsített megközelítés (indie szint):
+      - Ha a latency < 200ms → normál hit detection
+      - Ha > 200ms → kis tolerance buffer (hitbox kicsit nagyobb)
+      - Ha > 500ms → connection warning → kick threshold 1000ms
+
+================================================================================
+  13. NETCODE OPTIMALIZÁCIÓ
+================================================================================
+
+  13.1 Bandwidth csökkentés
+  ──────────────────
+
+    - Delta compression: csak a változásokat küldjük
+    - Relevancy: csak a közelben lévő entity szinkronizálás
+      (ha az enemy 50+ tile-ra van → nem küldünk adatot róla)
+    - Update rate scaling:
+        Közelben (< 20 tile): 20 tick/sec
+        Közepes (20-50 tile): 10 tick/sec
+        Távol (> 50 tile): 5 tick/sec
+    - Quantization: pozíciók kerekítése (int16 ahelyett float)
+
+  13.2 Priority rendszer
+  ──────────────────
+    Ha sok entity van → prioritás alapján sync:
+      1. Saját player (mindig, max rate)
+      2. Party tagok (mindig, max rate)
+      3. Boss (mindig, max rate)
+      4. Közeli enemy-k (magas prioritás)
+      5. Távoli enemy-k (alacsony prioritás)
+      6. Projectile-ök (közepes)
+      7. Loot (alacsony, event-based)
+
+  13.3 Network stats monitoring
+  ──────────────────
+    Debug overlay (F3):
+      - Ping (ms)
+      - Packet loss (%)
+      - Bandwidth (KB/s)
+      - Entity count (synced)
+      - Tick rate (tényleges)
+
+================================================================================
+  14. ANIMÁCIÓ SZINKRONIZÁCIÓ (AI-generált sprite-ok)
+================================================================================
+
+  14.1 Animáció state sync
+  ──────────────────
+
+    Karakter animációk szinkronizálása:
+      - animation_state: String → "idle", "walk", "attack_1", "cast", "hit", "death"
+      - facing_direction: Vector2 → sprite flip / irány
+
+    Küldés: unreliable_ordered, 10 tick/sec
+    Fogadás: AnimatedSprite2D.play(animation_state)
+
+  14.2 Konzisztencia biztosítás
+  ──────────────────
+
+    Mivel az AI-generált sprite-ok lokálisan vannak betöltve
+    (minden gépen ugyanaz a fájl van), a szinkronizáció egyszerű:
+      - Csak az animáció NEVÉT küldjük (nem a frame-eket)
+      - Minden kliens a saját sprite sheet-jéből játssza le
+      - Ez minimális bandwidth (string, nem kép adat)
+
+  14.3 Skill effect animáció sync
+  ──────────────────
+    Skill effect (projectile, AoE, buff vizual):
+      - Host: "spawn_effect(effect_id, position, direction)" RPC
+      - Client: lokálisan instance-olja a megfelelő effect scene-t
+      - Az effect scene tartalmazza az AI-generált animációt
+      - Frame-pontos sync NEM szükséges (vizuális feedback csak)
+
+  14.4 Boss animáció sync
+  ──────────────────
+    Boss animációk speciálisan szinkronizálandók:
+      - Phase transition animáció: reliable RPC (fontos, ne maradjon ki)
+      - Attack animáció: reliable RPC (telegraph timing fontos)
+      - Idle/walk: unreliable (standard)
+
+    Boss animation states:
+      "idle", "walk", "attack_1", "attack_2", "special_1", "special_2",
+      "phase_transition", "enrage", "death"
+
+  14.5 Particle effect-ek
+  ──────────────────
+    Particle effect-ek (GPUParticles2D) NEM szinkronizáltak:
+      - Minden kliens a saját particle-jeit generálja
+      - Trigger: az animáció state change indítja el lokálisan
+      - Ez bandwidth-ot spórol és vizuálisan "elég közel" van
+
+================================================================================
+  15. SESSION MANAGEMENT ÉS RECONNECT
+================================================================================
+
+  15.1 Session lifecycle
+  ──────────────────
+
+    1. Host létrehozza a session-t
+    2. Kliensek csatlakoznak
+    3. Játék menet (órákon át tarthat)
+    4. Graceful disconnect: játékos kilépés → mentés
+    5. Session vége: host kilép → mindenki disconnected
+
+  15.2 Disconnect kezelés
+  ──────────────────
+
+    Client disconnect (játékos kilép / crash):
+      1. Host detektálja (peer_disconnected signal)
+      2. Játékos karakter "offline" state (5 perc timeout)
+      3. Ha visszacsatlakozik 5 percen belül: folytatás
+      4. Ha nem: karakter despawn, loot megmarad (postbox)
+
+    Host disconnect (host crash):
+      1. Minden kliens disconnected
+      2. Nincs host migration (túl komplex indie szinten)
+      3. Utolsó save state-ből folytatható új session-nel
+      4. Opcionális jövőbeli fejlesztés: host migration
+
+  15.3 Reconnect flow
+  ──────────────────
+    1. Client újracsatlakozik (ugyanaz az IP:Port)
+    2. Host: validálja a player ID-t
+    3. Host küld: teljes world state delta (módosítások a disconn óta)
+    4. Client: state alkalmazás → visszatérés a játékba
+    5. Karakter: spawn az utolsó safe pozíción (legközelebbi város)
+
+  15.4 Save sync
+  ──────────────────
+    Auto-save: 5 percenként
+    Host menti:
+      - Világ state (módosítások)
+      - Minden játékos adatai (HP, inventory, position)
+    Kliens menti:
+      - Saját karakter adatai (lokális backup)
+      - Settings
+
+================================================================================
+  16. ANTI-CHEAT ALAPOK
+================================================================================
+
+  16.1 Host-authoritative védelme
+  ──────────────────
+    A host-authoritative modell önmagában anti-cheat:
+      - Kliens NEM mondhatja meg hogy "100 damage-et tettem"
+      - Kliens NEM módosíthatja a saját HP-ját (host authority)
+      - Kliens NEM spawnolhat item-eket (host authority)
+      - Loot generálás host-on → nem manipulálható
+
+  16.2 Input validáció
+  ──────────────────
+    Host ellenőrzi a kliens inputokat:
+      - Movement speed check: max speed korlát
+      - Skill cast rate check: cooldown érvényesítés
+      - Position teleport check: ha túl nagy ugrás → reject
+      - Attack range check: max attack range validáció
+
+  16.3 Korlátozások
+  ──────────────────
+    Ez NEM teljes anti-cheat (indie játék, nem kompetitív):
+      - A HOST maga is cheat-elhet (ő az authoritative)
+      - Memory manipulation ellen nincs védelem
+      - Csak a legnyilvánvalóbb exploit-okat blokkoljuk
+      - Co-op játék → kevésbé motivált a cheating
+
+================================================================================
+  17. GODOT IMPLEMENTÁCIÓ
+================================================================================
+
+  17.1 Node struktúra
+  ──────────────────
+
+    NetworkManager (Node) [Autoload Singleton]
+    ├── ConnectionManager (Node)
+    │   ├── ENetMultiplayerPeer (engine)
+    │   └── ConnectionState (enum: DISCONNECTED/CONNECTING/CONNECTED/HOST)
+    ├── LobbyManager (Node)
+    │   ├── LobbyUI (Control) → lobby scene
+    │   └── PlayerList (Array[LobbyPlayer])
+    ├── SyncManager (Node)
+    │   ├── PlayerSyncManager (Node)
+    │   │   ├── InputBuffer (Array)
+    │   │   ├── PredictionManager (Node)
+    │   │   └── InterpolationManager (Node)
+    │   ├── EnemySyncManager (Node)
+    │   ├── ProjectileSyncManager (Node)
+    │   ├── LootSyncManager (Node)
+    │   ├── WorldSyncManager (Node)
+    │   └── CombatSyncManager (Node)
+    ├── SessionManager (Node)
+    │   ├── AutoSave (Timer → 5 min)
+    │   ├── ReconnectHandler (Node)
+    │   └── DisconnectHandler (Node)
+    └── NetworkStats (Node) → ping, packet loss, bandwidth
+
+  17.2 Script struktúra
+  ──────────────────
+
+    scripts/multiplayer/
+    ├── network_manager.gd          # Fő singleton
+    ├── connection_manager.gd       # Host/Client létrehozás
+    ├── lobby_manager.gd            # Lobby logika
+    ├── sync/
+    │   ├── player_sync.gd          # Player pozíció/state sync
+    │   ├── enemy_sync.gd           # Enemy sync
+    │   ├── projectile_sync.gd      # Projectile sync
+    │   ├── loot_sync.gd            # Loot sync
+    │   ├── world_sync.gd           # World modification sync
+    │   ├── combat_sync.gd          # Damage/skill sync
+    │   └── animation_sync.gd       # Animáció state sync
+    ├── prediction/
+    │   ├── client_prediction.gd    # Mozgás prediction
+    │   ├── input_buffer.gd         # Input history
+    │   └── interpolation.gd        # Remote entity interpoláció
+    ├── session_manager.gd          # Session lifecycle
+    ├── reconnect_handler.gd        # Reconnect flow
+    └── network_stats.gd            # Stats monitoring
+
+    ui/multiplayer/
+    ├── lobby_ui.gd + .tscn
+    ├── player_list_ui.gd + .tscn
+    ├── connection_ui.gd + .tscn    # "Csatlakozás..." screen
+    ├── disconnect_popup.gd + .tscn
+    └── network_stats_overlay.gd + .tscn
+
+  17.3 MultiplayerSpawner konfiguráció
+  ──────────────────
+
+    Player spawner:
+      - Spawn path: /root/Game/Players/
+      - Auto-spawn: connection-kor
+      - Scene: player.tscn (class-specifikus variant)
+
+    Enemy spawner:
+      - Spawn path: /root/Game/Enemies/
+      - Host-only spawn
+      - Scene: enemy_base.tscn (type paraméterrel)
+
+    Projectile spawner:
+      - Spawn path: /root/Game/Projectiles/
+      - Host + Client (client = vizuális only)
+      - Scene: projectile_base.tscn
+
+    Loot spawner:
+      - Spawn path: /root/Game/Loot/
+      - Host-only spawn
+      - Visibility: owner-only (personal loot)
+
+================================================================================
+  18. AI-GENERÁLT MULTIPLAYER UI ELEMEK
+================================================================================
+
+  18.1 Lobby UI
+  ──────────────────
+    Háttér: 800×600px panel
+    AI prompt: "pixel art RPG multiplayer lobby screen, dark fantasy,
+              player slots, medieval tavern notice board style,
+              ornate wooden frame"
+
+    Elemek:
+      - Player slot keret (4 db): 180×60px
+        "pixel art player info card, dark leather, gold trim, 180x60"
+      - Class ikon (3 db): 48×48px (reuse a skill tree ikonokból)
+      - Ready jelzés: zöld pipa / piros X ikon (24×24)
+      - "Start Game" gomb: 120×40px
+      - "Leave" gomb: 80×30px
+
+  18.2 Co-op HUD elemek
+  ──────────────────
+    Party frame-ek (a többi játékos HP/Mana bar):
+      - Méret: 120×40px / játékos
+      - Pozíció: képernyő bal felső sarka
+      - Tartalom: név, HP bar, mana bar, class ikon, level
+
+    AI prompt: "pixel art RPG party frame UI, dark fantasy,
+              health and mana bars, small portrait frame, 120x40"
+
+  18.3 Connection status UI
+  ──────────────────
+    - Ping kijelző: szám + szín (zöld <50ms, sárga <150ms, piros >150ms)
+    - Disconnected overlay: "Kapcsolat megszakadt – újracsatlakozás..."
+    - Reconnecting spinner: animált loading ikon (4 frame)
+
+================================================================================
+  19. KAPCSOLÓDÓ RENDSZEREK
+================================================================================
+
+  Ez a modul kapcsolódik:
+    → 01_skill_tree_plan.txt – Skill cast RPC sync
+    → 02_procedural_world_plan.txt – Seed-based world sync
+    → 03_boss_design_plan.txt – Boss fight sync (phase, telegraph)
+    → 04_economy_system_plan.txt – Trade & marketplace sync
+    → 06_enemy_ai_plan.txt – Enemy AI host-on fut, sync kliensekre
+    → 07_dungeon_generation_plan.txt – Dungeon state sync
+    → 08_loot_system_plan.txt – Personal loot sync
+    → 10_godot_architecture_plan.txt – Network modul helye
+
+================================================================================
+  VÉGE – 05_networking_plan.txt
+================================================================================
