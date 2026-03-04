@@ -33,6 +33,9 @@ func _load_skill_data() -> void:
 			var resource: Resource = ResourceLoader.load(path)
 			if resource and resource.has_method("get_skills"):
 				branch_skills[branch] = resource.get_skills()
+		else:
+			# Fallback: SkillDatabase-ból tölti be (Plan 21 FIX #2)
+			branch_skills[branch] = SkillDatabase.get_skills_for_branch(branch)
 
 
 func _get_branch_resource_name(branch: Enums.SkillBranch) -> String:
@@ -102,7 +105,8 @@ func find_skill(skill_id: String) -> SkillData:
 		for skill in branch_skills[branch]:
 			if skill is SkillData and skill.skill_id == skill_id:
 				return skill
-	return null
+	# Fallback: SkillDatabase
+	return SkillDatabase.get_skill(skill_id)
 
 
 ## Branch-ben allokált pontok

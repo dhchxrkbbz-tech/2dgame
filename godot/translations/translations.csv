@@ -1,0 +1,281 @@
+keys,hu,en
+MENU_PLAY,Játék,Play
+MENU_CONTINUE,Folytatás,Continue
+MENU_NEW_GAME,Új Játék,New Game
+MENU_LOAD_GAME,Betöltés,Load Game
+MENU_SETTINGS,Beállítások,Settings
+MENU_QUIT,Kilépés,Quit
+MENU_CREDITS,Készítők,Credits
+MENU_BACK,Vissza,Back
+MENU_CONFIRM,Megerősítés,Confirm
+MENU_CANCEL,Mégse,Cancel
+MENU_YES,Igen,Yes
+MENU_NO,Nem,No
+MENU_OK,Rendben,OK
+MENU_APPLY,Alkalmaz,Apply
+MENU_RESET,Visszaállítás,Reset
+MENU_SAVE,Mentés,Save
+MENU_DELETE,Törlés,Delete
+SETTINGS_TITLE,BEÁLLÍTÁSOK,SETTINGS
+SETTINGS_AUDIO,Hang,Audio
+SETTINGS_VIDEO,Videó,Video
+SETTINGS_GAMEPLAY,Játékmenet,Gameplay
+SETTINGS_CONTROLS,Vezérlés,Controls
+SETTINGS_ACCESSIBILITY,Akadálymentesítés,Accessibility
+SETTINGS_LANGUAGE,Nyelv,Language
+SETTINGS_MASTER_VOLUME,Fő hangerő,Master Volume
+SETTINGS_MUSIC_VOLUME,Zene hangerő,Music Volume
+SETTINGS_SFX_VOLUME,Effekt hangerő,SFX Volume
+SETTINGS_AMBIENT_VOLUME,Környezeti hangerő,Ambient Volume
+SETTINGS_UI_VOLUME,UI hangerő,UI Volume
+SETTINGS_MONO_AUDIO,Monó hang,Mono Audio
+SETTINGS_FULLSCREEN,Teljes képernyő,Fullscreen
+SETTINGS_VSYNC,VSync,VSync
+SETTINGS_SCREEN_SHAKE,Képernyő rázás,Screen Shake
+SETTINGS_SHOW_DAMAGE_NUMBERS,Sebzés számok mutatása,Show Damage Numbers
+SETTINGS_SHOW_HEALTH_BARS,Életerő sávok mutatása,Show Health Bars
+SETTINGS_MINIMAP,Minitérkép,Minimap
+SETTINGS_AUTO_LOOT,Automatikus zsákmányolás,Auto Loot
+SETTINGS_CHAT_ENABLED,Chat engedélyezése,Chat Enabled
+SETTINGS_SHOW_TUTORIALS,Útmutató tippek,Show Tutorial Hints
+SETTINGS_COLORBLIND_MODE,Színtévesztő mód,Colorblind Mode
+SETTINGS_COLORBLIND_OFF,Kikapcsolva,Off
+SETTINGS_COLORBLIND_PROTANOPIA,Protanópia (vörös-zöld),Protanopia (Red-Green)
+SETTINGS_COLORBLIND_DEUTERANOPIA,Deuteranópia (zöld-vörös),Deuteranopia (Green-Red)
+SETTINGS_COLORBLIND_TRITANOPIA,Tritanópia (kék-sárga),Tritanopia (Blue-Yellow)
+SETTINGS_TEXT_SIZE,Szövegméret,Text Size
+SETTINGS_TEXT_SIZE_SMALL,Kicsi,Small
+SETTINGS_TEXT_SIZE_MEDIUM,Közepes,Medium
+SETTINGS_TEXT_SIZE_LARGE,Nagy,Large
+SETTINGS_SCREEN_SHAKE_INTENSITY,Képernyő rázás erőssége,Screen Shake Intensity
+SETTINGS_REDUCE_FLASHING,Villogás csökkentése,Reduce Flashing
+SETTINGS_SOUND_CAPTIONS,Hangfelirat,Sound Captions
+SETTINGS_DIFFICULTY,Nehézség,Difficulty
+SETTINGS_DIFFICULTY_STORY,Történet Mód,Story Mode
+SETTINGS_DIFFICULTY_NORMAL,Normál,Normal
+SETTINGS_DIFFICULTY_HARD,Nehéz,Hard
+SETTINGS_GAME_SPEED,Játék sebesség,Game Speed
+SETTINGS_SIMPLIFIED_UI,Egyszerűsített UI,Simplified UI
+SETTINGS_QUEST_PATH,Küldetés útvonal jelölő,Quest Path Indicator
+SETTINGS_AUTO_PICKUP_RADIUS,Automatikus felvétel sugár,Auto-pickup Radius
+SETTINGS_TOGGLE_VS_HOLD,Váltás / Tartás,Toggle vs Hold
+SETTINGS_SPRINT,Sprint,Sprint
+SETTINGS_BLOCK,Blokkolás,Block
+SETTINGS_CHANNEL,Csatornázás,Channel
+SETTINGS_AUTO_ATTACK,Automatikus támadás,Auto-attack
+SETTINGS_TOGGLE,Váltás,Toggle
+SETTINGS_HOLD,Tartás,Hold
+SETTINGS_AUTO_AIM,Auto célzás,Auto Aim
+SETTINGS_AUTO_AIM_OFF,Kikapcsolva,Off
+SETTINGS_AUTO_AIM_SUBTLE,Enyhe,Subtle
+SETTINGS_AUTO_AIM_STRONG,Erős,Strong
+SETTINGS_CONTROLLER_SENSITIVITY,Kontroller érzékenység,Controller Sensitivity
+SETTINGS_CONTROLLER_DEADZONE,Kontroller holtzóna,Controller Deadzone
+SETTINGS_CONTROLLER_VIBRATION,Kontroller rezgés,Controller Vibration
+SETTINGS_MOUSE_SENSITIVITY,Egér érzékenység,Mouse Sensitivity
+SETTINGS_KEY_REBINDING,Billentyű átrendelés,Key Rebinding
+SETTINGS_REBIND,Átrendelés,Rebind
+SETTINGS_PRESS_KEY,Nyomj meg egy billentyűt...,Press any key...
+SETTINGS_LANGUAGE_SELECT,Nyelvválasztás,Language Selection
+SETTINGS_LANGUAGE_HU,Magyar,Magyar
+SETTINGS_LANGUAGE_EN,English,English
+HUD_HEALTH,Életerő,Health
+HUD_MANA,Mana,Mana
+HUD_XP,Tapasztalat,Experience
+HUD_LEVEL,Szint,Level
+HUD_GOLD,Arany,Gold
+HUD_DARK_ESSENCE,Sötét Esszencia,Dark Essence
+HUD_RELIC_FRAGMENTS,Ereklye Töredékek,Relic Fragments
+HUD_INVENTORY,Felszerelés,Inventory
+HUD_SKILL_TREE,Képességfa,Skill Tree
+HUD_MAP,Térkép,Map
+HUD_QUEST_LOG,Küldetések,Quest Log
+HUD_CHARACTER,Karakter,Character
+HUD_MINIMAP,Minitérkép,Minimap
+HUD_PAUSE,Szünet,Pause
+HUD_DODGE,Kitérés,Dodge
+HUD_ATTACK,Támadás,Attack
+HUD_INTERACT,Interakció,Interact
+HUD_ULTIMATE,Végső képesség,Ultimate
+HUD_POTION,Bájital,Potion
+HUD_CHAT,Chat,Chat
+STAT_DAMAGE,Sebzés,Damage
+STAT_ARMOR,Páncél,Armor
+STAT_HEALTH,Életerő,Health
+STAT_MANA,Mana,Mana
+STAT_COOLDOWN,Visszatöltés,Cooldown
+STAT_CRITICAL,Kritikus,Critical
+STAT_CRITICAL_CHANCE,Kritikus esély,Critical Chance
+STAT_CRITICAL_DAMAGE,Kritikus sebzés,Critical Damage
+STAT_DODGE_CHANCE,Kitérés esély,Dodge Chance
+STAT_BLOCK_CHANCE,Blokkolás esély,Block Chance
+STAT_ATTACK_SPEED,Támadási sebesség,Attack Speed
+STAT_MOVE_SPEED,Mozgási sebesség,Movement Speed
+STAT_HP_REGEN,Életerő regeneráció,HP Regeneration
+STAT_MANA_REGEN,Mana regeneráció,Mana Regeneration
+STAT_LIFESTEAL,Életerő lopás,Lifesteal
+STAT_MAGIC_FIND,Mágikus találat,Magic Find
+STAT_FIRE_RESIST,Tűz ellenállás,Fire Resistance
+STAT_FROST_RESIST,Fagy ellenállás,Frost Resistance
+STAT_POISON_RESIST,Méreg ellenállás,Poison Resistance
+STAT_ARCANE_RESIST,Misztikus ellenállás,Arcane Resistance
+EFFECT_POISON,Mérgezés,Poison
+EFFECT_BLEED,Vérzés,Bleed
+EFFECT_BURN,Égés,Burn
+EFFECT_STUN,Bénítás,Stun
+EFFECT_FREEZE,Fagyasztás,Freeze
+EFFECT_SLOW,Lassítás,Slow
+EFFECT_ROOT,Gyökereződés,Root
+EFFECT_BLIND,Vakítás,Blind
+EFFECT_BUFF,Erősítés,Buff
+EFFECT_DEBUFF,Gyengítés,Debuff
+EFFECT_SHIELD,Pajzs,Shield
+RARITY_COMMON,Közönséges,Common
+RARITY_UNCOMMON,Szokatlan,Uncommon
+RARITY_RARE,Ritka,Rare
+RARITY_EPIC,Epikus,Epic
+RARITY_LEGENDARY,Legendás,Legendary
+CLASS_ASSASSIN,Orgyilkos,Assassin
+CLASS_TANK,Harcos,Tank
+CLASS_MAGE,Mágus,Mage
+BRANCH_SHADOW,Árnyék,Shadow
+BRANCH_POISON,Méreg,Poison
+BRANCH_BLOOD,Vér,Blood
+BRANCH_GUARDIAN,Őrző,Guardian
+BRANCH_WARBRINGER,Háborúhozó,Warbringer
+BRANCH_PALADIN,Paladin,Paladin
+BRANCH_ARCANE,Misztikus,Arcane
+BRANCH_FROST,Fagy,Frost
+BRANCH_HOLY,Szent,Holy
+BIOME_STARTING_MEADOW,Kiindulási Mező,Starting Meadow
+BIOME_CURSED_FOREST,Átkozott Erdő,Cursed Forest
+BIOME_VOLCANIC_WASTE,Vulkáni Pusztaság,Volcanic Waste
+BIOME_FROZEN_PEAKS,Fagyott Csúcsok,Frozen Peaks
+BIOME_CORRUPTED_SWAMP,Romlott Mocsár,Corrupted Swamp
+BIOME_CRYSTAL_CAVERNS,Kristály Barlangok,Crystal Caverns
+BIOME_ASHEN_DESERT,Hamvas Sivatag,Ashen Desert
+BIOME_SHADOW_REALM,Árnyékbirodalom,Shadow Realm
+ITEM_WEAPON,Fegyver,Weapon
+ITEM_ARMOR,Páncél,Armor
+ITEM_ACCESSORY,Kiegészítő,Accessory
+ITEM_CONSUMABLE,Fogyócikk,Consumable
+ITEM_MATERIAL,Alapanyag,Material
+ITEM_GEM,Drágakő,Gem
+ITEM_QUEST_ITEM,Küldetés Tárgy,Quest Item
+EQUIP_HELMET,Sisak,Helmet
+EQUIP_CHEST,Mellvért,Chest
+EQUIP_GLOVES,Kesztyű,Gloves
+EQUIP_BOOTS,Csizma,Boots
+EQUIP_BELT,Öv,Belt
+EQUIP_SHOULDERS,Vállvédő,Shoulders
+EQUIP_MAIN_HAND,Fő kéz,Main Hand
+EQUIP_OFF_HAND,Mellék kéz,Off Hand
+EQUIP_AMULET,Amulett,Amulet
+EQUIP_RING,Gyűrű,Ring
+EQUIP_CAPE,Köpeny,Cape
+GEM_RUBY,Rubin,Ruby
+GEM_SAPPHIRE,Zafír,Sapphire
+GEM_EMERALD,Smaragd,Emerald
+GEM_TOPAZ,Topáz,Topaz
+GEM_DIAMOND,Gyémánt,Diamond
+GEM_AMETHYST,Ametiszt,Amethyst
+GEM_TIER_CHIPPED,Csorbult,Chipped
+GEM_TIER_FLAWED,Hibás,Flawed
+GEM_TIER_NORMAL,Normál,Normal
+GEM_TIER_FLAWLESS,Hibátlan,Flawless
+GEM_TIER_PERFECT,Tökéletes,Perfect
+GEM_TIER_RADIANT,Ragyogó,Radiant
+CURRENCY_GOLD,Arany,Gold
+CURRENCY_DARK_ESSENCE,Sötét Esszencia,Dark Essence
+CURRENCY_RELIC_FRAGMENTS,Ereklye Töredékek,Relic Fragments
+SHOP_BUY,Vásárlás,Buy
+SHOP_SELL,Eladás,Sell
+SHOP_REPAIR,Javítás,Repair
+SHOP_REPAIR_ALL,Összes javítása,Repair All
+CRAFT_CREATE,Készítés,Create
+CRAFT_ENHANCE,Fejlesztés,Enhance
+CRAFT_ENCHANT,Varázslás,Enchant
+CRAFT_SOCKET,Foglalat behelyezés,Socket
+CRAFT_COMBINE,Egyesítés,Combine
+NOTIFICATION_LEVEL_UP,Szintlépés! Szint {level},Level Up! Level {level}
+NOTIFICATION_ITEM_PICKUP,{item_name} felvéve,{item_name} picked up
+NOTIFICATION_GOLD_GAINED,+{amount} arany,+{amount} gold
+NOTIFICATION_QUEST_COMPLETE,Küldetés teljesítve: {quest_name},Quest Complete: {quest_name}
+NOTIFICATION_QUEST_ACCEPTED,Új küldetés: {quest_name},New Quest: {quest_name}
+NOTIFICATION_ACHIEVEMENT,Eredmény feloldva: {name},Achievement Unlocked: {name}
+NOTIFICATION_SKILL_UNLOCK,Új képesség: {skill_name},New Skill: {skill_name}
+NOTIFICATION_INVENTORY_FULL,A felszerelés megtelt!,Inventory is full!
+NOTIFICATION_NOT_ENOUGH_GOLD,Nincs elég arany!,Not enough gold!
+NOTIFICATION_NOT_ENOUGH_MANA,Nincs elég mana!,Not enough mana!
+NOTIFICATION_SKILL_COOLDOWN,Képesség visszatöltés alatt!,Skill on cooldown!
+NOTIFICATION_WAYPOINT_DISCOVERED,Útjelző felfedezve: {name},Waypoint Discovered: {name}
+NOTIFICATION_BOSS_DEFEATED,Főellenség legyőzve: {name},Boss Defeated: {name}
+DIALOGUE_CONTINUE,[Folytatás],[Continue]
+DIALOGUE_SKIP,[Átugrás],[Skip]
+DIALOGUE_ACCEPT_QUEST,[Elfogadás],[Accept]
+DIALOGUE_DECLINE_QUEST,[Elutasítás],[Decline]
+DIALOGUE_GOODBYE,[Viszlát],[Goodbye]
+CAPTION_BATTLE_NEARBY,[Csatazaj a közelben],[Sounds of battle nearby]
+CAPTION_DRIPPING_WATER,[Csepegő víz],[Dripping water]
+CAPTION_DOOR_CREAK,[Ajtó nyikorgás],[Door creaking]
+CAPTION_FOOTSTEPS,[Lépések],[Footsteps]
+CAPTION_EXPLOSION,[Robbanás],[Explosion]
+CAPTION_MONSTER_GROWL,[Szörny morgás],[Monster growl]
+CAPTION_CHEST_OPEN,[Láda nyitás],[Chest opening]
+CAPTION_BOSS_ROAR,[Főellenség üvöltés],[Boss roar]
+CAPTION_PORTAL_HUM,[Portál zümmögés],[Portal humming]
+CAPTION_WIND_HOWL,[Szél süvítés],[Wind howling]
+CAPTION_FIRE_CRACKLE,[Tűz pattogás],[Fire crackling]
+CAPTION_RAIN,[Eső],[Rain falling]
+ACTION_MOVE_UP,Mozgás fel,Move Up
+ACTION_MOVE_DOWN,Mozgás le,Move Down
+ACTION_MOVE_LEFT,Mozgás balra,Move Left
+ACTION_MOVE_RIGHT,Mozgás jobbra,Move Right
+ACTION_ATTACK,Támadás,Attack
+ACTION_DODGE,Kitérés,Dodge
+ACTION_INTERACT,Interakció,Interact
+ACTION_SKILL_1,Képesség 1,Skill 1
+ACTION_SKILL_2,Képesség 2,Skill 2
+ACTION_SKILL_3,Képesség 3,Skill 3
+ACTION_SKILL_4,Képesség 4,Skill 4
+ACTION_ULTIMATE,Végső képesség,Ultimate
+ACTION_INVENTORY,Felszerelés,Inventory
+ACTION_SKILL_TREE,Képességfa,Skill Tree
+ACTION_MAP,Térkép,Map
+ACTION_PAUSE,Szünet,Pause
+ACTION_CHAT,Chat,Chat
+ACTION_POTION,Bájital,Potion
+DIFFICULTY_STORY_DESC,Ellenség sebzés ×0.5 / Játékos sebzés ×1.5 / Auto-bájital,"Enemy DMG ×0.5, Player DMG ×1.5, Auto-potions"
+DIFFICULTY_NORMAL_DESC,Alapértelmezett nehézség,Default difficulty
+DIFFICULTY_HARD_DESC,Ellenség sebzés ×1.3 / Játékos sebzés ×0.9,"Enemy DMG ×1.3, Player DMG ×0.9"
+LOADING_TIP_1,Használd a kitérést a sebezhetetlen keretekhez!,Use dodge for invincibility frames!
+LOADING_TIP_2,A drágakövek egyesíthetők: 3 azonos = 1 magasabb szint.,Gems can be combined: 3 of the same = 1 higher tier.
+LOADING_TIP_3,Az elit ellenségek ritka tárgyakat ejtenek.,Elite enemies drop rare items.
+LOADING_TIP_4,Figyelj a főellenségek jelzéseire a támadásaik előtt!,Watch for boss telegraphs before their attacks!
+LOADING_TIP_5,A bájitalokat a D-pad lefelé gombbal használhatod.,Use potions with D-pad Down on controller.
+LOADING_TIP_6,A sötét esszencia a készítéshez és fejlesztéshez kell.,Dark Essence is needed for crafting and upgrades.
+LOADING_TIP_7,Fedezd fel az útjelzőket a gyors utazáshoz!,Discover waypoints for fast travel!
+LOADING_TIP_8,A magasabb szintű biómák jobb zsákmányt adnak.,Higher level biomes give better loot.
+LOADING_TIP_9,A szett tárgyak különleges bónuszokat adnak együtt!,Set items give special bonuses when combined!
+LOADING_TIP_10,Használd a Mágikus Találatot a ritka tárgyak esélynek növeléséhez.,Use Magic Find to increase rare item drop chances.
+GAME_OVER_TITLE,MEGHALTÁL,YOU DIED
+GAME_OVER_RESPAWN,Újraéledés,Respawn
+GAME_OVER_RETURN_MENU,Vissza a Menübe,Return to Menu
+MULTIPLAYER_HOST,Szerver létrehozása,Host Game
+MULTIPLAYER_JOIN,Csatlakozás,Join Game
+MULTIPLAYER_LOBBY,Várószoba,Lobby
+MULTIPLAYER_READY,Kész,Ready
+MULTIPLAYER_START,Indítás,Start
+MULTIPLAYER_DISCONNECT,Leválasztás,Disconnect
+MULTIPLAYER_RECONNECT,Újracsatlakozás,Reconnect
+MULTIPLAYER_PLAYER_JOINED,{name} csatlakozott,{name} joined
+MULTIPLAYER_PLAYER_LEFT,{name} kilépett,{name} left
+MULTIPLAYER_CONNECTION_LOST,Kapcsolat megszakadt!,Connection lost!
+TUTORIAL_WELCOME,Üdvözöllek a Hamvak Földjén!,Welcome to the Land of Ashes!
+TUTORIAL_MOVEMENT,Használd a WASD gombokat a mozgáshoz.,Use WASD keys to move around.
+TUTORIAL_COMBAT,Kattints bal egérgombbal a támadáshoz.,Left-click to attack.
+TUTORIAL_DODGE,Nyomj Space-t a kitéréshez.,Press Space to dodge.
+TUTORIAL_INTERACT,Nyomj E-t a tárgyakkal való interakcióhoz.,Press E to interact with objects.
+TUTORIAL_INVENTORY,Nyomj I-t a felszerelés megnyitásához.,Press I to open inventory.
+TUTORIAL_SKILL_TREE,Nyomj K-t a képességfa megnyitásához.,Press K to open the skill tree.
+TUTORIAL_LOOT,Sétálj a tárgyakra a felvételhez.,Walk over items to pick them up.

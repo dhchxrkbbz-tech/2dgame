@@ -1,0 +1,1206 @@
+================================================================================
+ASHENFALL – 16. GAME DATA & BALANCE PLAN
+================================================================================
+Státusz: A kód architektúra KÉSZ, de a tényleges adat fájlok HIÁNYOZNAK.
+A játék nem indítható tartalommal addig, amíg ezek az adatfájlok nem kerülnek
+létrehozásra. Ez a LEGKRITIKUSABB hiányzó elem.
+================================================================================
+
+1. ÁTTEKINTÉS
+================================================================================
+
+A teljes Ashenfall kódbázis (155 script) készen áll az adatfeldolgozásra, de
+a res://data/ mappa szinte üres. Jelenleg csak a gem JSON fájlok léteznek.
+
+Hiányzó adat kategóriák:
+ - 45 Skill definíció (SkillData Resource-ok)
+ - 100+ Alap item definíció (ItemData Resource-ok)
+ - Affix pool értékek (AffixData Resource-ok)
+ - 8 Set item definíció (SetItemData Resource-ok)
+ - 30+ Legendary item definíció egyedi effektekkel
+ - Enemy stat táblák biome/szint szerint (EnemyData Resource-ok)
+ - Boss stat táblák (BossData Resource-ok)
+ - Crafting receptek (CraftingRecipe Resource-ok)
+ - Shop készletek (ShopData Resource-ok)
+ - XP görbe és szintezési táblák
+ - Loot táblák minden enemy/boss/chest típushoz
+ - NPC adatok (párbeszédek, quest givers)
+ - Biome theme konfigurációk kitöltése
+
+================================================================================
+
+2. SKILL ADATOK – res://data/skills/
+================================================================================
+
+2.1 Mappa struktúra:
+─────────────────────
+res://data/skills/
+├── assassin/
+│   ├── shadow/          # Shadow branch (5 skill)
+│   ├── blade/           # Blade branch (5 skill)
+│   └── poison/          # Poison branch (5 skill)
+├── tank/
+│   ├── shield/          # Shield branch (5 skill)
+│   ├── warcry/          # Warcry branch (5 skill)
+│   └── fortify/         # Fortify branch (5 skill)
+└── mage/
+    ├── fire/            # Fire branch (5 skill)
+    ├── ice/             # Ice branch (5 skill)
+    └── arcane/          # Arcane branch (5 skill)
+
+2.2 SkillData Resource mezők (skill_data.gd alapján):
+─────────────────────────────────────────────────────
+@export var skill_id: String
+@export var skill_name: String
+@export var description: String
+@export var icon: Texture2D
+@export var skill_class: Constants.PlayerClass
+@export var branch: String
+@export var tier: int                    # 1-5
+@export var max_level: int               # 1-5
+@export var prerequisites: Array[String] # skill_id lista
+@export var mana_cost: float
+@export var cooldown: float
+@export var damage_multiplier: float
+@export var skill_type: Constants.SkillType
+@export var element: Constants.Element
+@export var range_type: Constants.RangeType
+@export var aoe_radius: float
+@export var duration: float
+@export var effect_per_level: Dictionary  # {stat: érték_per_level}
+
+2.3 Mind a 45 skill definíciója:
+─────────────────────────────────
+
+=== ASSASSIN – SHADOW BRANCH ===
+1. Shadow Step (T1) – Teleport az ellenség mögé, +50% crit chance 2s
+   - Mana: 20, CD: 8s, Damage: 1.5x, Type: DASH
+   - Per level: crit_bonus +10%, CD -0.5s
+
+2. Smoke Bomb (T2) – AoE füst, ellenségek miss 40%+, stealth 3s
+   - Mana: 30, CD: 12s, Radius: 3.0, Type: AOE_DEBUFF
+   - Per level: miss_chance +5%, duration +0.5s
+   - Prereq: Shadow Step Lv2
+
+3. Shadow Clone (T3) – Klón 8s-ig, 40% damage-dzsel
+   - Mana: 40, CD: 20s, Duration: 8s, Type: SUMMON
+   - Per level: clone_damage +8%, duration +1s
+   - Prereq: Smoke Bomb Lv2
+
+4. Assassinate (T4) – Hátulról 3x damage, elölről 1.8x
+   - Mana: 50, CD: 15s, Damage: 3.0x/1.8x, Type: MELEE_STRIKE
+   - Per level: back_multiplier +0.3x, front +0.1x
+   - Prereq: Shadow Clone Lv3
+
+5. Shadow Realm (T5 Ultimate) – 6s láthatatlanság, minden támadás crit
+   - Mana: 80, CD: 60s, Duration: 6s, Type: ULTIMATE
+   - Per level: duration +1s, CD -5s
+   - Prereq: Assassinate Lv3
+
+=== ASSASSIN – BLADE BRANCH ===
+6. Blade Flurry (T1) – 5 gyors ütés sorozat, 0.4x per hit
+   - Mana: 15, CD: 6s, Damage: 0.4x×5, Type: MELEE_COMBO
+   - Per level: hits +1, damage +0.05x per hit
+
+7. Whirlwind Slash (T2) – 360° körülötte, knockback
+   - Mana: 25, CD: 10s, Damage: 1.2x, Radius: 2.5, Type: AOE_MELEE
+   - Per level: damage +0.15x, radius +0.3
+
+8. Blade Dance (T3) – 4s-ig random teleport+slash közeli ellenségekre
+   - Mana: 45, CD: 18s, Duration: 4s, Type: CHANNEL
+   - Per level: duration +0.5s, teleport_speed +10%
+   - Prereq: Whirlwind Slash Lv2
+
+9. Execute (T4) – 30% HP alatt instant kill chance 15%
+   - Mana: 35, CD: 12s, Damage: 2.5x, Type: MELEE_STRIKE
+   - Per level: threshold +3%, instant_kill +3%
+   - Prereq: Blade Dance Lv3
+
+10. Thousand Cuts (T5 Ultimate) – 3s alatt 30 vágás random targetre
+    - Mana: 90, CD: 55s, Damage: 0.5x×30, Type: ULTIMATE
+    - Per level: cuts +5, damage +0.05x
+    - Prereq: Execute Lv3
+
+=== ASSASSIN – POISON BRANCH ===
+11. Envenom (T1) – Mérgezi a fegyvert 15s, +poison DoT támadásokra
+    - Mana: 10, CD: 1s, Duration: 15s, Type: BUFF
+    - Per level: poison_damage +12%, duration +3s
+
+12. Toxic Spray (T2) – Kúp alakú méreg felhő
+    - Mana: 25, CD: 8s, Damage: 0.8x + DoT, Type: CONE_AOE
+    - Per level: cone_angle +5°, dot_damage +10%
+    - Prereq: Envenom Lv2
+
+13. Pandemic (T3) – A méreg átugrik közeli ellenségekre
+    - Mana: 35, CD: 14s, Range: 4.0, Type: SPREAD
+    - Per level: spread_range +0.5, spread_count +1
+    - Prereq: Toxic Spray Lv2
+
+14. Venom Nova (T4) – Robbanó méregfelhő AoE
+    - Mana: 50, CD: 16s, Damage: 2.0x + heavy DoT, Radius: 4.0, Type: AOE
+    - Per level: radius +0.5, dot_damage +15%
+    - Prereq: Pandemic Lv3
+
+15. Plague Lord (T5 Ultimate) – 10s összes méreg 3x gyorsabban tick-el
+    - Mana: 75, CD: 50s, Duration: 10s, Type: ULTIMATE
+    - Per level: multiplier +0.5x, duration +2s
+    - Prereq: Venom Nova Lv3
+
+=== TANK – SHIELD BRANCH ===
+16. Shield Bash (T1) – Pajzzsal üt, stun 1.5s
+    - Mana: 15, CD: 7s, Damage: 1.0x + Stun, Type: MELEE_CC
+    - Per level: stun +0.3s, damage +0.15x
+
+17. Shield Wall (T2) – 4s 60% damage reduction, mozgás -50%
+    - Mana: 30, CD: 15s, Duration: 4s, Type: DEFENSIVE
+    - Per level: reduction +5%, duration +0.5s
+    - Prereq: Shield Bash Lv2
+
+18. Shield Charge (T3) – Roham előre, útközben knockback
+    - Mana: 35, CD: 12s, Damage: 1.5x, Range: 6.0, Type: DASH
+    - Per level: range +1.0, damage +0.2x
+    - Prereq: Shield Wall Lv2
+
+19. Fortress (T4) – 6s immunity minden CC ellen, reflect 20%
+    - Mana: 50, CD: 20s, Duration: 6s, Type: DEFENSIVE
+    - Per level: reflect +5%, duration +1s
+    - Prereq: Shield Charge Lv3
+
+20. Aegis of the Ancients (T5 Ultimate) – Party-wide 50% DR + CC immunity 8s
+    - Mana: 90, CD: 65s, Duration: 8s, Radius: 8.0, Type: ULTIMATE
+    - Per level: DR +5%, duration +1.5s
+    - Prereq: Fortress Lv3
+
+=== TANK – WARCRY BRANCH ===
+21. Taunt (T1) – AoE aggro vonzás 5s
+    - Mana: 10, CD: 8s, Duration: 5s, Radius: 5.0, Type: AOE_TAUNT
+    - Per level: duration +1s, radius +0.5
+
+22. Battle Shout (T2) – Party +15% damage 10s
+    - Mana: 25, CD: 18s, Duration: 10s, Radius: 8.0, Type: PARTY_BUFF
+    - Per level: damage_bonus +3%, duration +1s
+    - Prereq: Taunt Lv2
+
+23. Intimidate (T3) – Ellenségek -25% damage, -20% speed 6s
+    - Mana: 30, CD: 14s, Duration: 6s, Radius: 5.0, Type: AOE_DEBUFF
+    - Per level: debuff +5%, duration +1s
+    - Prereq: Battle Shout Lv2
+
+24. Berserker Rage (T4) – +40% damage, +30% speed, -20% defense 12s
+    - Mana: 45, CD: 25s, Duration: 12s, Type: SELF_BUFF
+    - Per level: damage +5%, duration +2s
+    - Prereq: Intimidate Lv3
+
+25. Avatar of War (T5 Ultimate) – 10s óriás forma, AoE minden ütés
+    - Mana: 85, CD: 60s, Duration: 10s, Size: 2.0x, Type: ULTIMATE
+    - Per level: size +0.2x, damage +20%, duration +2s
+    - Prereq: Berserker Rage Lv3
+
+=== TANK – FORTIFY BRANCH ===
+26. Iron Skin (T1) – +30% armor 8s
+    - Mana: 15, CD: 10s, Duration: 8s, Type: SELF_BUFF
+    - Per level: armor +6%, duration +1s
+
+27. Ground Slam (T2) – AoE körülötte, slow 40% 4s
+    - Mana: 25, CD: 10s, Damage: 1.3x, Radius: 3.0, Type: AOE_CC
+    - Per level: slow +5%, radius +0.3
+    - Prereq: Iron Skin Lv2
+
+28. Stone Pillar (T3) – Falat emel ami blokkolja a mozgást 8s
+    - Mana: 35, CD: 16s, Duration: 8s, Type: TERRAIN
+    - Per level: pillars +1, duration +1.5s
+    - Prereq: Ground Slam Lv2
+
+29. Regeneration Aura (T4) – Party HP regen +3%/s 12s
+    - Mana: 50, CD: 22s, Duration: 12s, Radius: 6.0, Type: PARTY_HEAL
+    - Per level: regen +0.5%/s, radius +1.0
+    - Prereq: Stone Pillar Lv3
+
+30. Unbreakable (T5 Ultimate) – 8s nem halhat meg (HP 1-en marad)
+    - Mana: 80, CD: 70s, Duration: 8s, Type: ULTIMATE
+    - Per level: duration +1.5s, CD -5s
+    - Prereq: Regeneration Aura Lv3
+
+=== MAGE – FIRE BRANCH ===
+31. Fireball (T1) – Lánggömb projektil, kis AoE robbanás
+    - Mana: 15, CD: 3s, Damage: 1.2x, Radius: 1.5, Type: PROJECTILE
+    - Per level: damage +0.15x, radius +0.2
+
+32. Flame Wave (T2) – Előre haladó tűz fal
+    - Mana: 30, CD: 8s, Damage: 1.0x, Width: 4.0, Type: AOE_LINE
+    - Per level: width +0.5, damage +0.15x
+    - Prereq: Fireball Lv2
+
+33. Meteor (T3) – Égből hullő meteor, nagy AoE
+    - Mana: 45, CD: 14s, Damage: 2.5x, Radius: 3.5, Type: AOE_DELAYED
+    - Per level: damage +0.3x, radius +0.3, delay -0.1s
+    - Prereq: Flame Wave Lv2
+
+34. Combustion (T4) – Égő ellenségek felrobbannak halálkor, AoE
+    - Mana: 40, CD: 20s, Duration: 15s, Type: PASSIVE_ACTIVE
+    - Per level: explosion_damage +15%, radius +0.5
+    - Prereq: Meteor Lv3
+
+35. Inferno (T5 Ultimate) – 8s-ig folyamatos AoE tűzeső nagy területen
+    - Mana: 90, CD: 55s, Duration: 8s, Radius: 6.0, Type: ULTIMATE
+    - Per level: damage_per_tick +10%, radius +1.0
+    - Prereq: Combustion Lv3
+
+=== MAGE – ICE BRANCH ===
+36. Ice Bolt (T1) – Jég projektil, slow 30% 3s
+    - Mana: 12, CD: 2.5s, Damage: 1.0x + Slow, Type: PROJECTILE
+    - Per level: slow +5%, damage +0.1x
+
+37. Frost Nova (T2) – AoE freeze körülötte 2.5s
+    - Mana: 30, CD: 12s, Damage: 0.8x + Freeze, Radius: 3.5, Type: AOE_CC
+    - Per level: freeze_duration +0.3s, radius +0.3
+    - Prereq: Ice Bolt Lv2
+
+38. Blizzard (T3) – Területen hóvihar 6s, continuous damage + slow
+    - Mana: 40, CD: 16s, Duration: 6s, Radius: 4.0, Type: AOE_CHANNEL
+    - Per level: damage +10%, duration +0.5s
+    - Prereq: Frost Nova Lv2
+
+39. Ice Prison (T4) – Célpont befagyasztása 4s, damage közben
+    - Mana: 45, CD: 18s, Duration: 4s, Damage: 1.5x, Type: SINGLE_CC
+    - Per level: duration +0.5s, damage +0.2x
+    - Prereq: Blizzard Lv3
+
+40. Absolute Zero (T5 Ultimate) – Mindent megfagyaszt 6s, shatter damage
+    - Mana: 85, CD: 60s, Duration: 6s, Radius: 8.0, Type: ULTIMATE
+    - Per level: shatter_damage +25%, duration +1s
+    - Prereq: Ice Prison Lv3
+
+=== MAGE – ARCANE BRANCH ===
+41. Arcane Missile (T1) – 3 auto-tracking lövedék
+    - Mana: 15, CD: 4s, Damage: 0.5x×3, Type: HOMING_PROJECTILE
+    - Per level: missiles +1, damage +0.05x each
+
+42. Mana Shield (T2) – Damage mana-ból von le HP helyett
+    - Mana: 20, CD: 15s, Duration: 10s, Type: DEFENSIVE
+    - Per level: efficiency +5% (kevesebb mana/damage), duration +1s
+    - Prereq: Arcane Missile Lv2
+
+43. Teleport (T3) – Instant teleport célpontra, 2 charge
+    - Mana: 20/charge, CD: 8s per charge, Range: 8.0, Type: DASH
+    - Per level: range +1.0, charge_cd -1s
+    - Prereq: Mana Shield Lv2
+
+44. Arcane Singularity (T4) – Fekete lyuk ami behúzza az ellenségeket
+    - Mana: 55, CD: 20s, Duration: 4s, Radius: 5.0, Type: AOE_CC
+    - Per level: pull_force +15%, damage +0.3x
+    - Prereq: Teleport Lv3
+
+45. Arcane Cataclysm (T5 Ultimate) – Masszív arcane robbanássorozat
+    - Mana: 95, CD: 65s, Duration: 5s, Radius: 10.0, Type: ULTIMATE
+    - Per level: explosions +2, damage +15%
+    - Prereq: Arcane Singularity Lv3
+
+================================================================================
+
+3. ITEM ADATOK – res://data/items/
+================================================================================
+
+3.1 Mappa struktúra:
+─────────────────────
+res://data/items/
+├── weapons/
+│   ├── swords/          # Assassin + Tank
+│   ├── daggers/         # Assassin
+│   ├── axes/            # Tank
+│   ├── staves/          # Mage
+│   └── wands/           # Mage
+├── armor/
+│   ├── helmets/
+│   ├── chest_armor/
+│   ├── gloves/
+│   ├── boots/
+│   ├── shoulders/
+│   └── belts/
+├── accessories/
+│   ├── amulets/
+│   └── rings/
+├── consumables/
+│   ├── potions/
+│   └── scrolls/
+├── sets/
+├── legendaries/
+└── crafting_materials/
+
+3.2 Alap fegyver adatok (Base Items):
+──────────────────────────────────────
+
+SWORDS (10 tier):
+  T1: Rozsdás Kard      - DMG: 5-8,    Speed: 1.0, Req Lv: 1
+  T2: Vas Kard           - DMG: 10-15,   Speed: 1.0, Req Lv: 5
+  T3: Acél Kard          - DMG: 18-25,   Speed: 1.0, Req Lv: 10
+  T4: Mithril Kard       - DMG: 28-38,   Speed: 1.05, Req Lv: 15
+  T5: Árnyék Kard        - DMG: 40-55,   Speed: 1.05, Req Lv: 20
+  T6: Sárkány Kard       - DMG: 55-75,   Speed: 1.1, Req Lv: 25
+  T7: Démoni Penge       - DMG: 70-95,   Speed: 1.1, Req Lv: 30
+  T8: Éteri Kard         - DMG: 90-120,  Speed: 1.15, Req Lv: 35
+  T9: Nexus Penge        - DMG: 115-155, Speed: 1.15, Req Lv: 40
+  T10: Végzet Kardja     - DMG: 145-195, Speed: 1.2, Req Lv: 45
+
+DAGGERS (10 tier):
+  T1: Rozsdás Tőr        - DMG: 3-5,    Speed: 1.5, Crit: +5%, Req Lv: 1
+  T2: Vas Tőr            - DMG: 7-10,   Speed: 1.5, Crit: +5%, Req Lv: 5
+  T3: Acél Tőr           - DMG: 12-18,  Speed: 1.55, Crit: +7%, Req Lv: 10
+  T4: Mithril Tőr        - DMG: 20-28,  Speed: 1.55, Crit: +7%, Req Lv: 15
+  T5: Árnyék Tőr         - DMG: 28-40,  Speed: 1.6, Crit: +10%, Req Lv: 20
+  T6: Sárkány Tőr        - DMG: 38-55,  Speed: 1.6, Crit: +10%, Req Lv: 25
+  T7: Démoni Tőr         - DMG: 50-70,  Speed: 1.65, Crit: +12%, Req Lv: 30
+  T8: Éteri Tőr          - DMG: 65-90,  Speed: 1.65, Crit: +12%, Req Lv: 35
+  T9: Nexus Tőr          - DMG: 82-115, Speed: 1.7, Crit: +15%, Req Lv: 40
+  T10: Végzet Tőre       - DMG: 105-145, Speed: 1.7, Crit: +15%, Req Lv: 45
+
+AXES (10 tier):
+  T1: Rozsdás Balta      - DMG: 7-12,   Speed: 0.8, Req Lv: 1
+  T2: Vas Balta           - DMG: 14-22,  Speed: 0.8, Req Lv: 5
+  T3: Acél Balta          - DMG: 24-35,  Speed: 0.8, Req Lv: 10
+  T4: Mithril Balta       - DMG: 36-50,  Speed: 0.82, Req Lv: 15
+  T5: Árnyék Balta        - DMG: 52-70,  Speed: 0.82, Req Lv: 20
+  T6: Sárkány Balta       - DMG: 70-95,  Speed: 0.85, Req Lv: 25
+  T7: Démoni Balta        - DMG: 92-125, Speed: 0.85, Req Lv: 30
+  T8: Éteri Balta         - DMG: 118-158, Speed: 0.87, Req Lv: 35
+  T9: Nexus Balta         - DMG: 148-200, Speed: 0.87, Req Lv: 40
+  T10: Végzet Bárdja      - DMG: 185-250, Speed: 0.9, Req Lv: 45
+
+STAVES (10 tier):
+  T1: Fabot              - DMG: 4-6,    Speed: 0.9, Spell+: 5%, Req Lv: 1
+  T2: Vas Bot             - DMG: 8-12,   Speed: 0.9, Spell+: 8%, Req Lv: 5
+  T3: Kristály Bot        - DMG: 14-20,  Speed: 0.9, Spell+: 12%, Req Lv: 10
+  T4: Mithril Bot         - DMG: 22-32,  Speed: 0.92, Spell+: 15%, Req Lv: 15
+  T5: Árnyék Bot          - DMG: 32-45,  Speed: 0.92, Spell+: 18%, Req Lv: 20
+  T6: Sárkány Bot         - DMG: 45-62,  Speed: 0.95, Spell+: 22%, Req Lv: 25
+  T7: Démoni Bot          - DMG: 60-82,  Speed: 0.95, Spell+: 25%, Req Lv: 30
+  T8: Éteri Bot           - DMG: 78-105, Speed: 0.97, Spell+: 28%, Req Lv: 35
+  T9: Nexus Bot           - DMG: 100-135, Speed: 0.97, Spell+: 32%, Req Lv: 40
+  T10: Végzet Botja       - DMG: 128-172, Speed: 1.0, Spell+: 35%, Req Lv: 45
+
+WANDS (10 tier):
+  T1: Fa Pálca            - DMG: 3-5,    Speed: 1.3, Spell+: 8%, Req Lv: 1
+  T2: Vas Pálca           - DMG: 6-9,    Speed: 1.3, Spell+: 10%, Req Lv: 5
+  T3: Kristály Pálca      - DMG: 10-15,  Speed: 1.32, Spell+: 14%, Req Lv: 10
+  T4: Mithril Pálca       - DMG: 16-24,  Speed: 1.32, Spell+: 18%, Req Lv: 15
+  T5: Árnyék Pálca        - DMG: 24-35,  Speed: 1.35, Spell+: 22%, Req Lv: 20
+  T6: Sárkány Pálca       - DMG: 34-48,  Speed: 1.35, Spell+: 26%, Req Lv: 25
+  T7: Démoni Pálca        - DMG: 46-64,  Speed: 1.38, Spell+: 30%, Req Lv: 30
+  T8: Éteri Pálca         - DMG: 60-82,  Speed: 1.38, Spell+: 34%, Req Lv: 35
+  T9: Nexus Pálca         - DMG: 78-105, Speed: 1.4, Spell+: 38%, Req Lv: 40
+  T10: Végzet Pálcája     - DMG: 100-135, Speed: 1.4, Spell+: 42%, Req Lv: 45
+
+3.3 Páncél alap adatok:
+────────────────────────
+
+HELMET (10 tier, DEF érték):
+  T1: 3, T2: 7, T3: 12, T4: 18, T5: 25,
+  T6: 33, T7: 42, T8: 52, T9: 64, T10: 78
+  + HP bonus: T1: 5, skálázva T10: 120
+
+CHEST ARMOR (10 tier, DEF érték):
+  T1: 8, T2: 16, T3: 28, T4: 42, T5: 58,
+  T6: 76, T7: 96, T8: 120, T9: 148, T10: 180
+  + HP bonus: T1: 10, skálázva T10: 250
+
+GLOVES (10 tier, DEF érték):
+  T1: 2, T2: 5, T3: 9, T4: 14, T5: 20,
+  T6: 27, T7: 35, T8: 44, T9: 54, T10: 66
+  + Attack Speed bonus: T1: 1%, skálázva T10: 12%
+
+BOOTS (10 tier, DEF érték):
+  T1: 3, T2: 7, T3: 12, T4: 18, T5: 25,
+  T6: 33, T7: 42, T8: 52, T9: 64, T10: 78
+  + Move Speed bonus: T1: 3%, skálázva T10: 18%
+
+SHOULDERS (10 tier, DEF érték):
+  T1: 4, T2: 9, T3: 15, T4: 22, T5: 30,
+  T6: 40, T7: 52, T8: 65, T9: 80, T10: 98
+  + Damage reduction: T1: 1%, skálázva T10: 8%
+
+BELTS (10 tier, DEF érték):
+  T1: 2, T2: 4, T3: 8, T4: 12, T5: 17,
+  T6: 23, T7: 30, T8: 38, T9: 47, T10: 58
+  + Potion slots: T1-T3: 1, T4-T6: 2, T7-T9: 3, T10: 4
+
+3.4 Kiegészítő adatok:
+───────────────────────
+
+AMULETS (5 tier):
+  T1 (Lv1): +5 HP, 1 affix slot
+  T2 (Lv10): +15 HP, 2 affix slots
+  T3 (Lv20): +30 HP, 3 affix slots
+  T4 (Lv30): +50 HP, 3 affix slots
+  T5 (Lv40): +75 HP, 4 affix slots
+
+RINGS (5 tier):
+  T1 (Lv1): +2% crit, 1 affix slot
+  T2 (Lv10): +4% crit, 2 affix slots
+  T3 (Lv20): +6% crit, 3 affix slots
+  T4 (Lv30): +8% crit, 3 affix slots
+  T5 (Lv40): +10% crit, 4 affix slots
+
+================================================================================
+
+4. AFFIX RENDSZER ADATOK – res://data/affixes/
+================================================================================
+
+4.1 Prefix-ek (Előtagok) – max 3 per item:
+────────────────────────────────────────────
+
+OFFENSIVE PREFIX-EK:
+  Éles (Sharp)         - +Flat Damage:     T1: 1-3, T2: 4-8, T3: 9-15, T4: 16-25, T5: 26-40
+  Izzó (Blazing)       - +Fire Damage%:    T1: 5-8, T2: 9-14, T3: 15-22, T4: 23-32, T5: 33-45
+  Fagyos (Frigid)      - +Ice Damage%:     T1: 5-8, T2: 9-14, T3: 15-22, T4: 23-32, T5: 33-45
+  Mérgező (Toxic)      - +Poison Damage%:  T1: 5-8, T2: 9-14, T3: 15-22, T4: 23-32, T5: 33-45
+  Gyors (Swift)        - +Attack Speed%:   T1: 3-5, T2: 6-9, T3: 10-14, T4: 15-20, T5: 21-28
+  Halálos (Deadly)     - +Crit Chance%:    T1: 1-2, T2: 3-4, T3: 5-7, T4: 8-10, T5: 11-15
+  Brutális (Brutal)    - +Crit Damage%:    T1: 5-10, T2: 11-20, T3: 21-32, T4: 33-45, T5: 46-60
+  Áttörő (Piercing)    - +Armor Pen:       T1: 2-4, T2: 5-9, T3: 10-16, T4: 17-25, T5: 26-36
+
+DEFENSIVE PREFIX-EK:
+  Erős (Sturdy)        - +Flat Armor:      T1: 3-6, T2: 7-14, T3: 15-25, T4: 26-40, T5: 41-60
+  Életerős (Vital)     - +Flat HP:         T1: 8-15, T2: 16-30, T3: 31-50, T4: 51-80, T5: 81-120
+  Ellenálló (Hardy)    - +All Resist%:     T1: 2-4, T2: 5-8, T3: 9-13, T4: 14-19, T5: 20-26
+  Kitérő (Evasive)     - +Dodge%:          T1: 1-2, T2: 3-4, T3: 5-7, T4: 8-10, T5: 11-14
+  Blokkoló (Blocking)  - +Block%:          T1: 2-4, T2: 5-8, T3: 9-13, T4: 14-18, T5: 19-24
+
+UTILITY PREFIX-EK:
+  Bölcs (Wise)         - +XP Gain%:        T1: 3-5, T2: 6-10, T3: 11-16, T4: 17-23, T5: 24-32
+  Szerencsés (Lucky)   - +Magic Find%:     T1: 5-10, T2: 11-18, T3: 19-28, T4: 29-40, T5: 41-55
+  Gazdag (Wealthy)     - +Gold Find%:      T1: 8-15, T2: 16-28, T3: 29-42, T4: 43-58, T5: 59-80
+
+4.2 Suffix-ek (Utótagok) – max 3 per item:
+────────────────────────────────────────────
+
+  ...a Tűznek (...of Fire)     - +Fire Resist%:    T1: 5-10, T5: 30-40
+  ...a Jégnek (...of Ice)      - +Ice Resist%:     T1: 5-10, T5: 30-40
+  ...a Méregnek (...of Venom)  - +Poison Resist%:  T1: 5-10, T5: 30-40
+  ...az Árnynak (...of Shadow) - +Shadow Resist%:  T1: 5-10, T5: 30-40
+  ...a Villámnak (...of Storm) - +Lightning Res%:  T1: 5-10, T5: 30-40
+  ...a Mágusnak (...of Mage)   - +Mana:            T1: 5-10, T5: 40-60
+  ...a Harcosnak (...of War)   - +Strength:        T1: 2-4, T5: 15-22
+  ...a Rókának (...of Fox)     - +Dexterity:       T1: 2-4, T5: 15-22
+  ...a Baglynak (...of Owl)    - +Intelligence:    T1: 2-4, T5: 15-22
+  ...az Életnek (...of Life)   - +HP Regen/s:      T1: 1-2, T5: 8-12
+  ...a Manának (...of Mana)    - +Mana Regen/s:    T1: 0.5-1, T5: 4-6
+  ...a Vampírnak (...of Leech) - +Life Steal%:     T1: 1-2, T5: 6-8
+  ...a Csillagnak (...of Star) - +All Stats:       T1: 1, T5: 5-8
+  ...a Fénynek (...of Light)   - +Light Radius:    T1: 1, T5: 5
+
+4.3 Affix slot számok ritkaság szerint:
+────────────────────────────────────────
+  Normal:    0 affix
+  Magic:     1-2 affix (1 prefix + 0-1 suffix VAGY 0-1 prefix + 1 suffix)
+  Rare:      3-4 affix (1-2 prefix + 1-2 suffix)
+  Epic:      4-5 affix (2-3 prefix + 2 suffix)
+  Legendary: 5-6 affix (3 prefix + 2-3 suffix) + 1 unique legendary power
+
+================================================================================
+
+5. SET ITEM DEFINÍCIÓK – res://data/items/sets/
+================================================================================
+
+8 Set, mindegyik 4 darabból áll (weapon + 2 armor + 1 accessory):
+
+SET 1: Árnyékvadász Készlet (Shadowhunter's Set) – Assassin
+  Darabok: Tőr, Mellvért, Kesztyű, Gyűrű
+  2-piece: +20% crit damage, +10% movement speed
+  3-piece: Shadow Step nem töri a stealth-et
+  4-piece: Minden 5. támadás automatikusan kritikus + stealth 1s
+
+SET 2: Méregmester Készlet (Venommaster's Set) – Assassin
+  Darabok: Tőr, Csizma, Váll, Amulett
+  2-piece: +30% poison damage, poison duration +50%
+  3-piece: Mérgezett ellenségek -15% damage
+  4-piece: Méreg stackelődik 5x, 5 stacknél robbanás (300% poison dmg)
+
+SET 3: Vas Bástya Készlet (Iron Bastion Set) – Tank
+  Darabok: Balta, Mellvért, Sisak, Gyűrű
+  2-piece: +25% armor, +50 HP
+  3-piece: Shield Wall cooldown -50%
+  4-piece: 20% esély hogy a beérkező damage 0-ra csökken, +thorns 200%
+
+SET 4: Harcmester Készlet (Warmaster's Set) – Tank
+  Darabok: Kard, Váll, Kesztyű, Amulett
+  2-piece: +15% damage, +15% attack speed
+  3-piece: AoE taunt hatótáv 2x, Berserker Rage -30% self-damage penalty
+  4-piece: Minden ölés +2% damage 30s-ig (max 40%), halálkor nem veszít el
+
+SET 5: Tűzidéző Készlet (Flamecaller's Set) – Mage
+  Darabok: Bot, Mellvért, Sisak, Gyűrű
+  2-piece: +35% fire damage
+  3-piece: Fireball kettéválik becsapódáskor (2 kisebb fireball)
+  4-piece: Tűz spell-ek burning területet hagynak 5s (50% spell dmg/s)
+
+SET 6: Fagykirály Készlet (Frostlord's Set) – Mage
+  Darabok: Pálca, Csizma, Kesztyű, Amulett
+  2-piece: +30% ice damage, +15% slow effectiveness
+  3-piece: Frozen ellenségek töréskor AoE frost nova
+  4-piece: Freeze duration 2x, frozen ellenségek 40% több damage-t kapnak
+
+SET 7: Alkimista Készlet (Alchemist's Set) – Univerzális
+  Darabok: Öv, Csizma, Kesztyű, Amulett
+  2-piece: Potion hatékonyság +50%, +1 potion slot
+  3-piece: Crafting cost -25%, gathering speed +30%
+  4-piece: 10% chance on kill: ritka crafting material drop
+
+SET 8: Kincskeresö Készlet (Treasureseeker's Set) – Univerzális
+  Darabok: Öv, Sisak, Gyűrű, Amulett
+  2-piece: +40% gold find, +25% magic find
+  3-piece: Chest-ek mindig 1 tier jobb lootot adnak
+  4-piece: Minden 100. elölt ellenség legendary-t dob garantáltan
+
+================================================================================
+
+6. LEGENDARY ITEM DEFINÍCIÓK – res://data/items/legendaries/
+================================================================================
+
+30 Legendary item, mindegyik egyedi legendary power-rel:
+
+=== LEGENDARY FEGYVEREK (10) ===
+
+1. Hamvak Pengéje (Blade of Ashes)
+   - Típus: Kard, Assassin
+   - Power: Öléskor a célpont felrobban, 200% damage körülötte
+   - Base: T8 Kard statokkal
+
+2. Árny Karmai (Shadow's Talons)
+   - Típus: Tőr, Assassin
+   - Power: Stealth alatt +100% damage, stealth nem törik touch-ra
+   - Base: T8 Tőr statokkal
+
+3. Öröktűz (Eternalflame)
+   - Típus: Bot, Mage
+   - Power: Tűz spell-ek 20% eséllyel duplán kasztolódnak (free)
+   - Base: T9 Bot statokkal
+
+4. Jégszív Botja (Staff of the Frozen Heart)
+   - Típus: Bot, Mage
+   - Power: Frozen ellenségek HP regen-t adnak a játékosnak (2%/s)
+   - Base: T8 Bot statokkal
+
+5. Villámpálca (Stormwand)
+   - Típus: Pálca, Mage
+   - Power: Spell-ek 30% chain lightning (50% dmg 3 targetnek)
+   - Base: T9 Pálca statokkal
+
+6. Vérszomj (Bloodthirst)
+   - Típus: Balta, Tank
+   - Power: Öléskor +5% max HP 60s (stack 10x), élettel töltődik
+   - Base: T8 Balta statokkal
+
+7. Szétmorzsoló (The Crusher)
+   - Típus: Balta, Tank
+   - Power: Ütéseknek 15% eséllyel +500% knockback és stun 3s
+   - Base: T9 Balta statokkal
+
+8. Kétarcú Penge (Dual-faced Blade)
+   - Típus: Kard, Univerzális
+   - Power: Minden 3. ütés tűz, minden 5. ütés jég, szimultán: AoE
+   - Base: T7 Kard statokkal
+
+9. Lelkek Nyelője (Souldrinker)
+   - Típus: Tőr, Assassin
+   - Power: Ölések "Soul" counter, 10 soul = mega AoE shadow blast
+   - Base: T8 Tőr statokkal
+
+10. Világvége Bot (Staff of Ruin)
+    - Típus: Bot, Mage
+    - Power: Spell damage +2% minden castolás után (reset boss változáskor)
+    - Base: T10 Bot statokkal
+
+=== LEGENDARY PÁNCÉLOK (12) ===
+
+11. Hamu Koronája (Crown of Ashes)
+    - Típus: Sisak
+    - Power: Halálkor 60s-en belül újjáéledés 30% HP-val (180s CD)
+
+12. Démonbőr Mellvért (Demonhide Chestplate)
+    - Típus: Mellvért
+    - Power: 10% HP alatt: +80% damage, +40% speed, immune CC 5s
+
+13. Árnyéklépő Csizma (Shadowstep Boots)
+    - Típus: Csizma
+    - Power: Dodge közben 0.5s invulnerability, cooldown 3s
+
+14. Mohó Kesztyűk (Greedy Gauntlets)
+    - Típus: Kesztyű
+    - Power: Arany felszedéskor 5% esély hogy 10x-esére változik
+
+15. Az Utolsó Bástya (The Last Bastion)
+    - Típus: Mellvért, Tank
+    - Power: Party member halálkor: +20% all stats 30s, stack
+
+16. Lángszív Páncél (Flameheart Armor)
+    - Típus: Mellvért, Mage
+    - Power: Mana shield aktív közben fire aura (continuous AoE damage)
+
+17. Fagyos Páncél (Armor of Frost)
+    - Típus: Mellvért, Mage/Tank
+    - Power: Ütéskor 15% freeze támadó 2s, nearby enemies slowed
+
+18. Szélvész Váll (Stormguard Shoulders)
+    - Típus: Váll
+    - Power: CC elszenvedésekor lightning nova (150% dmg, stun 1s)
+
+19. Végtelen Öv (Belt of Infinity)
+    - Típus: Öv
+    - Power: Potion használatkor AoE heal party 50% potion értékből
+
+20. Az Ős Sisakja (Helm of the Ancient)
+    - Típus: Sisak, Tank
+    - Power: Taunt hatótáv 3x, tauntolt ellenségek -30% damage
+
+21. Méregfelhő Kesztyű (Miasma Gloves)
+    - Típus: Kesztyű, Assassin
+    - Power: Támadások méregfelhőt hagynak (1s, 50% poison dmg)
+
+22. Gyökérlépő Csizma (Rootwalker Boots)
+    - Típus: Csizma
+    - Power: Erdő biome-ban +30% all stats, természeti ellenségek nem agresszívek
+
+=== LEGENDARY KIEGÉSZÍTŐK (8) ===
+
+23. Az Igazak Amulett (Truth Amulet)
+    - Típus: Amulett
+    - Power: Rejtett ellenségek (stealth, invisible) mindig láthatók
+    - + Trap detection range 3x
+
+24. Mohóság Gyűrűje (Ring of Greed)
+    - Típus: Gyűrű
+    - Power: +100% gold find, de -20% XP gain
+
+25. Bölcsek Köve (Sage's Ring)
+    - Típus: Gyűrű
+    - Power: +50% XP gain, skill cooldownok -15%
+
+26. Szövetség Amulett (Alliance Amulet)
+    - Típus: Amulett
+    - Power: Party-ban minden member +5% all stats per member
+
+27. Sárkányszem Gyűrű (Dragoneye Ring)
+    - Típus: Gyűrű
+    - Power: Crit hit: 25% chance tűzoszlop a célponton (400% fire dmg)
+
+28. Halál Amulett (Death's Pendant)
+    - Típus: Amulett
+    - Power: Öléskor 3% HP és 2% Mana visszanyerés
+    - Elite/Boss ölés: 15% HP és 10% Mana
+
+29. Fátyolgyűrű (Veil Ring)
+    - Típus: Gyűrű, Assassin
+    - Power: Combat-ból kilépve 3s után auto-stealth, first strike +50%
+
+30. Világító Amulett (Beacon Amulet)
+    - Típus: Amulett
+    - Power: Light radius 3x, sötétben +20% damage, rejtett room-ok jelölése
+
+================================================================================
+
+7. ENEMY STAT TÁBLÁZATOK
+================================================================================
+
+7.1 Base enemy stats szint szerint (level 1-50):
+──────────────────────────────────────────────────
+
+MELEE ENEMY:
+  Lv1:  HP: 30,   DMG: 5,   DEF: 2,   XP: 10,  Gold: 2-5
+  Lv5:  HP: 55,   DMG: 10,  DEF: 5,   XP: 25,  Gold: 5-12
+  Lv10: HP: 100,  DMG: 18,  DEF: 10,  XP: 50,  Gold: 10-25
+  Lv15: HP: 165,  DMG: 28,  DEF: 16,  XP: 85,  Gold: 18-40
+  Lv20: HP: 250,  DMG: 42,  DEF: 24,  XP: 130, Gold: 28-60
+  Lv25: HP: 360,  DMG: 58,  DEF: 34,  XP: 190, Gold: 40-85
+  Lv30: HP: 500,  DMG: 78,  DEF: 46,  XP: 270, Gold: 55-115
+  Lv35: HP: 680,  DMG: 102, DEF: 60,  XP: 370, Gold: 75-155
+  Lv40: HP: 900,  DMG: 132, DEF: 78,  XP: 500, Gold: 100-200
+  Lv45: HP: 1180, DMG: 168, DEF: 100, XP: 660, Gold: 130-260
+  Lv50: HP: 1500, DMG: 210, DEF: 125, XP: 850, Gold: 170-340
+
+RANGED ENEMY (×0.7 HP, ×1.1 DMG, ×0.6 DEF a melee-hez képest)
+CASTER ENEMY (×0.6 HP, ×1.3 DMG spell, ×0.5 DEF, +mana skills)
+
+ELITE MODIFIER: ×3 HP, ×1.5 DMG, ×1.5 DEF, ×5 XP, ×3 Gold, +1-3 affix
+
+7.2 Biome szint sávok:
+───────────────────────
+  Ashen Wastes:      Level 1-8     (Starting zone)
+  Corrupted Forest:  Level 6-14
+  Crystal Caverns:   Level 12-20
+  Frozen Peaks:      Level 18-26
+  Shadow Marsh:      Level 24-32
+  Volcanic Depths:   Level 30-38
+  Necrotic Ruins:    Level 36-44
+  Void Realm:        Level 42-50   (Endgame zone)
+
+7.3 Enemy típusok biome-onként:
+────────────────────────────────
+
+ASHEN WASTES (Lv 1-8):
+  - Ash Zombie (melee, slow, low HP)
+  - Cinder Rat (melee, fast, very low HP, pack)
+  - Ember Archer (ranged, medium)
+  - Ash Witch (caster, fire spells)
+  - ELITE: Ash Golem (tanky, ground slam AoE)
+
+CORRUPTED FOREST (Lv 6-14):
+  - Blighted Wolf (melee, fast, pack AI)
+  - Thorn Crawler (melee, poison DoT on hit)
+  - Fungal Spitter (ranged, poison projectile)
+  - Druid Wraith (caster, nature + shadow)
+  - ELITE: Treant Guardian (root CC, high HP)
+
+CRYSTAL CAVERNS (Lv 12-20):
+  - Crystal Bat (melee, flying, dodge)
+  - Gem Golem (melee, tanky, slow)
+  - Shard Shooter (ranged, piercing projectile)
+  - Crystal Mage (caster, arcane reflects)
+  - ELITE: Prism Construct (beam attacks, shield phases)
+
+FROZEN PEAKS (Lv 18-26):
+  - Ice Wolf (melee, fast, freeze on hit)
+  - Frost Giant (melee, very slow, huge damage)
+  - Snow Archer (ranged, slow arrows)
+  - Frost Shaman (caster, blizzard AoE)
+  - ELITE: Avalanche Elemental (terrain destruction)
+
+SHADOW MARSH (Lv 24-32):
+  - Bog Lurker (melee, stealth, ambush)
+  - Marsh Horror (melee, tentacle grab)
+  - Will-o-Wisp (ranged, homing, teleport)
+  - Swamp Hag (caster, curse debuffs)
+  - ELITE: Hydra (multi-head, regen)
+
+VOLCANIC DEPTHS (Lv 30-38):
+  - Magma Slime (melee, split on death)
+  - Fire Imp (melee, fast, fire trail)
+  - Lava Bomber (ranged, AoE fire)
+  - Flame Priest (caster, fire buff allies)
+  - ELITE: Obsidian Dragon (fly phases, breath)
+
+NECROTIC RUINS (Lv 36-44):
+  - Skeleton Warrior (melee, revive once)
+  - Bone Archer (ranged, multi-shot)
+  - Lich Apprentice (caster, summon skeletons)
+  - Death Knight (melee, lifesteal, tanky)
+  - ELITE: Bone Colossus (4 fázis, minion summon)
+
+VOID REALM (Lv 42-50):
+  - Void Stalker (melee, teleport, high damage)
+  - Phase Shifter (melee, phasing = 50% dodge)
+  - Void Ray (ranged, beam attack, pierce)
+  - Reality Warper (caster, terrain distortion)
+  - ELITE: Void Titan (gravity wells, dimension shift)
+
+================================================================================
+
+8. BOSS STAT TÁBLÁZATOK
+================================================================================
+
+8.1 Implementált bossok (6/13) – stat ajánlások:
+──────────────────────────────────────────────────
+
+TIER 1 MINI-BOSS:
+  Plague Rat King (Corrupted Forest, Lv 10-14)
+    HP: 3000, DMG: 25-35, DEF: 15, Fázisok: 2
+    Loot: 2-4 Rare + 15% Epic chance
+    Respawn: 10 perc
+
+  Shadow Stalker (Shadow Marsh, Lv 28-32)
+    HP: 12000, DMG: 80-110, DEF: 50, Fázisok: 3
+    Loot: 3-5 Rare + 30% Epic + 5% Legendary
+    Respawn: 15 perc
+
+  Cursed Treant (Corrupted Forest, Lv 12-14)
+    HP: 4000, DMG: 30-40, DEF: 25, Fázisok: 2
+    Loot: 2-4 Rare + 20% Epic chance
+    Respawn: 12 perc
+
+TIER 2 DUNGEON BOSS:
+  Frozen Sentinel (Frozen Peaks dungeon, Lv 22-26)
+    HP: 18000, DMG: 65-90, DEF: 55, Fázisok: 3
+    Loot: 4-6 Rare + 40% Epic + 10% Legendary
+    Clear reward: Dungeon key guaranteed
+
+  Necromancer King (Necrotic Ruins dungeon, Lv 40-44)
+    HP: 45000, DMG: 140-190, DEF: 90, Fázisok: 4
+    Loot: 5-8 Rare + 60% Epic + 20% Legendary + 5% Set piece
+    Clear reward: Legendary gem guaranteed
+
+  Spider Matriarch (Crystal Caverns dungeon, Lv 16-20)
+    HP: 10000, DMG: 45-60, DEF: 30, Fázisok: 3
+    Loot: 3-5 Rare + 35% Epic + 8% Legendary
+    Clear reward: Gem upgrade material
+
+8.2 HIÁNYZÓ bossok – IMPLEMENTÁLANDÓ (7/13):
+──────────────────────────────────────────────
+
+TIER 1 (még 2 mini-boss kell):
+
+  Ash Warden (Ashen Wastes, Lv 5-8) – Első boss
+    HP: 1500, DMG: 12-18, DEF: 8, Fázisok: 2
+    Fázis 1: Melee ütések + tűz futam
+    Fázis 2 (50% HP): Tűz hullámok + minion summon (3 Ash Zombie)
+    Loot: 1-3 Rare, guaranteed Magic weapon
+    Cél: Bevezető boss, tanítja a dodge mechanikát
+
+  Swamp Hydra (Shadow Marsh, Lv 26-30)
+    HP: 15000, DMG: 70-95, DEF: 45, Fázisok: 3
+    Fázis 1: 3 fej, mindegyik különböző támadás
+    Fázis 2: Fej levágáskor 2 nő helyette (max 5)
+    Fázis 3: Központi test sebezhetővé válik
+    Loot: 3-5 Rare + 25% Epic + 5% Legendary
+
+TIER 2 (még 1 dungeon boss kell):
+
+  Volcanic Overlord (Volcanic Depths dungeon, Lv 34-38)
+    HP: 35000, DMG: 120-160, DEF: 75, Fázisok: 4
+    Fázis 1: Lávagömbök + ground slam
+    Fázis 2: Arena edges → lava, platform szűkül
+    Fázis 3: Magma gézerek random, meteor shower
+    Fázis 4: Enrage – folyamatos tűzeső, DPS race
+    Loot: 5-7 Rare + 50% Epic + 15% Legendary + 8% Set
+    Clear reward: T8 crafting material guaranteed
+
+TIER 3 WORLD BOSS (3 db, open world, 4-player recommended):
+
+  Void Weaver (Void Realm, Lv 48-50) – Fő antagonista előfutára
+    HP: 150000, DMG: 200-280, DEF: 120, Fázisok: 5
+    Fázis 1: Teleport + void bolt spam
+    Fázis 2: Dimension rifts (portálokból minion-ok)
+    Fázis 3: Gravity inversion (controls flipped 10s)
+    Fázis 4: Reality fracture (arena split, random teleport)
+    Fázis 5: Desperation – összes attack kombinálva
+    Loot: 3 Legendary guaranteed + Set piece + 15% Boss-specific weapon
+    Respawn: 2 óra
+    Multiplayer: Scaled – solo HP ×0.4, duo ×0.7, trio ×0.85, quad ×1.0
+
+  Ancient Dragon (Volcanic Depths/Frozen Peaks border, Lv 45-48)
+    HP: 120000, DMG: 180-250, DEF: 100, Fázisok: 4
+    Fázis 1: Tűz lélegzet + tail sweep
+    Fázis 2: Felszáll – bombing run, ground AoE
+    Fázis 3: Leszáll – ice+fire combo breath
+    Fázis 4: Enrage – continuous breath + minion eggs hatch
+    Loot: 2 Legendary + 50% Set piece + unique crafting mat
+    Respawn: 3 óra
+
+  Riftlord (Bármely biome random spawn, Lv 50)
+    HP: 100000, DMG: 170-230, DEF: 90, Fázisok: 3
+    Fázis 1: Az aktuális biome ellenségeit idézi erősítve
+    Fázis 2: Biome-ok keverése (random biome attack pattern)
+    Fázis 3: Pure void energy – bullet hell pattern
+    Loot: 2 Legendary + 30% Legendary Gem + rare cosmetic
+    Respawn: 4 óra, random biome, broadcast event
+
+TIER 4 RAID BOSS (2 db, kötelező 4 player):
+
+  The Ashen God (Speciális dungeon, Lv 50+)
+    HP: 500000, DMG: 300-400, DEF: 150, Fázisok: 6
+    Speciális: Négy játékos négy különböző feladatot kap
+    Fázis 1-2: Normal combat
+    Fázis 3: Arena split – 2+2 játékos külön szoba
+    Fázis 4: Minion wave survival
+    Fázis 5: Együtt újra – DPS check
+    Fázis 6: Enrage – 60s limitált idő
+    Loot: 4 Legendary + Set piece guaranteed + unique title
+    Weekly lockout: Heti 1x lootolható
+    Ajánlott gear: Full T9+ felszerelés, Lv 48+
+
+  The Void Emperor (Secret endgame, Lv 50+, Nightmare 5 only)
+    HP: 800000, DMG: 400-550, DEF: 200, Fázisok: 8
+    A játék UTOLSÓ boss-a, a teljes story csúcspontja.
+    Fázis 1-3: Void minion waves + boss normal attacks
+    Fázis 4: Platform destruction – boss repülő attack
+    Fázis 5: Mirror match – void klónok minden játékosból
+    Fázis 6: Time warp – korábbi bossok mechanikái visszatérnek
+    Fázis 7: Pure dps race – 45s enrage timer
+    Fázis 8: Cinematic – QTE kill sequence
+    Loot: 5 Legendary + exclusive legendary weapon + title + cosmetic
+    Weekly lockout, Nightmare 5 only
+
+================================================================================
+
+9. XP ÉS SZINTEZÉSI TÁBLÁZAT
+================================================================================
+
+9.1 Level-up XP követelmények:
+──────────────────────────────
+Képlet: xp_for_level = floor(100 * (level ^ 1.8))
+
+  Lv  1→2:    100 XP
+  Lv  2→3:    348 XP
+  Lv  3→4:    724 XP
+  Lv  4→5:    1,220 XP
+  Lv  5→6:    1,838 XP
+  Lv  9→10:   5,180 XP
+  Lv 14→15:  13,200 XP
+  Lv 19→20:  25,600 XP
+  Lv 24→25:  43,100 XP
+  Lv 29→30:  66,300 XP
+  Lv 34→35:  95,800 XP
+  Lv 39→40: 132,200 XP
+  Lv 44→45: 175,800 XP
+  Lv 49→50: 227,000 XP
+
+  Összesen 1-50: ~2,500,000 XP
+  Becsült idő: 40-60 óra normál tempóval
+
+9.2 Stat növekedés szintenként:
+────────────────────────────────
+  Alap stat pont / szint: 3 (szabadon elosztható STR/DEX/INT/VIT között)
+  HP per level:   +15 base + VIT×2
+  Mana per level: +8 base + INT×1.5
+  Damage scaling: STR×0.5 (melee) / DEX×0.5 (ranged) / INT×0.8 (spell)
+
+9.3 Skill pont elosztás:
+─────────────────────────
+  Skill pont / szint: 1 (Lv 2-50 = 49 összesen)
+  Szükséges max 1 branch: 5 skill × 5 level = 25 pont
+  Szükséges max 2 branch: 50 pont (nem lehetséges 49-ből → választani kell)
+  Respec költség: 1000 Gold × Player Level
+
+================================================================================
+
+10. ECONOMY BALANCE ADATOK
+================================================================================
+
+10.1 Arany flow becslés órákénti:
+──────────────────────────────────
+  Lv 1-10 (Ashen, Corrupted):   ~200-500 Gold/óra
+  Lv 10-20 (Crystal, early):    ~800-1500 Gold/óra
+  Lv 20-30 (Frozen, Shadow):    ~2000-4000 Gold/óra
+  Lv 30-40 (Volcanic, Necrotic):~5000-10000 Gold/óra
+  Lv 40-50 (Void, endgame):     ~12000-25000 Gold/óra
+
+10.2 Kulcs cost benchmark-ok:
+──────────────────────────────
+  Alap potion:           10-50 Gold (szint szerint)
+  Repair (full gear):    500-5000 Gold (szint szerint)
+  Respec:                Lv × 1000 Gold (Lv30 = 30,000)
+  Stash tab:             5000 Gold (+5000 per tab)
+  Fast travel:           100-1000 Gold (távolság szerint)
+  Marketplace listing:   5% eladási ár provision
+  Crafting (tier1):      100 Gold + anyagok
+  Crafting (tier10):     50,000 Gold + ritka anyagok
+  Upgrade +1→+10:        500/1000/2000/4000/8000/15000/30000/60000/100000/200000
+
+10.3 Dark Essence (premium currency) szerzési útvonalak:
+─────────────────────────────────────────────────────────
+  Weekly boss kill:       50 DE
+  Achievement milestone:  10-100 DE
+  Dungeon first clear:    25 DE
+  World event:            15-30 DE
+  Daily login streak:     5-20 DE
+  NEM vásárolható valódi pénzért (fair play!)
+
+10.4 Aetherium Shard szerzés:
+──────────────────────────────
+  Epic+ item bontás:      1-5 Shard (ritkaság szerint)
+  Boss kill:               2-8 Shard
+  Weekly quest:            10 Shard
+  Felhasználás: High-end crafting, Socket creation, Legendary upgrade
+
+================================================================================
+
+11. CRAFTING RECEPTEK – res://data/crafting/
+================================================================================
+
+11.1 Weapon crafting (Weaponsmithing profession):
+──────────────────────────────────────────────────
+
+Tier 1 fegyver:
+  - 3× Iron Ore + 1× Wood + 50 Gold
+  Prof. req: Weaponsmith Lv 1
+
+Tier 3 fegyver:
+  - 5× Steel Ingot + 3× Hard Wood + 2× Leather + 500 Gold
+  Prof. req: Weaponsmith Lv 3
+
+Tier 5 fegyver:
+  - 8× Mithril Ingot + 5× Enchanted Wood + 3× Magic Essence + 2000 Gold
+  Prof. req: Weaponsmith Lv 5
+
+Tier 7 fegyver:
+  - 12× Demon Steel + 8× Shadow Wood + 5× Rare Essence + 10000 Gold
+  Prof. req: Weaponsmith Lv 7
+
+Tier 9 fegyver:
+  - 18× Void Metal + 12× Nexus Crystal + 8× Legendary Essence + 3× Aetherium Shard + 50000 Gold
+  Prof. req: Weaponsmith Lv 9
+
+11.2 Armor crafting (Armorsmithing profession):
+  Hasonló struktúra mint weapons, de:
+  - Ore helyett Leather/Cloth (armor típus szerint)
+  - Gold cost ×1.2 (armor drágább)
+
+11.3 Potion crafting (Alchemy profession):
+──────────────────────────────────────────
+
+  Health Potion Small: 2× Red Herb + 1× Water → Heal 50 HP
+  Health Potion Medium: 3× Red Herb + 1× Crystal Water → Heal 150 HP
+  Health Potion Large: 5× Red Herb + 2× Crystal Water + 1× Life Essence → Heal 400 HP
+  Mana Potion Small: 2× Blue Mushroom + 1× Water → Restore 30 Mana
+  Mana Potion Medium: 3× Blue Mushroom + 1× Crystal Water → Restore 80 Mana
+  Mana Potion Large: 5× Blue Mushroom + 2× Crystal Water + 1× Mana Crystal → Restore 200 Mana
+  Fire Resist Potion: 3× Fire Flower + 2× Ice Crystal → +30% Fire Resist 120s
+  Antidote: 3× Green Herb + 1× Purification Salt → Cure poison, +10min immunity
+
+11.4 Enchanting (Enchanting profession):
+─────────────────────────────────────────
+  Basic Enchant: 1× Magic Dust + equipment → +1 random affix (magic min)
+  Advanced Enchant: 3× Enchant Crystal + equipment → Reroll 1 affix
+  Masterwork: 5× Legendary Dust + 2× Aetherium + equipment → Add socket
+
+================================================================================
+
+12. LOOT TABLE KONFIGURÁCIÓK – res://data/loot/
+================================================================================
+
+12.1 Enemy loot (szint alapú):
+───────────────────────────────
+NORMAL ENEMY:
+  Drop chance: 15%
+  Rarity: Normal 60%, Magic 30%, Rare 8%, Epic 1.8%, Legendary 0.2%
+  Gold: Level-appropriate (lásd 10.1)
+  Consumable: 5% chance
+
+ELITE ENEMY:
+  Drop chance: 100% (1-2 item)
+  Rarity: Magic 30%, Rare 45%, Epic 20%, Legendary 5%
+  Gold: ×3 normal
+  Consumable: 15% chance
+  Gem: 8% chance
+
+12.2 Boss loot:
+────────────────
+TIER 1 (mini-boss):
+  Guaranteed: 2-3 items
+  Rarity: Rare 50%, Epic 35%, Legendary 12%, Set 3%
+  Gold: ×5 normal
+  Gem: 25% chance
+
+TIER 2 (dungeon boss):
+  Guaranteed: 3-5 items
+  Rarity: Rare 30%, Epic 40%, Legendary 22%, Set 8%
+  Gold: ×8 normal
+  Gem: 50% chance
+  Special: Dungeon-specific loot table (1 unique per dungeon)
+
+TIER 3 (world boss):
+  Guaranteed: 5-8 items
+  Rarity: Epic 30%, Legendary 50%, Set 15%, Unique 5%
+  Gold: ×15 normal
+  Gem: 100% (1-2 gem)
+  Legendary Gem: 10% chance
+
+TIER 4 (raid boss):
+  Guaranteed: 8-12 items
+  Rarity: Legendary 60%, Set 25%, Unique 15%
+  Gold: ×25 normal
+  Gem: 100% (2-3 gem, 1 guaranteed legendary gem)
+  Special: Boss-exclusive item 100% (weekly lockout)
+
+12.3 Chest loot:
+─────────────────
+WOODEN CHEST (common):
+  Items: 1-2, Rarity: Normal 50%, Magic 40%, Rare 10%
+  Gold: 20-100
+
+IRON CHEST (uncommon):
+  Items: 2-3, Rarity: Magic 40%, Rare 40%, Epic 18%, Legendary 2%
+  Gold: 100-500
+
+GOLDEN CHEST (rare):
+  Items: 3-5, Rarity: Rare 40%, Epic 40%, Legendary 18%, Set 2%
+  Gold: 500-2000
+
+ANCIENT CHEST (boss room / secret):
+  Items: 4-6, Rarity: Epic 35%, Legendary 45%, Set 15%, Unique 5%
+  Gold: 2000-10000
+
+================================================================================
+
+13. GATHERING NODE ADATOK – res://data/gathering/
+================================================================================
+
+MINING NODES:
+  Copper Ore    - Lv 1, Respawn 60s, Ashen Wastes
+  Iron Ore      - Lv 3, Respawn 90s, Corrupted Forest
+  Silver Ore    - Lv 5, Respawn 120s, Crystal Caverns
+  Gold Ore      - Lv 7, Respawn 180s, Frozen Peaks
+  Mithril Ore   - Lv 9, Respawn 300s, Shadow Marsh
+  Demon Steel   - Lv 12, Respawn 450s, Volcanic Depths
+  Void Metal    - Lv 15, Respawn 600s, Void Realm
+
+HERBALISM NODES:
+  Red Herb      - Lv 1, Respawn 45s, All biomes
+  Green Herb    - Lv 2, Respawn 45s, Forest, Marsh
+  Blue Mushroom - Lv 3, Respawn 60s, Caverns, Marsh
+  Fire Flower   - Lv 5, Respawn 90s, Volcanic, Ashen
+  Ice Crystal   - Lv 7, Respawn 120s, Frozen Peaks
+  Shadow Root   - Lv 9, Respawn 180s, Shadow Marsh
+  Void Bloom    - Lv 12, Respawn 300s, Void Realm
+
+WOODCUTTING NODES:
+  Wood          - Lv 1, Respawn 60s, Forest
+  Hard Wood     - Lv 4, Respawn 90s, Forest, Marsh
+  Enchanted Wood - Lv 7, Respawn 150s, Corrupted Forest
+  Shadow Wood   - Lv 10, Respawn 240s, Shadow Marsh
+  Nexus Crystal - Lv 13, Respawn 400s, Crystal, Void
+
+FISHING SPOTS:
+  Common Fish   - Lv 1, Respawn 30s, Any water
+  River Fish    - Lv 3, Respawn 45s, Rivers
+  Marsh Fish    - Lv 5, Respawn 60s, Shadow Marsh
+  Lava Fish     - Lv 8, Respawn 120s, Volcanic (rare)
+  Void Fish     - Lv 12, Respawn 300s, Void Realm pools
+
+================================================================================
+
+14. IMPLEMENTÁCIÓS PRIORITÁS
+================================================================================
+
+KRITIKUS (játék nem indítható nélkülük):
+  1. 45 SkillData .tres fájl létrehozása (2.3 szekció alapján)
+  2. 50 Base ItemData .tres fájl (T1-T5 fegyverek + páncélok)
+  3. AffixData pool fájlok (4.1-4.2 szekció)
+  4. 40 EnemyData .tres fájl (biome-onként 5 típus × 8 biome)
+  5. XP/szintezési görbe constants.gd-be vagy data file-ba
+
+FONTOS (core gameplay loop-hoz kell):
+  6. 50 további ItemData (T6-T10)
+  7. 8 SetItemData .tres fájl (5. szekció)
+  8. 30 LegendaryData .tres fájl (6. szekció)
+  9. CraftingRecipe .tres fájlok (~30)
+  10. LootTable konfigurációk JSON/Resource
+  11. Boss stat kitöltés a 6 meglévőhöz
+
+LATER (bővítés):
+  12. T3-T4 boss implementáció (7 db)
+  13. Gathering node data fájlok
+  14. Shop inventory definíciók
+  15. Nightmarke difficulty modifier táblák
+
+================================================================================
+
+15. BALANCE TESZTELÉSI CHECKLIST
+================================================================================
+
+□ Felszereléssel elérhető DPS tartomány szintenként
+□ Time-to-kill normál mob (target: 2-4s same level, solo)
+□ Time-to-kill elite mob (target: 15-30s same level, solo)
+□ Time-to-kill T1 boss (target: 2-3 min solo)
+□ Time-to-kill T2 boss (target: 5-8 min, 2 player)
+□ Potion sustain (healing elérhető < incoming damage)
+□ Gold sink vs income (ne legyen inflálódás)
+□ XP curve görbe teszt (40-60 óra 1→50)
+□ Skill balance: 3 osztály hasonló DPS kell legyen endgame-ben
+□ Affix értékek: OP kombináció nincs-e
+□ Set bónuszok: Ne legyen "must have"
+□ Legendary powerek: Egyedi de ne OP
+□ Crafting: Megéri vs drop hunting
+□ Profession leveling speed: Ne legyen grindy
+
+================================================================================
+FÁJL VÉGE
+================================================================================

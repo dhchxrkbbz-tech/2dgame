@@ -106,7 +106,49 @@ static func combine(gems: Array) -> GemInstance:
 
 	# Új gem létrehozása
 	var new_gem := GemInstance.create_normal(gem_type, new_tier as Enums.GemTier)
+	
+	# Vizuális feedback: EventBus-on keresztül jelzi a sikeres combine-t
+	EventBus.gem_combined.emit(gem_type, new_tier)
+	EventBus.show_notification.emit(
+		"Gem upgraded to %s!" % TIER_NAMES[new_tier] if new_tier < TIER_NAMES.size() else "Gem upgraded!",
+		Enums.NotificationType.LEVEL_UP
+	)
+	
 	return new_gem
+
+
+## Kombinálás UI-val (animáció + hang eseményekkel)
+## Ez a függvény a UI oldalról hívódik, a combine() után
+static func play_combine_effects(ui_node: Control, result_gem: GemInstance) -> void:
+	if not ui_node or not is_instance_valid(ui_node):
+		return
+	
+	# Flash effekt a UI-n
+	var flash := ColorRect.new()
+	flash.color = _get_gem_flash_color(result_gem.gem_tier)
+	flash.size = ui_node.size
+	flash.position = Vector2.ZERO
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_node.add_child(flash)
+	
+	var tween := ui_node.create_tween()
+	tween.tween_property(flash, "modulate:a", 0.0, 0.8).from(1.0)
+	tween.tween_callback(flash.queue_free)
+	
+	# Audio feedback
+	EventBus.play_sfx.emit("gem_combine")
+
+
+## Gem tier-hez tartozó flash szín
+static func _get_gem_flash_color(tier: int) -> Color:
+	match tier:
+		0: return Color(0.7, 0.7, 0.7, 0.6)     # Chipped - szürke
+		1: return Color(0.5, 0.8, 0.5, 0.6)     # Flawed - zöld
+		2: return Color(0.5, 0.5, 1.0, 0.6)     # Normal - kék
+		3: return Color(0.8, 0.5, 1.0, 0.6)     # Flawless - lila
+		4: return Color(1.0, 0.8, 0.2, 0.6)     # Perfect - arany
+		5: return Color(1.0, 0.4, 0.2, 0.8)     # Radiant - narancs
+		_: return Color(1.0, 1.0, 1.0, 0.6)
 
 
 ## Hány alap gem (Chipped) kell egy adott tier-hez?

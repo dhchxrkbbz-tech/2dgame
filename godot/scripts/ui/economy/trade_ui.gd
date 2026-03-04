@@ -195,10 +195,63 @@ func _on_confirm_timer_timeout() -> void:
 
 
 func _execute_trade() -> void:
-	# TODO: Multiplayer trade végrehajtás
-	# Solo módban ez nem releváns, de az infrastruktúra kész
+	if not _economy:
+		_status_label.text = "Trade failed: No economy manager"
+		return
+	
+	var inv_mgr: InventoryManager = _economy.inventory_manager if _economy else null
+	var cur_mgr: CurrencyManager = _economy.currency_manager if _economy else null
+	
+	if not inv_mgr or not cur_mgr:
+		_status_label.text = "Trade failed: Missing managers"
+		return
+	
+	# Validáció: van-e elég hely az érkező itemeknek?
+	var incoming_count := _their_offered_items.size()
+	var outgoing_count := _my_offered_items.size()
+	var net_slot_change := incoming_count - outgoing_count
+	
+	if net_slot_change > 0:
+		var free_slots := 0
+		for i in inv_mgr.inventory.size():
+			if inv_mgr.inventory[i] == null:
+				free_slots += 1
+		if free_slots < net_slot_change:
+			_status_label.text = "Trade failed: Not enough inventory space"
+			_my_confirmed = false
+			_confirm_button.disabled = false
+			return
+	
+	# Gold validáció
+	if _my_offered_gold > 0:
+		if not cur_mgr.can_afford_gold(_my_offered_gold):
+			_status_label.text = "Trade failed: Not enough gold"
+			_my_confirmed = false
+			_confirm_button.disabled = false
+			return
+	
+	# === Trade végrehajtás ===
+	# 1. Saját itemek eltávolítása
+	for item in _my_offered_items:
+		if item and item.base_item:
+			inv_mgr.remove_item_by_uuid(item.uuid)
+	
+	# 2. Saját gold levonás
+	if _my_offered_gold > 0:
+		cur_mgr.spend_gold(_my_offered_gold)
+	
+	# 3. Kapott itemek hozzáadása
+	for item in _their_offered_items:
+		if item:
+			inv_mgr.add_item(item)
+	
+	# 4. Kapott gold hozzáadása
+	if _their_offered_gold > 0:
+		cur_mgr.add_gold(_their_offered_gold)
+	
 	_status_label.text = "Trade complete!"
-	EventBus.trade_completed.emit(null, null)
+	EventBus.trade_completed.emit(_my_offered_items, _their_offered_items)
+	EventBus.hud_update_requested.emit()
 	
 	await get_tree().create_timer(1.5).timeout
 	close_trade()

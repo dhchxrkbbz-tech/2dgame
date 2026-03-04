@@ -1,0 +1,269 @@
+================================================================================
+  ASHENFALL – 14. TUTORIAL ÉS ONBOARDING RENDSZER – TELJES IMPLEMENTÁCIÓS TERV
+================================================================================
+
+  Motor: Godot 4.x (GDScript)
+  Státusz: HIÁNYZÓ RENDSZER – nincs implementálva
+  Prioritás: HIGH (új játékosok elvesznek nélküle, retention csökken)
+
+  Jelenlegi állapot:
+    ✗ Nincs tutorial rendszer
+    ✗ Nincs első percek útmutató
+    ✗ Nincs kontextus-érzékeny tipp rendszer
+    ✗ Nincs "first time" detection semmihez
+    ✗ A játék nagyon komplex (skill tree, gem, affix, crafting, stb.)
+       → tutorial NÉLKÜL a legtöbb játékos 5 percen belül kilép
+
+================================================================================
+  TARTALOMJEGYZÉK
+================================================================================
+
+  1. Rendszer áttekintés
+  2. Onboarding flow (első 30 perc)
+  3. Tutorial típusok
+  4. Tutorial trigger rendszer
+  5. Tutorial popup / overlay design
+  6. Kontextus-érzékeny tippek
+  7. Gyakorló terület (tutorial arena)
+  8. Tutorial skip opció
+  9. Godot implementáció
+  10. Kapcsolódó rendszerek
+
+================================================================================
+  1. RENDSZER ÁTTEKINTÉS
+================================================================================
+
+  Az Ashenfall komplex rendszerei (45 skill, gem socket, affix,
+  crafting, 3 valuta, stb.) megkövetelik a fokozatos tanítást.
+
+  Elv: "Show, don't tell" + "Teach by doing"
+    - NE legyen 10 perces szövegfal
+    - IGENIS adjunk kis popup-okat AMIKOR releváns
+    - Kombináció: quest-alapú tutorial + kontextus tippek
+
+  A main story első 2-3 quest-je egyben a tutorial:
+    main_01 "Awakening" → mozgás tanítás
+    main_02 "First Steps" → combat tanítás
+    main_03 "The Corruption Spreads" → világ felfedezés, inventory
+
+================================================================================
+  2. ONBOARDING FLOW (ELSŐ 30 PERC)
+================================================================================
+
+  Perc 0-2: KARAKTER VÁLASZTÁS
+    - 3 class rövid leírás (2-3 mondat + vizuális preview)
+    - Ajánlott class jelölés kezdőknek: Tank ("könnyű")
+    - Class választás NINCS végleges – később is lehet újrakezdeni
+
+  Perc 2-5: ÉBREDÉS (main_01 quest)
+    - Játékos felébred a Meadow-ban
+    - Popup: "Mozgás: WASD" (eltűnik ha mozog)
+    - NPC (Village Elder) "!" jelzéssel → popup: "Interakció: E gomb"
+    - Első párbeszéd: rövid, lore bemutatás
+    - Quest: "Menj a faluig" → megtanulja a mozgást
+
+  Perc 5-10: ELSŐ HARC (main_02 quest)
+    - Popup: "Támadás: bal egérgomb"
+    - 1 gyenge enemy (Forest Slime, 10 HP) → megtanulja a combatot
+    - Popup: "Kitérés: Space" (ha eltalálják)
+    - HP bar megjelenik → popup: "HP bar – ha elfogy, meghalsz"
+    - 2-3 további gyenge enemy → gyakorlat
+    - Popup: "XP – ellenségek ölésekor tapasztalatot kapsz"
+
+  Perc 10-15: ELSŐ LOOT
+    - Enemy drop → popup: "Item felvétel: E gomb (vagy sétálj rá)"
+    - Első fegyver / páncél pickup
+    - Popup: "Inventory: I gomb" → megnyílik
+    - Popup: "Húzd az item-et a megfelelő slot-ba" (equipment)
+    - Gold pickup → popup: "Arany: shop-ban költheted"
+
+  Perc 15-20: ELSŐ SKILL PONT
+    - Level 2 → popup: "Szintlépés! Skill pont kaptál"
+    - Popup: "Skill Tree: K gomb"
+    - Skill tree megnyílik → popup: "Kattints egy skill-re"
+    - Első skill unlock → popup: "Skill használat: 1, 2, 3, 4 gomb"
+    - Használja az új skill-t egy enemy-n
+
+  Perc 20-25: ELSŐ NPC SHOP
+    - Falu NPC (Blacksmith) → popup: "NPC Shop: eladás és vásárlás"
+    - Repair megjelenés (ha equipment sérült)
+
+  Perc 25-30: VILÁG KINYÍLIK
+    - main_03 quest: "A Corruption terjed" → menj a Cursed Forest felé
+    - Popup: "Térkép: M gomb"
+    - Minimap popup: "Minimap – a te pozíciód a piros pont"
+    - A világ ettől kezdve szabad felfedezésű
+
+================================================================================
+  3. TUTORIAL TÍPUSOK
+================================================================================
+
+  ┌──────────────────────┬───────────────────────────────────────────────────┐
+  │ Típus                │ Mikor jelenik meg                                │
+  ├──────────────────────┼───────────────────────────────────────────────────┤
+  │ FIRST_TIME_POPUP     │ Amikor a játékos ELŐSZÖR csinál valamit.         │
+  │                      │ Pl: első inventory nyitás, első skill unlock,   │
+  │                      │ első crafting, első dungeon belépés.             │
+  ├──────────────────────┼───────────────────────────────────────────────────┤
+  │ QUEST_BASED          │ Main quest részeként (scripted, nem popup).      │
+  │                      │ NPC párbeszédben elmagyarázza.                   │
+  ├──────────────────────┼───────────────────────────────────────────────────┤
+  │ CONTEXTUAL_TIP       │ Szituáció-specifikus. Pl: "Használj gyógyítót"  │
+  │                      │ ha HP < 30%. Nem blokkolja a játékot.           │
+  ├──────────────────────┼───────────────────────────────────────────────────┤
+  │ LOADING_SCREEN_TIP   │ Loading screen-en random tippek az összes        │
+  │                      │ rendszerről. Biome/system specifikus.           │
+  ├──────────────────────┼───────────────────────────────────────────────────┤
+  │ TOOLTIP_HINT         │ UI elemek tooltip-jában "? ikon" → részletes    │
+  │                      │ magyarázat (nem popup, kattintásra megjelenik). │
+  └──────────────────────┴───────────────────────────────────────────────────┘
+
+================================================================================
+  4. TUTORIAL TRIGGER RENDSZER
+================================================================================
+
+  4.1 First-time trigger lista
+  ──────────────────
+
+    A rendszer megjegyzi (save-ban) mit látott már a játékos:
+
+    ┌─────────────────────────────┬──────────────────────────────────────┐
+    │ Trigger                     │ Tutorial tartalom                    │
+    ├─────────────────────────────┼──────────────────────────────────────┤
+    │ first_movement              │ WASD mozgás + kamera                │
+    │ first_interaction           │ E gomb NPC/chest/item               │
+    │ first_combat                │ Bal egérgomb támadás                │
+    │ first_damage_taken          │ HP bar, dodge, iframes              │
+    │ first_enemy_kill            │ XP, loot drop                       │
+    │ first_item_pickup           │ Inventory megnyitás                 │
+    │ first_equipment             │ Equipment slot-ok                   │
+    │ first_level_up              │ Skill pont, skill tree              │
+    │ first_skill_use             │ 1-4 billentyű, cooldown, mana       │
+    │ first_ultimate              │ R gomb, ultimate mechanika          │
+    │ first_shop_visit            │ Buy/sell, repair                    │
+    │ first_crafting              │ Station, recipe, material           │
+    │ first_dungeon_enter         │ Dungeon szabályok, fog of war       │
+    │ first_boss_fight            │ Telegraph, phase, enrage            │
+    │ first_gem_found             │ Gem rendszer, socket                │
+    │ first_rare_item             │ Rarity, affix-ek                    │
+    │ first_elite_enemy           │ Elite affix, nagyobb kihívás        │
+    │ first_death                 │ Respawn, halál büntetés             │
+    │ first_multiplayer           │ Host/Join, lobby                    │
+    │ first_gathering             │ Resource node-ok, profession        │
+    │ first_map_open              │ Térkép funkciók, POI-k              │
+    │ first_quest_accept          │ Quest log, tracking                 │
+    │ first_biome_transition      │ Új biome, nehézség változás         │
+    └─────────────────────────────┴──────────────────────────────────────┘
+
+  4.2 Trigger implementáció
+  ──────────────────
+
+    var tutorial_seen: Dictionary = {}  # "first_combat" → true/false
+
+    func show_tutorial_if_new(trigger_id: String, content: TutorialContent):
+        if trigger_id in tutorial_seen:
+            return  # Már látta
+        tutorial_seen[trigger_id] = true
+        show_tutorial_popup(content)
+        SaveManager.mark_dirty()  # Mentésbe kerül
+
+================================================================================
+  5. TUTORIAL POPUP DESIGN
+================================================================================
+
+  5.1 Popup elrendezés
+  ──────────────────
+
+    ┌──────────────────────────────────────────┐
+    │  [ikon]  TUTORIAL CÍM                   │
+    │                                          │
+    │  Rövid magyarázó szöveg (max 2-3 sor).  │
+    │  Gomb jelzés: [WASD] Mozgás             │
+    │                                          │
+    │  [X Bezárás] vagy [Space: Elfogadás]    │
+    └──────────────────────────────────────────┘
+
+  5.2 Popup viselkedés
+  ──────────────────
+
+    - Megjelenik: slide-in animáció (0.3s)
+    - Pozíció: képernyő teteje közép VAGY releváns UI elem mellett
+    - NEM állítja meg a játékot (nem pause!)
+    - Automatikus eltűnés: 8 másodperc VAGY játékos bezárja
+    - Eltűnés: fade out (0.5s)
+    - Nem jelenik meg combat közben (queued, későbbre halasztva)
+
+  5.3 Highlight rendszer
+  ──────────────────
+
+    Tutorial közben a releváns UI elemet highlight-olja:
+    - Arany keret villog az inventory gomb körül
+    - Nyíl mutat a releváns helyre
+    - Háttér slightly dimmed (overlay 20% fekete)
+
+================================================================================
+  6. LOADING SCREEN TIPPEK
+================================================================================
+
+  Random tipp loading screen-en:
+
+    "Tipp: Elite ellenségeknek izzó aurájuk van – extra ability-k!"
+    "Tipp: A gem-ek stat-ja függ attól, milyen slot-ba helyezed."
+    "Tipp: A Dodge (Space) alatt sérthetetlen vagy."
+    "Tipp: A corruption szint befolyásolja az ellenségek erejét."
+    "Tipp: Rare ellenségek jobb loot-ot dobnak."
+    "Tipp: Dungeon-ökben keress rejtett falakat secret room-okért!"
+    "Tipp: 3 azonos gem-ből 1 magasabb szintűt kombilnálhatsz."
+    "Tipp: NPC-knél javíttathatod a felszerelésed."
+    "Tipp: A minimap (M) megmutatja a felfedezett területet."
+    "Tipp: Set item-ek bónuszt adnak ha többet viselsz egyszerre."
+    ... (20-30 tipp összesen)
+
+================================================================================
+  7. TUTORIAL SKIP OPCIÓ
+================================================================================
+
+  Settings menüben:
+    [x] Tutorial popupok megjelenítése (alapértelmezetten BE)
+    [ ] Tutorial popupok kikapcsolva (tapasztalt játékosok)
+
+  "New Game" indításnál:
+    Kérdés: "Szeretnéd a tutorial-t?" → Igen (ajánlott) / Nem
+    "Nem" választás: main_01-03 quest-ek kihagyása, szabad start,
+    Level 3, 1 skill pont, alap felszerelés
+
+================================================================================
+  8. GODOT IMPLEMENTÁCIÓ
+================================================================================
+
+  Szükséges fájlok:
+
+  scripts/tutorial/
+    ├── tutorial_manager.gd       # Autoload – trigger tracking + popup
+    ├── tutorial_data.gd          # Tutorial tartalom definíciók
+    ├── tutorial_popup.gd         # Popup UI logika
+    ├── tutorial_highlight.gd     # UI highlight rendszer
+    └── loading_tips.gd           # Loading screen tipp pool
+
+  scenes/ui/
+    └── tutorial_popup.tscn       # Tutorial popup scene
+
+  Módosítandó fájlok:
+    - project.godot: TutorialManager autoload
+    - save_manager.gd: tutorial_seen mentés
+    - loading_screen.tscn: tipp megjelenítés
+    - game_world.gd: trigger hívások
+    - combat_manager.gd: first_combat trigger
+    - Minden UI script: first_time trigger hozzáadás
+
+================================================================================
+  IMPLEMENTÁCIÓS BECSLÉS
+================================================================================
+
+  Kód: ~800 sor (tutorial manager + popup + triggers)
+  Tartalom: ~25 tutorial szöveg + 30 loading tipp
+  Becsült idő: 1 hét
+
+================================================================================
+  VÉGE – 14_tutorial_onboarding_plan.txt
+================================================================================

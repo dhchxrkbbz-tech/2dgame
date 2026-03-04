@@ -73,6 +73,14 @@ static func generate_item(
 		"is_identified": rarity <= Enums.Rarity.UNCOMMON,
 	}
 	
+	# Legendary items get a unique power
+	if rarity == Enums.Rarity.LEGENDARY:
+		var legendary_power := _assign_legendary_power(item_type, item_level)
+		item["legendary_power"] = legendary_power
+		item["legendary_name"] = legendary_power.get("name", "")
+		# Legendary mindig max socket
+		item["socket_count"] = SOCKET_RANGE[Enums.Rarity.LEGENDARY].y
+	
 	return item
 
 
@@ -189,3 +197,126 @@ static func _generate_uuid() -> String:
 		if i in [7, 11, 15, 19]:
 			uuid += "-"
 	return uuid
+
+
+# ══════════════════════════════════════════════
+# LEGENDARY UNIQUE POWER ASSIGNMENT
+# ══════════════════════════════════════════════
+
+## Unique legendary power pool (item_type → Array of powers)
+const LEGENDARY_POWERS: Dictionary = {
+	# Weapons
+	"weapon": [
+		{
+			"name": "Soul Reaper",
+			"description": "Kills have 15% chance to restore 10% max HP",
+			"trigger": "on_kill",
+			"effect": "heal_percent",
+			"params": {"chance": 0.15, "heal_percent": 0.10},
+		},
+		{
+			"name": "Thunderstrike",
+			"description": "Attacks chain lightning to 2 nearby enemies for 30% damage",
+			"trigger": "on_hit",
+			"effect": "chain_damage",
+			"params": {"chain_count": 2, "damage_percent": 0.30, "range": 80.0},
+		},
+		{
+			"name": "Void Blade",
+			"description": "20% chance to deal bonus True damage equal to 25% of damage dealt",
+			"trigger": "on_hit",
+			"effect": "bonus_true_damage",
+			"params": {"chance": 0.20, "damage_percent": 0.25},
+		},
+		{
+			"name": "Berserker's Fury",
+			"description": "+2% damage for each 1% HP missing (max +50%)",
+			"trigger": "passive",
+			"effect": "low_hp_damage",
+			"params": {"damage_per_percent": 2.0, "max_bonus": 50.0},
+		},
+		{
+			"name": "The Executioner",
+			"description": "Deal 30% bonus damage to enemies below 30% HP",
+			"trigger": "passive",
+			"effect": "execute_damage",
+			"params": {"hp_threshold": 0.30, "bonus_damage": 0.30},
+		},
+	],
+	# Armor
+	"armor": [
+		{
+			"name": "Aegis of the Undying",
+			"description": "Once per 180s, survive a killing blow with 1 HP",
+			"trigger": "on_lethal",
+			"effect": "cheat_death",
+			"params": {"cooldown": 180.0},
+		},
+		{
+			"name": "Thornmail",
+			"description": "Reflect 20% of melee damage taken back to attacker",
+			"trigger": "on_hit_received",
+			"effect": "damage_reflect",
+			"params": {"reflect_percent": 0.20},
+		},
+		{
+			"name": "Living Fortress",
+			"description": "+1% damage reduction for each enemy within 10 tiles (max 25%)",
+			"trigger": "passive",
+			"effect": "proximity_defense",
+			"params": {"reduction_per_enemy": 0.01, "max_reduction": 0.25, "range": 160.0},
+		},
+		{
+			"name": "Mana Barrier",
+			"description": "30% of damage taken is absorbed by mana instead of HP",
+			"trigger": "on_hit_received",
+			"effect": "mana_absorb",
+			"params": {"absorb_percent": 0.30},
+		},
+	],
+	# Accessories
+	"accessory": [
+		{
+			"name": "Ring of Fortune",
+			"description": "+50% Magic Find, +25% Gold Find",
+			"trigger": "passive",
+			"effect": "magic_find",
+			"params": {"magic_find": 0.50, "gold_find": 0.25},
+		},
+		{
+			"name": "Amulet of Speed",
+			"description": "+20% movement speed, +15% attack speed",
+			"trigger": "passive",
+			"effect": "speed_boost",
+			"params": {"move_speed": 0.20, "attack_speed": 0.15},
+		},
+		{
+			"name": "Phylactery of Souls",
+			"description": "Killing enemies grants stacking +1% crit chance for 10s (max 15%)",
+			"trigger": "on_kill",
+			"effect": "kill_crit_stack",
+			"params": {"crit_per_stack": 0.01, "max_stacks": 15, "duration": 10.0},
+		},
+	],
+}
+
+
+## Assign a unique legendary power based on item type
+static func _assign_legendary_power(item_type: Enums.ItemType, _item_level: int) -> Dictionary:
+	var type_key: String
+	match item_type:
+		Enums.ItemType.WEAPON:
+			type_key = "weapon"
+		Enums.ItemType.ARMOR:
+			type_key = "armor"
+		Enums.ItemType.ACCESSORY:
+			type_key = "accessory"
+		_:
+			type_key = "weapon"  # Fallback
+	
+	var powers: Array = LEGENDARY_POWERS.get(type_key, [])
+	if powers.is_empty():
+		return {"name": "Unknown Power", "description": "A mysterious power", "trigger": "passive", "effect": "none", "params": {}}
+	
+	# Random power kiválasztása
+	return powers[randi() % powers.size()].duplicate(true)

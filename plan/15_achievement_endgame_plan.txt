@@ -1,0 +1,380 @@
+================================================================================
+  ASHENFALL – 15. ACHIEVEMENT, ENDGAME ÉS WORLD EVENT RENDSZER
+================================================================================
+
+  Motor: Godot 4.x (GDScript)
+  Státusz: HIÁNYZÓ RENDSZER – nincs implementálva
+  Prioritás: HIGH (endgame retention és motiváció)
+
+  Jelenlegi állapot:
+    ✗ Nincs achievement rendszer (bár a tervben Dark Essence jár érte)
+    ✗ Nincs world event rendszer (bár a tervben Dark Essence forrás)
+    ✗ Nincs endgame progression (max level után mi jön?)
+    ✗ Nincs difficulty scaling rendszer (New Game+, Torment szintek)
+    ✗ Nincs leaderboard / versengés rendszer
+    ✗ Nincs fast travel rendszer (bár a gazdaságban van "fast travel fee")
+
+================================================================================
+  TARTALOMJEGYZÉK
+================================================================================
+
+  1. Achievement rendszer
+  2. World Event rendszer
+  3. Endgame Progression (Level 50 után)
+  4. Difficulty Scaling / New Game+
+  5. Fast Travel rendszer
+  6. Játékos statisztikák (Stats panel)
+  7. Godot implementáció
+  8. Kapcsolódó rendszerek
+
+================================================================================
+  1. ACHIEVEMENT RENDSZER
+================================================================================
+
+  1.1 Áttekintés
+  ──────────────────
+
+    Achievement-ek hosszú távú célokat adnak.
+    Jutalmak: Dark Essence, cosmetic (title), lore entry.
+    Összesen: ~60-80 achievement
+
+  1.2 Achievement kategóriák és példák
+  ──────────────────
+
+    COMBAT (15-20 db):
+      "First Blood" – Öld meg az első ellenséget → 5 DE
+      "Centurion" – Ölj meg 100 ellenséget → 10 DE
+      "Slayer" – Ölj meg 1000 ellenséget → 25 DE
+      "Giant Killer" – Ölj meg az első boss-t → 15 DE
+      "Boss Hunter" – Ölj meg mind a 13 boss-t → 50 DE
+      "Combo Master" – Érj el 50-es combo-t → 10 DE
+      "Untouchable" – Ölj meg egy boss-t hit nélkül → 20 DE
+      "Speed Demon" – Teljesíts egy dungeon-t 5 perc alatt → 15 DE
+
+    EXPLORATION (10-15 db):
+      "Explorer" – Fedezd fel mind a 8 biome-ot → 20 DE
+      "Cartographer" – Fedezd fel a világ 50%-át → 30 DE
+      "Spelunker" – Teljesíts 10 dungeon-t → 15 DE
+      "Secret Seeker" – Találj 5 secret room-ot → 15 DE
+      "Wanderer" – Járj be 1000 chunk-ot → 10 DE
+
+    LOOT / ECONOMY (10-15 db):
+      "Treasure Hunter" – Szerezd meg az első Rare item-et → 5 DE
+      "Legendary!" – Szerezd meg az első Legendary item-et → 15 DE
+      "Full Set" – Viseld egy teljes set-et → 20 DE
+      "Gem Collector" – Legyen min 1 db minden gem típusból → 10 DE
+      "Radiant" – Craftolj egy Radiant tier gem-et → 25 DE
+      "Rich" – Gyűjts össze 10,000 gold-ot → 10 DE
+      "Tycoon" – Gyűjts össze 100,000 gold-ot → 25 DE
+
+    PROGRESSION (10-15 db):
+      "Level 10" – Érj el Level 10-et → 5 DE
+      "Level 25" – Érj el Level 25-öt → 10 DE
+      "Level 50" – Érj el max Level-t → 30 DE
+      "Skill Master" – Maxold ki egy teljes branch-et → 20 DE
+      "Jack of All Trades" – Tanulj meg skill-t mind a 3 branch-ből → 10 DE
+      "Master Craftsman" – Érj el 50-es profession szintet → 20 DE
+
+    SOCIAL / MULTIPLAYER (5-10 db):
+      "Team Player" – Teljesíts egy dungeon-t co-op-ban → 10 DE
+      "Raid Ready" – Győzd le a Raid Boss-t 4 fős party-val → 30 DE
+      "Trader" – Csinálj 10 marketplace eladást → 10 DE
+      "Helpful" – Gyógyíts meg 1000 HP-t más játékosnál → 15 DE
+
+    STORY (5-10 db):
+      "Chapter I" – Fejezd be az ACT 1-et → 10 DE
+      "Chapter II" – Fejezd be az ACT 2-t → 15 DE
+      "Chapter III" – Fejezd be az ACT 3-at → 20 DE
+      "Savior" – Fejezd be a main story-t → 50 DE
+      "Completionist" – Fejezd be az összes side quest-et → 30 DE
+
+  1.3 Achievement adatstruktúra
+  ──────────────────
+
+    class AchievementData:
+        var id: String
+        var name: String
+        var description: String
+        var category: AchievementCategory
+        var icon_id: String
+        var reward_dark_essence: int
+        var reward_title: String        # Opcionális cím a játékos neve fölé
+        var condition_type: String      # "kill_count", "level_reached", stb.
+        var condition_target: String    # Enemy ID, biome ID, stb.
+        var condition_value: int        # Cél szám
+        var is_hidden: bool             # Rejtett achievement (meglepetés)
+        var is_unlocked: bool = false
+        var unlock_date: String
+
+  1.4 Achievement popup
+  ──────────────────
+
+    Achievement unlock-nál:
+      - Hang: achievement_unlock.wav (diadal fanfare)
+      - Popup: képernyő tetején arany banner, 3 másodpercig
+      - Szöveg: "ACHIEVEMENT UNLOCKED: [név]" + jutalom
+      - Notification rendszer integráció (notification_ui.gd)
+
+================================================================================
+  2. WORLD EVENT RENDSZER
+================================================================================
+
+  2.1 Áttekintés
+  ──────────────────
+
+    World event-ek random világesemények amelyek időszakosan aktiválódnak.
+    Jutalmak: Dark Essence, crafting material, XP.
+    Az egész szerver (host instance) részt vehet benne.
+
+  2.2 World Event típusok
+  ──────────────────
+
+    ┌────────────────────────┬──────────────────────────────────────────────┐
+    │ Event típus            │ Leírás                                      │
+    ├────────────────────────┼──────────────────────────────────────────────┤
+    │ CORRUPTION_SURGE       │ Kijelölt területen +50% corruption 10 percig│
+    │                        │ Több elite enemy spawn, jobb loot.          │
+    │                        │ Jutalom: 20-30 DE + rare material.          │
+    ├────────────────────────┼──────────────────────────────────────────────┤
+    │ INVASION               │ Enemy hullám támadja meg egy POI-t (falu).  │
+    │                        │ 5 hullám, egyre erősebb. Védd meg!          │
+    │                        │ Jutalom: 15-25 DE + gold + loot.            │
+    ├────────────────────────┼──────────────────────────────────────────────┤
+    │ WORLD_BOSS_SPAWN       │ Random World Boss megjelenik a térképen.      │
+    │                        │ 15 perces idő limit mielőtt eltűnik.        │
+    │                        │ Jutalom: World Boss loot table.             │
+    ├────────────────────────┼──────────────────────────────────────────────┤
+    │ TREASURE_HUNT          │ 3 rejtett kincsesláda jelenik meg a világon.│
+    │                        │ A minimap-en halvány jelzés.                │
+    │                        │ Jutalom: gold + rare gear.                  │
+    ├────────────────────────┼──────────────────────────────────────────────┤
+    │ GATHERING_BLESSING     │ Egy biome-ban 15 percig dupla resource yield│
+    │                        │ Gathering profession fejlesztéshez ideális. │
+    │                        │ Jutalom: automatikus buff, nincs extra.     │
+    ├────────────────────────┼──────────────────────────────────────────────┤
+    │ BLOOD_MOON             │ Éjszaka tartósan sötét (30 perc).           │
+    │                        │ +100% enemy spawn, +50% enemy damage.       │
+    │                        │ DE: +100% XP, +50% magic find.             │
+    │                        │ Jutalom: túlélés bónusz (20 DE).           │
+    └────────────────────────┴──────────────────────────────────────────────┘
+
+  2.3 Event életciklus
+  ──────────────────
+
+    1. Random trigger: átlag 30-60 percenként
+    2. Announcement: rendszer üzenet + minimap jelzés
+    3. Event aktív: 10-30 perc (típusfüggő)
+    4. Event vége: jutalom kiosztás részvétel alapján
+    5. Cooldown: 10 perc adott event típus újra nem jöhet
+
+  2.4 Multiplayer event sync
+  ──────────────────
+
+    Host generálja az event-eket → broadcast klienseknek
+    Minden játékos ugyanazt az event-et látja
+    Részvétel tracking: ki volt a helyszínen, ki tett damage-et
+
+================================================================================
+  3. ENDGAME PROGRESSION (LEVEL 50 UTÁN)
+================================================================================
+
+  3.1 Probléma
+  ──────────────────
+
+    Level 50 után a játékos nem kap XP-t → motiváció csökken.
+    Endgame content szükséges a "just one more run" érzéshez.
+
+  3.2 Paragon rendszer (opcionális, post-launch lehetőség)
+  ──────────────────
+
+    Level 50 után minden szintlépésnyi XP = 1 Paragon pont
+    Paragon pontok kicsi, de végtelen stat bónuszok:
+      +1 HP per pont
+      +0.5% damage per pont (minden 10. pontért)
+      +0.3% magic find per pont (minden 5. pontért)
+    Max Level: nincs cap (de diminishing returns)
+    Vizuális: Paragon szint megjelenik a név mellett (P42, P100, stb.)
+
+  3.3 Endgame dungeon difficulty tier-ek
+  ──────────────────
+
+    Dungeon Nightmare szintek (befejezhető main story után):
+      Nightmare 1: enemy +25% HP/damage, loot +25% magic find
+      Nightmare 2: enemy +50%, loot +50%
+      Nightmare 3: enemy +100%, loot +100%
+      Nightmare 4: enemy +200%, loot +150%, unique affix-ek
+      Nightmare 5: enemy +300%, loot +200%, leaderboard
+
+    Nightmare kulcs: boss-oknál drop-ol (Nightmare Key), szükséges
+    a belépéshez.
+
+  3.4 Endgame boss farmolás
+  ──────────────────
+
+    World Boss-ok: respawn 2 óránként, fix helyen
+    Raid Boss: hetente reszetelődik (weekly lockout)
+    Mini/Dungeon Boss: korlátlanul ismételhető
+
+================================================================================
+  4. DIFFICULTY SCALING / NEW GAME+
+================================================================================
+
+  4.1 New Game+ (opcionális post-launch)
+  ──────────────────
+
+    Main story befejezése után:
+      - New Game+ opció: világ újragenerálás erősebb enemykel
+      - Karakter megtartja: level, gear, gem, skill-ek
+      - Enemy-k: +50% stat az alap szinthez képest
+      - Corruption: minimális szint magasabb
+      - Új Legendary drop-ok (NG+ exclusive)
+
+  4.2 Nehézségi fokozatok (New Game indításnál)
+  ──────────────────
+
+    Normal: alap nehézség (tervezett)
+    Hard: enemy +30% HP/damage, loot +20% quality
+    Nightmare: enemy +60% HP/damage, loot +40% quality
+    Torment: enemy +100%, loot +60% (post-launch DLC terület?)
+
+================================================================================
+  5. FAST TRAVEL RENDSZER
+================================================================================
+
+  5.1 Áttekintés
+  ──────────────────
+
+    A világ nagy (akár 8192×8192 tile) → fast travel kell.
+    Az economy tervben van "fast travel fee" gold sink.
+
+  5.2 Waypoint rendszer
+  ──────────────────
+
+    Waypoint-ok: minden település/falu + dungeon bejárat
+    Felfedezés szükséges: először oda kell sétálni
+    Aktiválás: interaktálás a waypoint kővel
+
+    Használat:
+      1. Menj egy waypoint-hoz → interaktálj
+      2. Térkép megnyílik → válassz célpontot
+      3. Gold költség: távolság × 2 gold / chunk
+      4. 2s teleportálás animáció → megérkezel
+
+  5.3 Waypoint helyek
+  ──────────────────
+
+    Minden város/falu: 1 waypoint (automatikusan generálva a POI-val)
+    Dungeon bejáratoknál: opcionális (50% esély)
+    Boss arena: mindig (hogy visszajárjon)
+    Starting Meadow falu: mindig (home base)
+
+    Becsült ~15-20 waypoint a teljes világon.
+
+  5.4 Korlátozások
+  ──────────────────
+
+    - Nem használható combat közben
+    - Nem használható dungeon belsejében
+    - Nem használható ha cooldown aktív (30s cooldown)
+    - Multiplayer: mindenki külön travel-ezhet (de party lemaradhat)
+
+  5.5 Godot implementáció
+  ──────────────────
+
+    scripts/world/
+      └── fast_travel.gd        # Waypoint management, teleport logika
+
+    scenes/world/
+      └── waypoint.tscn         # Waypoint interaktálható objektum
+
+    Kapcsolódás: map_screen.tscn (waypoint célpont kiválasztás UI)
+
+================================================================================
+  6. JÁTÉKOS STATISZTIKÁK (STATS PANEL)
+================================================================================
+
+  6.1 Trackelt statisztikák
+  ──────────────────
+
+    Combat:
+      - Total enemies killed
+      - Total bosses killed
+      - Total damage dealt
+      - Total damage taken
+      - Total deaths
+      - Highest combo
+      - Fastest dungeon clear
+      - Most kills in one session
+
+    Economy:
+      - Total gold earned
+      - Total gold spent
+      - Total items crafted
+      - Total resources gathered
+      - Total marketplace sales
+
+    Exploration:
+      - Chunks explored (%)
+      - Biomes discovered
+      - Dungeons completed
+      - Secret rooms found
+      - POIs discovered
+
+    Multiplayer:
+      - Total co-op sessions
+      - Total healing done (to others)
+      - Total boss kills (co-op)
+
+  6.2 Stats UI
+  ──────────────────
+
+    Általános → Character sheet (C gomb) → Stats tab
+    Vagy: Settings → Statistics (összefoglaló)
+    Megjelenítés: listás formátum, kategóriánként csoportosítva
+
+================================================================================
+  7. GODOT IMPLEMENTÁCIÓ
+================================================================================
+
+  Szükséges fájlok:
+
+  scripts/progression/
+    ├── achievement_manager.gd     # Achievement tracking + unlock
+    ├── achievement_data.gd        # Achievement definíciók
+    ├── achievement_database.gd    # Összes achievement
+    ├── world_event_manager.gd     # World event generálás + lifecycle
+    ├── world_event_data.gd        # Event definíciók
+    ├── endgame_manager.gd         # Nightmare szintek, paragon
+    ├── stats_tracker.gd           # Játékos statisztikák
+    └── fast_travel.gd             # Waypoint + teleport
+
+  scenes/world/
+    └── waypoint.tscn              # Waypoint scene
+
+  scenes/ui/
+    └── achievement_popup.tscn     # Achievement felugró
+    └── stats_screen.tscn          # Statisztika képernyő
+
+  data/achievements/
+    └── achievements.json          # Achievement definíciók
+
+  Módosítandó fájlok:
+    - event_bus.gd: achievement, world event, fast travel signal-ok
+    - save_manager.gd: achievement + stats mentés
+    - hud.gd: world event notification integráció
+    - map_screen.tscn: waypoint célpont kiválasztás
+
+================================================================================
+  IMPLEMENTÁCIÓS BECSLÉS
+================================================================================
+
+  Achievement rendszer: 1 hét (kód + ~70 achievement definíció)
+  World Event rendszer: 1 hét
+  Endgame/Nightmare: 3-4 nap
+  Fast Travel: 2-3 nap
+  Stats tracker: 1-2 nap
+  ÖSSZESEN: ~3 hét
+
+================================================================================
+  VÉGE – 15_achievement_endgame_plan.txt
+================================================================================

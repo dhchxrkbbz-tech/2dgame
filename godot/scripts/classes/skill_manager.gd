@@ -137,7 +137,8 @@ func _execute_projectile(skill: SkillData, damage_mult: float) -> void:
 		return
 	var base_dmg: int = class_ref.player.base_damage
 	var final_dmg: float = base_dmg * damage_mult
-	# Projectile létrehozás (scene-based)
+	
+	# Projectile létrehozás
 	if skill.effect_scene:
 		var proj: Node2D = skill.effect_scene.instantiate()
 		proj.global_position = class_ref.player.global_position
@@ -146,6 +147,49 @@ func _execute_projectile(skill: SkillData, damage_mult: float) -> void:
 		var effect_layer := class_ref.player.get_tree().current_scene.get_node_or_null("EffectLayer")
 		if effect_layer:
 			effect_layer.add_child(proj)
+	else:
+		# Fallback: programmatikus Projectile (Plan 21 §7.3)
+		var proj := Projectile.new()
+		var col_shape := CollisionShape2D.new()
+		var shape := CircleShape2D.new()
+		shape.radius = 4.0
+		col_shape.shape = shape
+		proj.add_child(col_shape)
+		
+		# Visual placeholder
+		var visual := Sprite2D.new()
+		visual.texture = PlaceholderTexture2D.new()
+		visual.texture.size = Vector2(8, 8)
+		proj.add_child(visual)
+		
+		var effect: StatusEffect = null
+		if skill.applies_effect >= 0:
+			effect = StatusEffect.create(
+				skill.applies_effect, skill.effect_duration, skill.effect_value, class_ref.player
+			)
+		
+		proj.setup(
+			class_ref.player,
+			class_ref.player.last_direction,
+			final_dmg,
+			Enums.DamageType.PHYSICAL,
+			null,
+			effect
+		)
+		proj.speed = 250.0
+		proj.lifetime = skill.skill_range / proj.speed
+		if skill.aoe_radius > 0:
+			proj.aoe_radius = skill.aoe_radius
+		
+		proj.global_position = class_ref.player.global_position
+		proj.collision_layer = 1 << (Constants.LAYER_PROJECTILE - 1)
+		proj.collision_mask = (1 << (Constants.LAYER_ENEMY_HURTBOX - 1)) | (1 << (Constants.LAYER_WALL - 1))
+		
+		var effect_layer := class_ref.player.get_tree().current_scene.get_node_or_null("EffectLayer")
+		if effect_layer:
+			effect_layer.add_child(proj)
+		else:
+			class_ref.player.get_tree().current_scene.add_child(proj)
 
 
 func _execute_aoe(skill: SkillData, damage_mult: float, duration: float) -> void:
@@ -162,6 +206,29 @@ func _execute_aoe(skill: SkillData, damage_mult: float, duration: float) -> void
 		var effect_layer := class_ref.player.get_tree().current_scene.get_node_or_null("EffectLayer")
 		if effect_layer:
 			effect_layer.add_child(aoe)
+	elif skill.aoe_radius > 0:
+		# Fallback: programmatikus AoE sebzés (Plan 21 §5.4)
+		var aoe_pos: Vector2 = class_ref.player.global_position
+		if skill.target_type == Enums.TargetType.AOE_GROUND:
+			# Ground target - egér pozíció felé
+			aoe_pos = class_ref.player.get_global_mouse_position()
+		
+		var entities := class_ref.player.get_tree().get_nodes_in_group("enemy")
+		for entity in entities:
+			if not is_instance_valid(entity):
+				continue
+			var dist: float = aoe_pos.distance_to(entity.global_position)
+			if dist <= skill.aoe_radius and entity.has_method("take_damage"):
+				var falloff: float = 1.0 - (dist / skill.aoe_radius * 0.5)
+				entity.take_damage(final_dmg * falloff, Enums.DamageType.PHYSICAL)
+				EventBus.damage_dealt.emit(class_ref.player, entity, final_dmg * falloff, Enums.DamageType.PHYSICAL)
+				
+				# Status effect alkalmazás
+				if skill.applies_effect >= 0 and entity.has_node("StatusEffectManager"):
+					var effect := StatusEffect.create(
+						skill.applies_effect, skill.effect_duration, skill.effect_value, class_ref.player
+					)
+					entity.get_node("StatusEffectManager").apply_effect(effect)
 
 
 func _execute_buff(skill: SkillData, duration: float, rank: int) -> void:
@@ -244,9 +311,9 @@ func equip_skill(skill_id: String, slot: int) -> bool:
 	return true
 
 
-func _find_skill_data(_skill_id: String) -> SkillData:
-	# Placeholder - a tényleges skill data betöltés a ResourceLoader-en keresztül történik
-	return null
+func _find_skill_data(skill_id: String) -> SkillData:
+	# Plan 21 FIX #2: SkillDatabase integráció (volt placeholder)
+	return SkillDatabase.get_skill(skill_id)
 
 
 ## Összes allokált pont egy branch-ben

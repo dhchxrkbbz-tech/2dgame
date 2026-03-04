@@ -1,0 +1,578 @@
+================================================================================
+  ASHENFALL – 12. QUEST ÉS STORY RENDSZER – TELJES IMPLEMENTÁCIÓS TERV
+================================================================================
+
+  Motor: Godot 4.x (GDScript)
+  Státusz: HIÁNYZÓ RENDSZER – nincs implementálva
+  Prioritás: CRITICAL (core gameplay loop része)
+
+  Megjegyzés: A quest_log_ui.gd és a dialogue_ui.gd már létezik,
+  de maga a quest rendszer (adatstruktúra, quest chain, tracking,
+  quest giver logika, jutalmak) TELJESEN HIÁNYZIK.
+
+================================================================================
+  TARTALOMJEGYZÉK
+================================================================================
+
+  1. Rendszer áttekintés és miért kritikus
+  2. Quest típusok
+  3. Quest adatstruktúra (QuestData Resource)
+  4. Quest állapot kezelés (QuestManager)
+  5. Quest chain és elágazás
+  6. Main Story Arc (fő történet vázlat)
+  7. Side Quest-ek (biome-onként)
+  8. Repeatable / Daily Quest-ek
+  9. Quest NPC rendszer és párbeszédek
+  10. Quest jutalmak rendszere
+  11. Quest tracking és HUD integráció
+  12. Multiplayer quest sync
+  13. Godot implementáció (szükséges fájlok)
+  14. Kapcsolódó rendszerek
+
+================================================================================
+  1. RENDSZER ÁTTEKINTÉS ÉS MIÉRT KRITIKUS
+================================================================================
+
+  Jelenlegi állapot:
+    ✗ Nincs QuestData Resource
+    ✗ Nincs QuestManager (autoload vagy singleton)
+    ✗ Nincs quest definíció (egyetlen quest sincs definiálva)
+    ✗ NPC párbeszéd rendszer létezik (dialogue_ui.gd) de nincs tartalom
+    ✗ Quest log UI létezik (quest_log_ui.gd) de nincs backend
+    ✗ NPC rendszer (npc_system.gd) "Quest Giver" NPC-t definiál de nincs impl
+
+  Miért kritikus:
+    - A core loop (Explore → Fight → Loot → Upgrade) önmagában repetitív
+    - Quest-ek adják a CÉLT és IRÁNYT a játékosnak
+    - Main story motiválja a haladást biome-ról biome-ra
+    - Side quest-ek fedik el a grind-et, felfedezésre ösztönöznek
+    - Quest jutalmak pótolják a loot rendszer ritkaságát (garantált reward)
+    - Endgame daily/weekly quest-ek tartják a játékost (retention)
+    - Dark Essence szerzés egy módja quest jutalom (04_economy tervben)
+
+================================================================================
+  2. QUEST TÍPUSOK
+================================================================================
+
+  ┌──────────────────┬──────────────────────────────────────────────────────┐
+  │ Quest típus      │ Leírás                                              │
+  ├──────────────────┼──────────────────────────────────────────────────────┤
+  │ MAIN_STORY       │ Fő történet – lineáris, biome-onként 2-3 quest,    │
+  │                  │ összesen ~20 main quest. Előre viszi a játékost.    │
+  ├──────────────────┼──────────────────────────────────────────────────────┤
+  │ SIDE_QUEST       │ Opcionális, biome-specifikus. NPC-ktől kapható.     │
+  │                  │ ~5 quest / biome = ~40 side quest összesen.         │
+  ├──────────────────┼──────────────────────────────────────────────────────┤
+  │ BOUNTY           │ "Ölj meg X ellenséget" vagy "Ölj meg Y boss-t".   │
+  │                  │ NPC bounty board-ról vehető. Ismételhető.           │
+  ├──────────────────┼──────────────────────────────────────────────────────┤
+  │ DUNGEON_QUEST    │ Dungeon-ön belüli célok: clear all rooms, find     │
+  │                  │ hidden room, speedrun, no-hit boss.                │
+  ├──────────────────┼──────────────────────────────────────────────────────┤
+  │ GATHERING_QUEST  │ "Gyűjts X herb-öt / Y ore-t". Profession XP +     │
+  │                  │ gold jutalom.                                       │
+  ├──────────────────┼──────────────────────────────────────────────────────┤
+  │ DAILY            │ Naponta 3 random quest a pool-ból. Dark Essence     │
+  │                  │ és gold jutalom. Reset: 24 óra real-time.           │
+  ├──────────────────┼──────────────────────────────────────────────────────┤
+  │ WEEKLY           │ Heti 1 nagy kihívás (pl. raid boss, 10 dungeon).   │
+  │                  │ Relic Fragment + nagy Dark Essence jutalom.          │
+  ├──────────────────┼──────────────────────────────────────────────────────┤
+  │ EXPLORATION      │ "Fedezd fel X területet / találd meg Y POI-t".     │
+  │                  │ Automatikus tracking, minimap integráció.            │
+  └──────────────────┴──────────────────────────────────────────────────────┘
+
+  Összesen tervezett quest szám:
+    Main Story: ~20 quest (8 biome × 2-3)
+    Side Quest: ~40 quest (8 biome × 5)
+    Bounty: ~20 template (procedurális)
+    Dungeon Quest: ~10 template
+    Gathering: ~15 template
+    Daily template pool: ~30
+    Weekly template pool: ~8
+    Exploration: ~15
+    ────────────────────────
+    ÖSSZESEN: ~160 quest (template + egyedi)
+
+================================================================================
+  3. QUEST ADATSTRUKTÚRA
+================================================================================
+
+  3.1 QuestData Resource
+  ──────────────────
+
+    class_name QuestData
+    extends Resource
+
+    @export var quest_id: String              # Egyedi ID: "main_01_awakening"
+    @export var quest_name: String            # Megjelenített név
+    @export var description: String           # Rövid leírás
+    @export var quest_type: QuestType         # MAIN_STORY, SIDE_QUEST, stb.
+    @export var biome: Enums.BiomeType        # Melyik biome-hoz tartozik
+    @export var recommended_level: int        # Ajánlott szint
+    @export var prerequisites: Array[String]  # Korábbi quest ID-k
+    @export var objectives: Array[QuestObjective]  # Célkitűzések
+    @export var rewards: QuestRewards         # Jutalmak
+    @export var giver_npc_id: String          # Ki adja a quest-et
+    @export var turn_in_npc_id: String        # Kinél adható le
+    @export var dialogue_start: String        # Induló párbeszéd ID
+    @export var dialogue_complete: String     # Befejezési párbeszéd ID
+    @export var is_repeatable: bool = false   # Ismételhető-e
+    @export var time_limit: float = 0.0       # 0 = nincs időlimit
+    @export var chain_next_quest: String      # Következő quest a chain-ben
+
+  3.2 QuestObjective
+  ──────────────────
+
+    class_name QuestObjective
+    extends Resource
+
+    enum ObjectiveType {
+        KILL_ENEMY,          # Ölj meg X ellenséget (típus szerint)
+        KILL_BOSS,           # Ölj meg egy specifikus boss-t
+        COLLECT_ITEM,        # Gyűjts X item-et
+        GATHER_RESOURCE,     # Gyűjts X resource-t
+        REACH_LOCATION,      # Érj el egy helyet (tile coord / POI)
+        TALK_TO_NPC,         # Beszélj egy NPC-vel
+        CLEAR_DUNGEON,       # Teljesíts egy dungeon-t
+        CLEAR_ROOM,          # Teljesíts egy specifikus room-ot
+        CRAFT_ITEM,          # Craftolj egy item-et
+        EXPLORE_AREA,        # Fedezz fel X chunk-ot egy biome-ban
+        SURVIVE_WAVES,       # Élj túl X hullámot
+        ESCORT_NPC,          # Kísérj el egy NPC-t (opcionális)
+        USE_SKILL,           # Használj egy skill-t X alkalommal
+    }
+
+    @export var type: ObjectiveType
+    @export var target_id: String           # Enemy ID, Item ID, NPC ID, stb.
+    @export var target_count: int = 1       # Hányat kell
+    @export var current_count: int = 0      # Jelenlegi haladás
+    @export var description: String         # "Ölj meg 10 Forest Slime-ot"
+    @export var is_optional: bool = false   # Opcionális cél (bonus reward)
+    @export var location_hint: String       # Hol találod (minimap marker)
+
+  3.3 QuestRewards
+  ──────────────────
+
+    class_name QuestRewards
+    extends Resource
+
+    @export var xp: int = 0
+    @export var gold: int = 0
+    @export var dark_essence: int = 0
+    @export var relic_fragments: int = 0
+    @export var items: Array[String] = []          # Item ID-k (garantált)
+    @export var item_choices: Array[String] = []   # Válassz egyet ezek közül
+    @export var skill_points: int = 0
+    @export var profession_xp: Dictionary = {}     # {profession_type: xp}
+    @export var reputation: int = 0                # Faction reputation (ha lesz)
+    @export var unlock: String = ""                # Amit felold (terület, NPC, stb.)
+
+================================================================================
+  4. QUEST ÁLLAPOT KEZELÉS (QuestManager)
+================================================================================
+
+  4.1 QuestManager Autoload
+  ──────────────────
+
+    Új autoload singleton szükséges: QuestManager
+
+    class_name QuestManager
+    extends Node
+
+    # Állapotok
+    enum QuestState {
+        AVAILABLE,       # Felvehető (prerequisite-ok teljesültek)
+        NOT_AVAILABLE,   # Nem felvehető (prerequisite-ok nem teljesültek)
+        ACTIVE,          # Aktív – folyamatban
+        COMPLETE,        # Befejezett – leadható
+        TURNED_IN,       # Leadva – jutalom megkapva
+        FAILED,          # Megbukott (időlimit lejárt)
+    }
+
+    # Tárolt adatok
+    var quest_database: Dictionary = {}          # quest_id → QuestData
+    var active_quests: Dictionary = {}           # quest_id → QuestState
+    var quest_progress: Dictionary = {}          # quest_id → progress data
+    var completed_quests: Array[String] = []     # Befejezett quest ID-k
+    var daily_quests: Array[String] = []         # Mai daily quest-ek
+    var weekly_quest: String = ""                # Heti quest
+
+    # Max aktív quest korlát
+    const MAX_ACTIVE_QUESTS: int = 15
+
+  4.2 Quest életciklus
+  ──────────────────
+
+    1. Quest AVAILABLE: prerequisite-ok teljesültek, NPC felett "!" jelzés
+    2. Játékos interaktál NPC-vel → párbeszéd → "Accept" gomb
+    3. Quest ACTIVE: célkitűzések megjelennek a HUD-on
+    4. Játékos teljesíti az objective-eket (EventBus signal-ok)
+    5. Quest COMPLETE: NPC felett "?" jelzés
+    6. Játékos visszamegy az NPC-hez → párbeszéd → jutalom
+    7. Quest TURNED_IN: chain_next_quest elérhető lesz
+
+  4.3 Objective tracking (EventBus integráció)
+  ──────────────────
+
+    A QuestManager figyeli ezeket az EventBus signal-okat:
+
+    EventBus.enemy_killed → KILL_ENEMY / KILL_BOSS objective
+    EventBus.item_picked_up → COLLECT_ITEM objective
+    EventBus.resource_gathered → GATHER_RESOURCE objective
+    EventBus.player_entered_area → REACH_LOCATION / EXPLORE_AREA
+    EventBus.npc_dialogue_started → TALK_TO_NPC objective
+    EventBus.dungeon_completed → CLEAR_DUNGEON objective
+    EventBus.room_cleared → CLEAR_ROOM objective
+    EventBus.item_crafted → CRAFT_ITEM objective
+    EventBus.skill_used → USE_SKILL objective
+
+    Minden signal-nál: végigmegy az aktív quest-eken → frissíti a
+    matching objective-ek current_count-ját → ha mind kész → COMPLETE
+
+================================================================================
+  5. QUEST CHAIN ÉS ELÁGAZÁS
+================================================================================
+
+  5.1 Lineáris chain (Main Story)
+  ──────────────────
+
+    main_01 → main_02 → main_03 → ... → main_20
+    Minden main quest chain_next_quest-je a következő.
+    Main quest-ek biome-onként csoportosulnak.
+
+  5.2 Elágazó chain (Side Quest)
+  ──────────────────
+
+    Egyszerű elágazás: 1-2 helyen döntés, ami befolyásolja a
+    következő quest-et (de nem a main story-t).
+
+    Példa:
+      side_forest_03 → döntés:
+        A) Segíts a vadásznak → side_forest_03a (combat jutalom)
+        B) Segíts a gyógyítónak → side_forest_03b (support jutalom)
+
+  5.3 Biome unlock rendszer
+  ──────────────────
+
+    Minden biome "nyitó" questje a main story-ban van:
+      Starting Meadow → automatikusan elérhető
+      Cursed Forest → main_03 befejezése után
+      Dark Swamp → main_05 befejezése után
+      Ruins → main_08 befejezése után
+      Mountains → main_10 befejezése után
+      Frozen Wastes → main_13 befejezése után
+      Ashlands → main_16 befejezése után
+      Plague Lands → main_18 befejezése után
+
+================================================================================
+  6. MAIN STORY ARC (FŐ TÖRTÉNET VÁZLAT)
+================================================================================
+
+  6.1 Lore háttér
+  ──────────────────
+
+    Ashenfall világ:
+      Egy régi királyság – Ashenmere – amely egy katasztrófában elpusztult.
+      Az "Ashenfall" (Hamuhullás) egy ősi entitás felébredésekor történt:
+      a Void Weaver megrepedt börtönéből sötét energia áradt szét.
+
+      A Corruption ettől terjed: sötétség, amely megrontja a földet,
+      az élőlényeket, és felébreszti a halottakat.
+
+      A játékos egy "Riftwalker" – valaki aki a rés másik oldaláról
+      érkezett, és immunis a Corruption közvetlen hatására.
+      Feladata: visszaszorítani a Corruption-t, legyőzni a forrásait,
+      és végül szembenézni a Void Weaver-rel.
+
+  6.2 Main Quest vázlat
+  ──────────────────
+
+    ACT 1 – ÉBREDÉS (Starting Meadow, Level 1-10)
+      main_01: "Awakening" – Ébredj fel a Meadow-ban, menj a faluba
+      main_02: "First Steps" – Tanulj meg harcolni (tutorial combat)
+      main_03: "The Corruption Spreads" – Az erdő szélén corruption
+               jelei → menj a Cursed Forest-be
+
+    ACT 2 – NYOMOZÁS (Cursed Forest + Dark Swamp, Level 8-25)
+      main_04: "Witch's Hollow" – Keresd meg a boszorkányt az erdőben
+      main_05: "The Drowned Temple" – A mocsárban régi templom nyomai
+      main_06: "Corruption Source #1" – Pusztítsd el az első forrást
+               (Dungeon Boss fight)
+      main_07: "The Oracle's Vision" – NPC elárulja: 3 forrás van
+
+    ACT 3 – HÁROM FORRÁS (Ruins + Mountains + Frozen, Level 15-40)
+      main_08: "Ancient Ruins" – Fedezd fel a romvárost
+      main_09: "The Necromancer's Bargain" – Döntés: szövetség / harc
+      main_10: "Mountain Pass" – Keresd meg az utat a hegyeken át
+      main_11: "Corruption Source #2" – A hegyi erőd (World Boss)
+      main_12: "Descent into Cold" – Fagyott pusztaság felfedezése
+      main_13: "The Frozen Prison" – Régi börtön, ahol...
+      main_14: "Corruption Source #3" – A jégbe fagyott forrás
+
+    ACT 4 – VÉGSŐ HARC (Ashlands + Plague Lands, Level 30-50)
+      main_15: "Into the Ash" – Az Ashlands feltárása
+      main_16: "The Forge of Ruin" – Régi kovács, aki fegyvert készít
+      main_17: "Plague Lands" – A legsötétebb terület
+      main_18: "The Heart of Corruption" – A fő forrás megtalálása
+      main_19: "The Ashen God" – Raid Boss: Ashen God legyőzése
+      main_20: "Void Weaver" – Final Boss: a börtönből kiszabaduló
+               entitás legyőzése → epilógus
+
+  6.3 Story párbeszédek mennyisége
+  ──────────────────
+
+    Main quest: ~20 quest × 2-3 párbeszéd = ~50 párbeszéd
+    Side quest: ~40 quest × 1-2 párbeszéd = ~60 párbeszéd
+    NPC idle dialogue: ~10 NPC × 3-5 mondat = ~40 mondat
+    Lore item (felmérhető tárgyak): ~20 szöveg
+    ────────────────────────
+    ÖSSZESEN: ~170 párbeszéd/szöveg megírása szükséges
+
+================================================================================
+  7. SIDE QUEST PÉLDÁK (BIOME-ONKÉNT)
+================================================================================
+
+  Starting Meadow:
+    - "Lost Sheep" – keress meg 3 elveszett állatot a mezőn
+    - "Bandit Camp" – pusztítsd el a banditákat az út mellett
+    - "Herb Collector" – gyűjts 10 herb-öt a gyógyítónak
+    - "Wolf Problem" – ölj meg 5 Rabid Wolf-ot
+    - "The Old Well" – deríts ki mit rejt a régi kút (mini dungeon)
+
+  Cursed Forest:
+    - "Spider Infestation" – pusztítsd el a pókfészkeket (3 helyszín)
+    - "Lost Patrol" – keresd meg az eltűnt őrjárat nyomait
+    - "Dark Witch's Request" – gyűjts 5 Dark Root-ot
+    - "Corrupted Animals" – ments meg / ölj meg 10 korrupt állatot
+    - "The Ancient Tree" – találd meg az ősi fát (lore + reward)
+
+  (Hasonló 5-5 quest minden biome-hoz)
+
+================================================================================
+  8. REPEATABLE / DAILY / WEEKLY QUEST-EK
+================================================================================
+
+  8.1 Daily Quest rendszer
+  ──────────────────
+
+    Naponta 3 quest generálódik random pool-ból:
+      Pool méret: ~30 template
+      Template típusok:
+        - "Ölj meg X [enemy_type]-t" (X: 10-30)
+        - "Teljesíts Y dungeon-t" (Y: 1-2)
+        - "Gyűjts Z [resource]-t" (Z: 5-20)
+        - "Nyerj meg W boss-t" (W: 1)
+        - "Craftolj V item-et" (V: 1-3)
+
+    Jutalom per daily:
+      50-200 gold + 5-15 Dark Essence + XP
+      Mindhárom befejezése: +50% bonus jutalom
+
+    Reset: 24 óra real-time (nem game-time)
+
+  8.2 Weekly Quest rendszer
+  ──────────────────
+
+    Heti 1 nagy quest:
+      Template pool (~8):
+        - "Teljesíts 10 dungeon-t"
+        - "Győzz le 3 boss-t"
+        - "Érj el 100 enemy kill-t"
+        - "Gyűjts össze 500 gold-ot"
+        - "Craftolj 10 item-et"
+        - "Teljesíts egy Raid Dungeon-t"
+        - "Találj 3 secret room-ot"
+        - "Győzd le mind a 4 Mini Boss-t"
+
+    Jutalom: 500 gold + 50 Dark Essence + 10 Relic Fragment + XP
+
+    Reset: 7 nap real-time
+
+================================================================================
+  9. QUEST NPC RENDSZER ÉS PÁRBESZÉDEK
+================================================================================
+
+  9.1 NPC quest jelzések
+  ──────────────────
+
+    NPC feje fölött ikon:
+      "!" (sárga) → Van elérhető quest
+      "!" (szürke) → Van quest, de level/prerequisite nem OK
+      "?" (sárga) → Van leadható befejezett quest
+      Nincs → nincs elérhető quest
+
+  9.2 Párbeszéd struktúra
+  ──────────────────
+
+    class DialogueData:
+        var dialogue_id: String
+        var speaker_name: String
+        var portrait_id: String
+        var lines: Array[DialogueLine]
+
+    class DialogueLine:
+        var text: String
+        var responses: Array[DialogueResponse]
+
+    class DialogueResponse:
+        var text: String
+        var next_dialogue_id: String
+        var action: String          # "accept_quest", "decline", "continue"
+        var condition: String       # Opcionális feltétel
+
+  9.3 NPC Quest Giver-ek per biome
+  ──────────────────
+
+    Starting Meadow: Village Elder, Farmer, Guard Captain
+    Cursed Forest: Hermit Witch, Lost Ranger
+    Dark Swamp: Swamp Dweller, Exiled Healer
+    Ruins: Ghost Scholar, Treasure Hunter
+    Mountains: Mountain Sage, Dwarf Miner
+    Frozen Wastes: Ice Nomad, Frozen Explorer
+    Ashlands: Flame Keeper, Ash Wanderer
+    Plague Lands: Plague Doctor (friendly), Last Survivor
+
+================================================================================
+  10. QUEST JUTALMAK RENDSZERE
+================================================================================
+
+  10.1 Jutalom skála (szint alapján)
+  ──────────────────
+
+    ┌──────────┬──────┬──────────┬────────────┬──────────────────────┐
+    │ Level    │ XP   │ Gold     │ Dark Ess.  │ Egyéb                │
+    ├──────────┼──────┼──────────┼────────────┼──────────────────────┤
+    │  1-10    │ 50+  │  30-100  │ 0-5        │ Common-Uncommon gear │
+    │ 11-25    │ 200+ │ 100-300  │ 5-15       │ Uncommon-Rare gear   │
+    │ 26-40    │ 500+ │ 300-800  │ 10-30      │ Rare-Epic gear       │
+    │ 41-50    │ 1000+│ 500-1500 │ 20-50      │ Epic-Legendary gear  │
+    └──────────┴──────┴──────────┴────────────┴──────────────────────┘
+
+  10.2 Main Story jutalmak (kiemelt)
+  ──────────────────
+
+    Main quest-ek mindig adnak:
+      - Normál XP + Gold
+      - Skill pontot (minden 3-4. main quest: +1 skill pont)
+      - Biome unlock-ot (lásd 5.3)
+      - Unique lore item-et (gyűjthető, nincs stat, de achievement)
+      - Néhány main quest: garantált Rare+ gear
+
+================================================================================
+  11. QUEST TRACKING ÉS HUD INTEGRÁCIÓ
+================================================================================
+
+  11.1 Quest tracker (HUD)
+  ──────────────────
+
+    Képernyő jobb oldalán: top 3 aktív quest megjelenítése
+      - Quest név
+      - Aktuális objective (pl. "Killed 3/10 Slimes")
+      - Progress bar
+      - Kattintásra: teljes quest info panel
+
+  11.2 Minimap quest marker
+  ──────────────────
+
+    Quest célok megjelenése a minimap-on:
+      - "!" ikon: quest NPC
+      - "?" ikon: leadási hely
+      - Cél ikon: objective helyszín
+      - Sárga kör: keresési terület (EXPLORE / REACH_LOCATION)
+
+  11.3 World marker
+  ──────────────────
+
+    Quest objective helyen a világban: fölötti marker (nyíl)
+    Távolság szám a marker mellett
+    Opcionális: "path line" a földre (egyszerű pontozott vonal)
+
+================================================================================
+  12. MULTIPLAYER QUEST SYNC
+================================================================================
+
+  12.1 Shared quest progress
+  ──────────────────
+
+    Co-op-ban:
+      - Minden játékos saját quest állapotot tart fenn
+      - HA mindkét játékosnak aktív ugyanaz a quest:
+        → Megosztott progress (kill count, gather count együtt számol)
+      - HA csak az egyiknek aktív: csak ő kap progresst
+      - Quest jutalom: mindenki saját jutalmat kap (személyes)
+
+  12.2 Sync RPC-k
+  ──────────────────
+
+    @rpc("authority", "reliable")
+    func sync_quest_progress(quest_id: String, objective_idx: int,
+                             new_count: int)
+
+    @rpc("authority", "reliable")
+    func sync_quest_complete(quest_id: String)
+
+================================================================================
+  13. GODOT IMPLEMENTÁCIÓ (SZÜKSÉGES FÁJLOK)
+================================================================================
+
+  Új fájlok létrehozása szükséges:
+
+  scripts/quest/
+    ├── quest_manager.gd         # Autoload singleton
+    ├── quest_data.gd            # QuestData Resource
+    ├── quest_objective.gd       # QuestObjective Resource
+    ├── quest_rewards.gd         # QuestRewards Resource
+    ├── quest_database.gd        # Összes quest definíció
+    ├── quest_tracker.gd         # HUD tracking
+    ├── daily_quest_generator.gd # Daily/Weekly generátor
+    └── quest_sync.gd            # Multiplayer quest sync
+
+  scripts/dialogue/
+    ├── dialogue_manager.gd      # Párbeszéd kezelés
+    ├── dialogue_data.gd         # Párbeszéd adatstruktúra
+    └── dialogue_database.gd     # Összes párbeszéd tartalma
+
+  data/quests/
+    ├── main_quests.json         # Main story quest-ek
+    ├── side_quests.json         # Side quest definíciók
+    ├── daily_templates.json     # Daily quest pool
+    └── weekly_templates.json    # Weekly quest pool
+
+  data/dialogues/
+    ├── main_dialogues.json      # Main story párbeszédek
+    ├── side_dialogues.json      # Side quest párbeszédek
+    └── npc_idle_dialogues.json  # NPC random mondatok
+
+  Módosítandó meglévő fájlok:
+    - project.godot: QuestManager autoload hozzáadás
+    - event_bus.gd: quest-specifikus signal-ok hozzáadás
+    - npc_system.gd: quest_giver integráció
+    - quest_log_ui.gd: backend bekötés
+    - dialogue_ui.gd: dialogue_manager bekötés
+    - save_manager.gd: quest progress mentés
+
+================================================================================
+  14. KAPCSOLÓDÓ RENDSZEREK
+================================================================================
+
+  - 04_economy_system: quest jutalmak (gold, Dark Essence)
+  - 06_enemy_ai: KILL_ENEMY / KILL_BOSS objective-ek
+  - 07_dungeon_generation: CLEAR_DUNGEON objective
+  - 08_loot_system: COLLECT_ITEM, garantált quest reward item-ek
+  - 05_networking: multiplayer quest sync
+  - 10_godot_architecture: QuestManager autoload, EventBus signal-ok
+  - npc_system.gd: quest giver NPC logika
+
+================================================================================
+  IMPLEMENTÁCIÓS BECSLÉS
+================================================================================
+
+  Kód: ~2000 sor (quest rendszer + dialogue rendszer)
+  Tartalom: ~170 párbeszéd/szöveg (magyar vagy angol)
+  Data fájlok: ~160 quest definíció JSON-ban
+  Becsült idő: 2-3 hét (kód) + 1-2 hét (tartalom írás)
+
+================================================================================
+  VÉGE – 12_quest_story_plan.txt
+================================================================================

@@ -1,0 +1,1602 @@
+================================================================================
+ASHENFALL – 21. COMBAT SYSTEM PLAN (Comprehensive Reference)
+================================================================================
+Compiled from: all scripts in godot/scripts/combat/, player/, classes/, ai/,
+bosses/, core/ + plan files 03, 06, 16
+================================================================================
+
+TABLE OF CONTENTS
+  1. Core Combat Enums
+  2. Combat Constants & Tuning Values
+  3. Damage Formula & Scaling
+  4. Player Combat Mechanics
+  5. Class System & Skill Database (All 45 Skills)
+  6. Status Effect System
+  7. Combat Components (Hitbox/Hurtbox/Projectile/Telegraph)
+  8. Enemy AI & Combat Behaviour
+  9. Elite Affix System
+  10. Boss Combat System
+  11. Combat Event Bus Signals
+  12. Combat Scene Structure
+  13. Known Issues, TODOs & Missing Data
+  14. Balance Recommendations
+
+================================================================================
+1. CORE COMBAT ENUMS (godot/scripts/core/enums.gd)
+================================================================================
+
+1.1 DamageType
+──────────────
+  PHYSICAL    = 0
+  ARCANE      = 1
+  FROST       = 2
+  HOLY        = 3
+  POISON      = 4
+  BLOOD       = 5
+  SHADOW      = 6
+  TRUE_DAMAGE = 7    # Bypasses ALL armor and resistance
+
+1.2 EffectType (Status Effects)
+───────────────────────────────
+  DAMAGE-OVER-TIME:
+    POISON_DOT    = 0
+    BURN_DOT      = 1
+    BLEED_DOT     = 2
+
+  CROWD CONTROL:
+    SLOW          = 3    # % speed reduction
+    ROOT          = 4    # Cannot move, can act
+    STUN          = 5    # Cannot move or act
+    FREEZE        = 6    # Cannot move or act (frost variant)
+    BLIND         = 7    # Accuracy reduction
+
+  BUFFS:
+    ATTACK_SPEED_UP = 8
+    DAMAGE_UP       = 9
+    ARMOR_UP       = 10
+    SPEED_UP       = 11
+    LIFESTEAL      = 12
+    SHIELD         = 13
+    HP_REGEN       = 14
+    MANA_REGEN     = 15
+
+  DEBUFFS:
+    ARMOR_DOWN    = 16
+    DAMAGE_DOWN   = 17
+    ACCURACY_DOWN = 18
+    VULNERABILITY = 19
+
+1.3 PlayerClass
+───────────────
+  ASSASSIN = 0
+  TANK     = 1
+  MAGE     = 2
+
+1.4 SkillBranch (3 per class)
+─────────────────────────────
+  # Assassin branches
+  SHADOW   = 0
+  POISON   = 1
+  BLOOD    = 2
+
+  # Tank branches
+  GUARDIAN   = 3
+  WARBRINGER = 4
+  PALADIN    = 5
+
+  # Mage branches
+  ARCANE = 6
+  FROST  = 7
+  HOLY   = 8
+
+1.5 SkillType
+─────────────
+  PROJECTILE     = 0
+  AOE            = 1
+  MELEE          = 2
+  BUFF           = 3
+  DEBUFF         = 4
+  HEAL           = 5
+  SUMMON         = 6
+  TELEPORT       = 7
+  TOGGLE         = 8
+  PASSIVE        = 9
+  CHANNEL        = 10
+  TRANSFORMATION = 11
+
+1.6 TargetType
+──────────────
+  SELF           = 0
+  SINGLE_ENEMY   = 1
+  SINGLE_ALLY    = 2
+  AOE_GROUND     = 3
+  AOE_SELF       = 4
+  DIRECTIONAL    = 5
+  NONE           = 6
+
+1.7 EnemyType & EnemySubType
+─────────────────────────────
+  EnemyType:
+    MELEE   = 0
+    RANGED  = 1
+    CASTER  = 2
+    ELITE   = 3
+    BOSS    = 4
+
+  EnemySubType:
+    NORMAL   = 0
+    CHARGER  = 1
+    BRUTE    = 2
+    SWARMER  = 3
+    SNIPER   = 4
+
+1.8 ItemRarity
+──────────────
+  COMMON    = 0
+  MAGIC     = 1
+  RARE      = 2
+  EPIC      = 3
+  LEGENDARY = 4
+  SET       = 5
+  UNIQUE    = 6
+
+1.9 EquipSlot
+─────────────
+  WEAPON, OFF_HAND, HELMET, CHEST, GLOVES, BOOTS, SHOULDERS,
+  BELT, AMULET, RING_1, RING_2
+
+
+================================================================================
+2. COMBAT CONSTANTS & TUNING VALUES (godot/scripts/core/constants.gd)
+================================================================================
+
+2.1 Core Combat Timing
+──────────────────────
+  GLOBAL_COOLDOWN        = 0.5s     # GCD between skills
+  CDR_CAP                = 0.40     # Max 40% cooldown reduction
+  MIN_DAMAGE             = 1        # Floor for damage after reduction
+  ARMOR_EFFECTIVENESS    = 0.5      # Armor → damage reduction factor
+  IFRAMES_DURATION       = 0.3s     # Invincibility after hit
+
+2.2 Dodge System
+────────────────
+  DODGE_SPEED_MULTIPLIER = 2.5      # Speed during dodge
+  DODGE_DURATION         = 0.3s     # Duration of dodge roll
+  DODGE_COOLDOWN         = 0.8s     # (from player.gd impl)
+  # Dodge grants full invincibility during DODGE_DURATION
+
+2.3 Stat Scaling Per Level
+──────────────────────────
+  STAT_POINTS_PER_LEVEL  = 3        # Distributed to STR/DEX/INT/VIT
+  SKILL_POINTS_PER_LEVEL = 1        # ⚠ See Known Issue #1
+  HP_PER_LEVEL_BASE      = 15
+  HP_PER_VIT             = 2.0
+  MANA_PER_LEVEL_BASE    = 8
+  MANA_PER_INT           = 1.5
+
+2.4 Damage Scaling by Stat
+──────────────────────────
+  DAMAGE_SCALE_STR       = 0.5      # +0.5% damage per STR point
+  DAMAGE_SCALE_DEX       = 0.5      # +0.5% damage per DEX point
+  DAMAGE_SCALE_INT       = 0.8      # +0.8% damage per INT point
+
+2.5 Class Base Stats (Level 1)
+──────────────────────────────
+  ┌──────────┬──────────┬──────────┬──────────┐
+  │ Stat     │ Assassin │ Tank     │ Mage     │
+  ├──────────┼──────────┼──────────┼──────────┤
+  │ HP       │ 80       │ 150      │ 60       │
+  │ Mana     │ 60       │ 40       │ 120      │
+  │ Damage   │ 12       │ 8        │ 15       │
+  │ Speed    │ 130      │ 90       │ 100      │
+  │ Armor    │ 5        │ 15       │ 3        │
+  │ Crit%    │ 8%       │ –        │ 6% spell │
+  │ CritMult │ 1.5x     │ –        │ –        │
+  │ Block%   │ –        │ 10%      │ –        │
+  │ Threat   │ –        │ 1.3x     │ –        │
+  │ ManaRegen│ 2.0/s    │ 1.5/s    │ 3.0/s    │
+  └──────────┴──────────┴──────────┴──────────┘
+
+2.6 Mana Regeneration
+─────────────────────
+  MANA_REGEN_ASSASSIN = 2.0/sec
+  MANA_REGEN_TANK     = 1.5/sec
+  MANA_REGEN_MAGE     = 3.0/sec
+
+2.7 XP Formula
+──────────────
+  XP to next level = floor(100 * (level ^ 1.8))
+  Example: Lv1→2 = 100 XP, Lv10→11 = 6,310 XP, Lv49→50 = ~159,000 XP
+
+2.8 Combo System (combat_manager.gd)
+─────────────────────────────────────
+  COMBO_TIMEOUT = 3.0s    # Time between kills to maintain combo
+  COMBAT_TIMEOUT = 5.0s   # Time without damage → peace state
+
+  Combo XP Multipliers:
+    combo < 3   → 1.0x
+    combo 3-4   → 1.1x
+    combo 5-9   → 1.25x
+    combo 10+   → 1.5x
+
+2.9 Nightmare Tier Scaling
+──────────────────────────
+  ┌──────┬──────────┬──────────┬────────────┐
+  │ Tier │ Enemy HP │ Enemy DMG│ Magic Find │
+  ├──────┼──────────┼──────────┼────────────┤
+  │ 1    │ +25%     │ +25%     │ +25%       │
+  │ 2    │ +60%     │ +50%     │ +60%       │
+  │ 3    │ +100%    │ +80%     │ +100%      │
+  │ 4    │ +180%   │ +120%    │ +180%      │
+  │ 5    │ +300%    │ +200%    │ +300%      │
+  └──────┴──────────┴──────────┴────────────┘
+
+2.10 Paragon System (Post-50)
+─────────────────────────────
+  HP_PER_PARAGON_POINT     = 1
+  DAMAGE_PER_10_PARAGON    = +0.5%
+  MAGIC_FIND_PER_5_PARAGON = +0.3%
+
+2.11 Death & Respawn
+────────────────────
+  Gold penalty on death: 5% of total gold
+  Respawn timer: 5.0 seconds
+  Respawn HP: 50% of max
+  Respawn Mana: 50% of max
+  Post-respawn invincibility: 3.0 seconds (with visual flash)
+
+2.12 Collision Layers
+─────────────────────
+  Layer 1: PLAYER_PHYSICS
+  Layer 2: ENEMY_PHYSICS
+  Layer 3: WALL_PHYSICS
+  Layer 4: PLAYER_HITBOX
+  Layer 5: ENEMY_HITBOX
+  Layer 6: PLAYER_HURTBOX
+  Layer 7: ENEMY_HURTBOX
+  Layer 8: PROJECTILE
+  Layer 9: DETECTION
+  Layer 10: INTERACTION
+
+
+================================================================================
+3. DAMAGE FORMULA & SCALING (godot/scripts/combat/damage_calculator.gd)
+================================================================================
+
+3.1 Main Damage Formula
+────────────────────────
+  function: calculate_damage(base_damage, target_armor, damage_type,
+                             crit_chance, crit_multiplier,
+                             bonus_multiplier, elemental_resistance)
+
+  Step 1 - Raw Damage:
+    raw_damage = base_damage * bonus_multiplier
+
+  Step 2 - Armor Reduction (skipped for TRUE_DAMAGE):
+    damage_after_armor = raw_damage - (target_armor * ARMOR_EFFECTIVENESS)
+    damage_after_armor = max(damage_after_armor, MIN_DAMAGE)  # Floor = 1
+
+  Step 3 - Elemental Resistance:
+    resistance_mult = 1.0 - clamp(elemental_resistance / 100.0, 0.0, 0.75)
+    # Maximum 75% resistance cap
+    damage_after_resistance = damage_after_armor * resistance_mult
+
+  Step 4 - Critical Hit:
+    if randf() < crit_chance:
+      final_damage = damage_after_resistance * crit_multiplier
+      is_crit = true
+
+  Step 5 - Floor (final):
+    final_damage = max(final_damage, MIN_DAMAGE)
+
+  Returns: { damage: float, is_crit: bool, damage_type: DamageType }
+
+3.2 TRUE_DAMAGE Special Case
+─────────────────────────────
+  When damage_type == DamageType.TRUE_DAMAGE:
+    - Armor reduction is entirely skipped
+    - Elemental resistance is entirely skipped
+    - Only bonus_multiplier and crit apply
+
+3.3 Enemy Stat Scaling (static functions)
+──────────────────────────────────────────
+  scale_enemy_hp(base_hp, level):
+    return base_hp * (1.0 + (level - 1) * 0.15)    # +15% per level
+
+  scale_enemy_damage(base_damage, level):
+    return base_damage * (1.0 + (level - 1) * 0.12)  # +12% per level
+
+  scale_enemy_armor(base_armor, level):
+    return base_armor * (1.0 + (level - 1) * 0.10)   # +10% per level
+
+  scale_enemy_xp(base_xp, level):
+    return base_xp * (1.0 + (level - 1) * 0.20)      # +20% per level
+
+3.4 Boss Multiplayer HP Scaling
+───────────────────────────────
+  BOSS_HP_MULTIPLAYER = { 1: 1.0, 2: 1.8, 3: 2.5, 4: 3.2 }
+
+3.5 Boss HP Scaling by Level
+─────────────────────────────
+  boss_hp = base_hp * (1 + (level - 1) * 0.08) * multiplayer_multiplier
+
+3.6 Elite Enemy Scaling (from enemy_base.gd)
+─────────────────────────────────────────────
+  max_hp     × 3.0
+  damage     × 1.5
+  armor      × 2.0
+  speed      × 1.1
+  XP reward  × 3.0
+  Loot chance: 80% (vs 30% normal)
+  Gold reward × 2.0
+
+3.7 Multiplayer Enemy HP Scaling
+────────────────────────────────
+  per additional player: +50% HP (0.5 * player_count additive)
+
+3.8 Damage Number Visual Feedback (damage_number.gd)
+─────────────────────────────────────────────────────
+  Colors by DamageType:
+    PHYSICAL    → White
+    ARCANE      → Purple (#9B59B6)
+    FROST       → LightBlue (#85C1E9)
+    HOLY        → LightYellow (#F9E79F)
+    POISON      → Green (#2ECC71)
+    BLOOD       → Red (#E74C3C)
+    SHADOW      → DarkPurple (#6C3483)
+    TRUE_DAMAGE → Gold (#FFD700)
+
+  Critical hits: Gold color, "!" suffix, font_size=16 (vs 12 normal), 
+  scale pulse 1.3x over 0.15s
+
+
+================================================================================
+4. PLAYER COMBAT MECHANICS (godot/scripts/player/player.gd)
+================================================================================
+
+4.1 Character Base
+──────────────────
+  Node type: CharacterBody2D
+  Movement: 8-directional, speed from class base + equipment + buffs
+  State vars: is_alive, is_attacking, is_dodging, is_invincible, can_act
+
+4.2 Basic Attack
+────────────────
+  Trigger: Mouse click / attack input
+  Duration: 0.3s hitbox activation
+  Hitbox position: last_direction * 20 pixels
+  Damage: base_damage (from class + equipment + buffs)
+  Default crit: 5% chance, 1.5x multiplier
+  Calls: DamageCalculator.calculate_damage()
+
+4.3 Dodge Roll
+──────────────
+  Input: Dodge key
+  Speed: base_speed * DODGE_SPEED_MULTIPLIER (2.5x)
+  Duration: DODGE_DURATION (0.3s)
+  Invincibility: Full iframes during entire dodge
+  Cooldown: 0.8s between dodges
+  Direction: Current movement direction (or last_direction if stationary)
+
+4.4 Taking Damage
+─────────────────
+  Flow:
+    1. Check is_invincible → skip if true
+    2. Apply armor reduction: effective_armor = armor * status_modifier
+    3. Call DamageCalculator.calculate_damage()
+    4. Subtract from current_hp
+    5. Spawn DamageNumber
+    6. Apply iframes (IFRAMES_DURATION = 0.3s)
+    7. Flash sprite red for 0.1s
+    8. Emit EventBus.damage_dealt
+    9. If HP ≤ 0 → _die()
+
+4.5 Death
+─────────
+  - Lose 5% of gold
+  - Disable all input (can_act = false)
+  - Death animation + signal
+  - 5.0s respawn timer → _respawn()
+
+4.6 Respawn
+───────────
+  - Teleport to spawn_position
+  - HP = 50% of max
+  - Mana = 50% of max
+  - 3.0s invincibility with rapid flash
+  - Re-enable input
+
+4.7 Level Up
+────────────
+  - +3 stat points to distribute
+  - +HP_PER_LEVEL_BASE (15) to max_hp
+  - +MANA_PER_LEVEL_BASE (8) to max_mana
+  - Skill point every 2 levels (⚠ see Known Issue #1)
+  - Full HP/Mana restore
+  - Level up VFX
+
+4.8 Equipment Stat Integration
+──────────────────────────────
+  From equipped items:
+    flat_damage, flat_hp, flat_armor, mana, move_speed
+  From set bonuses:
+    Additional stat boosts when 2/3/4 set pieces equipped
+  Recalculated on every equipment change
+
+4.9 Consumables (Hotbar)
+────────────────────────
+  HP Potions:
+    Small  = 50 HP
+    Medium = 150 HP
+    Large  = 400 HP
+    Full   = 100% HP
+
+  MP Potions:
+    Small  = 30 Mana
+    Medium = 80 Mana
+    Large  = 200 Mana
+    Full   = 100% Mana
+
+  Utility:
+    Resistance potions (elemental resistance)
+    Damage scrolls (temporary damage boost)
+
+4.10 Weather Combat Modifiers
+─────────────────────────────
+  Sandstorm: speed penalty
+  Rain: minor speed reduction
+  Blizzard: speed + damage penalty
+  Environmental: periodic damage in certain zones
+
+
+================================================================================
+5. CLASS SYSTEM & SKILLS (godot/scripts/classes/)
+================================================================================
+
+5.1 Architecture
+────────────────
+  class_base.gd (RefCounted) → assassin.gd / tank.gd / mage.gd
+  skill_database.gd → 45 registered skills (SkillData dictionaries)
+  skill_manager.gd → 4 equipped skill slots + GCD + execution
+  ultimate_manager.gd → 1 equipped ultimate (from 3 options per class)
+
+  Skill Slots: 4 regular + 1 ultimate
+  GCD: 0.5s between any skill use
+  Each skill has independent cooldown + GCD
+
+5.2 Branch Point Passive Bonuses
+─────────────────────────────────
+
+  ASSASSIN:
+    Shadow branch:  +1% crit chance/point, +0.5% dodge chance/point
+    Poison branch:  +2% DOT damage/point, +1% DOT duration/point
+    Blood branch:   +1% lifesteal/point, +2% HP bonus/point
+
+  TANK:
+    Guardian branch:  +3% armor/point, +1% block chance/point
+    Warbringer branch: +2% damage/point, +5% threat generation/point
+    Paladin branch:   +2% heal power/point, +1.5% holy damage/point
+
+  MAGE:
+    Arcane branch:  +3% spell damage/point, +1% mana cost reduction/point
+    Frost branch:   +2% slow effectiveness/point, +1% freeze duration/point
+    Holy branch:    +3% heal power/point, +2% shield strength/point
+
+5.3 Complete Skill Database (45 Skills)
+────────────────────────────────────────
+
+═══════════════════════════════════════════════════════════════════
+ASSASSIN CLASS
+═══════════════════════════════════════════════════════════════════
+
+── SHADOW BRANCH ──────────────────────────────────────────────────
+
+  T1: SHADOW STEP
+    Type: TELEPORT | Target: SINGLE_ENEMY
+    Damage: 0.8x | Mana: 15 | Cooldown: 6s
+    Range: 150px
+    Effect: Teleport behind target, guaranteed crit on next attack
+    Description: "Teleportálás az ellenség mögé"
+
+  T2: SMOKE BOMB
+    Type: AOE | Target: AOE_SELF
+    Damage: 0 | Mana: 25 | Cooldown: 15s
+    AoE Radius: 80px | Duration: 4s
+    Effect: Enemies in zone have 50% miss chance, grants stealth
+    Description: "Füstfelhő ami elvakítja az ellenségeket"
+
+  T3: SHADOW CLONE
+    Type: SUMMON | Target: SELF
+    Damage: 0.4x (clone deals 40% of player damage) | Mana: 40 | Cooldown: 20s
+    Duration: 10s
+    Effect: Summon clone that mimics attacks at 40% damage
+    Description: "Árnyék klón idézése ami 40% sebzéssel támad"
+
+  T4: ASSASSINATE
+    Type: MELEE | Target: SINGLE_ENEMY
+    Damage: 3.0x (from behind) / 1.8x (from front) | Mana: 50 | Cooldown: 25s
+    Range: 40px
+    Effect: Massive damage, 3x from behind, 1.8x from front
+    Description: "Halálos csapás hátulról 3x, elölről 1.8x sebzés"
+
+  T5 (ULTIMATE): SHADOW REALM
+    Type: BUFF | Target: SELF
+    Damage: 0 | Mana: 80 | Cooldown: 90s
+    Duration: 6s
+    Effect: Invisible + untargetable, ALL attacks are critical hits
+    Description: "Árnyék dimenzióba lépés - láthatatlan, minden támadás kritikus"
+
+── BLOOD/BLADE BRANCH ────────────────────────────────────────────
+
+  T1: BLADE FLURRY
+    Type: MELEE | Target: SINGLE_ENEMY
+    Damage: 5 hits × 0.4x each = 2.0x total | Mana: 12 | Cooldown: 4s
+    Range: 35px
+    Effect: 5 rapid hits
+    Description: "5 gyors vágás, egyenként 40% sebzés"
+
+  T2: WHIRLWIND SLASH
+    Type: AOE | Target: AOE_SELF
+    Damage: 1.2x | Mana: 20 | Cooldown: 8s
+    AoE Radius: 60px
+    Effect: 360° spin attack hitting all nearby enemies
+    Description: "360 fokos pörgő vágás körülötted"
+
+  T3: BLADE DANCE
+    Type: MELEE | Target: SINGLE_ENEMY
+    Damage: 0.6x per hit | Mana: 35 | Cooldown: 14s
+    Duration: 4s
+    Effect: Rapid teleport-and-slash between nearby enemies
+    Description: "4 másodpercig ugrálva vág ellenségek között"
+
+  T4: EXECUTE
+    Type: MELEE | Target: SINGLE_ENEMY
+    Damage: 2.5x | Mana: 45 | Cooldown: 18s
+    Range: 40px
+    Special: 15% instant kill chance if target below 30% HP
+    Description: "Kivégzés - 2.5x sebzés, 30% HP alatt 15% azonnali kill"
+
+  T5 (ULTIMATE): THOUSAND CUTS
+    Type: CHANNEL | Target: AOE_SELF
+    Damage: 30 slashes total over 3s | Mana: 75 | Cooldown: 80s
+    AoE Radius: 100px | Duration: 3s
+    Effect: For 3 seconds, slash all enemies in radius 30 times
+    Description: "3 másodperc alatt 30 vágás minden közeli ellenségre"
+
+── POISON BRANCH ──────────────────────────────────────────────────
+
+  T1: ENVENOM
+    Type: BUFF | Target: SELF
+    Damage: 0 | Mana: 10 | Cooldown: 30s
+    Duration: 15s
+    Effect: All weapon attacks apply poison (3s, 5 DMG/tick)
+    Status: POISON_DOT (duration: 3s, value: 5/tick)
+    Description: "Fegyver mérgezése - minden támadás mérgez 15 mp-ig"
+
+  T2: TOXIC SPRAY
+    Type: AOE | Target: DIRECTIONAL
+    Damage: 0.6x + DoT | Mana: 18 | Cooldown: 7s
+    AoE Radius: 70px
+    Effect: Cone spray, applies poison DoT
+    Status: POISON_DOT (duration: 5s, value: 8/tick)
+    Description: "Mérgező permet kúp alakban"
+
+  T3: PANDEMIC
+    Type: DEBUFF | Target: AOE_SELF
+    Damage: 0 | Mana: 30 | Cooldown: 16s
+    AoE Radius: 120px
+    Effect: Spreads all poison effects from affected enemies to nearby ones
+    Description: "Átterjeszti a mérgeket a közeli ellenségekre"
+
+  T4: VENOM NOVA
+    Type: AOE | Target: AOE_SELF
+    Damage: 2.0x + heavy DoT | Mana: 50 | Cooldown: 22s
+    AoE Radius: 90px
+    Effect: Massive poison explosion
+    Status: POISON_DOT (duration: 8s, value: 15/tick)
+    Description: "Méreg robbanás 2x sebzéssel és erős DoT-tal"
+
+  T5 (ULTIMATE): PLAGUE LORD
+    Type: TRANSFORMATION | Target: SELF
+    Damage: 0 | Mana: 70 | Cooldown: 85s
+    Duration: 10s
+    Effect: 3x poison tick speed, +50% poison damage, poison aura
+    Description: "Pestis Lord forma - háromszoros méreg tick sebesség 10 mp-ig"
+
+
+═══════════════════════════════════════════════════════════════════
+TANK CLASS
+═══════════════════════════════════════════════════════════════════
+
+── GUARDIAN/SHIELD BRANCH ─────────────────────────────────────────
+
+  T1: SHIELD BASH
+    Type: MELEE | Target: SINGLE_ENEMY
+    Damage: 1.0x | Mana: 12 | Cooldown: 5s
+    Range: 35px
+    Effect: Stun target for 1.5 seconds
+    Status: STUN (duration: 1.5s)
+    Description: "Pajzs ütés ami elkábítja az ellenséget 1.5 mp-re"
+
+  T2: SHIELD WALL
+    Type: BUFF | Target: SELF
+    Damage: 0 | Mana: 25 | Cooldown: 18s
+    Duration: 6s
+    Effect: 60% damage reduction, -50% movement speed
+    Description: "Pajzsfal - 60% sebzéscsökkentés, -50% mozgás sebesség"
+
+  T3: SHIELD CHARGE
+    Type: MELEE | Target: DIRECTIONAL
+    Damage: 1.5x | Mana: 30 | Cooldown: 12s
+    Range: 120px
+    Effect: Charge forward, knockback + stun enemies hit
+    Status: STUN (duration: 1.0s)
+    Description: "Pajzzsal való roham, eltalált ellenségeket hátralöki"
+
+  T4: FORTRESS
+    Type: BUFF | Target: SELF
+    Damage: 0 | Mana: 45 | Cooldown: 30s
+    Duration: 8s
+    Effect: CC immune, 20% damage reflection
+    Description: "Erőd mód - CC immunitás és 20% sebzés visszaverés"
+
+  T5 (ULTIMATE): AEGIS OF THE ANCIENTS
+    Type: BUFF | Target: AOE_SELF
+    Damage: 0 | Mana: 80 | Cooldown: 120s
+    Duration: 8s | AoE Radius: 150px
+    Effect: PARTY-WIDE 50% damage reduction + CC immunity
+    Description: "Az Ősök Pajzsa - csapat 50% sebzéscsökkentés, CC immunitás 8 mp"
+
+── WARBRINGER/WARCRY BRANCH ──────────────────────────────────────
+
+  T1: TAUNT
+    Type: DEBUFF | Target: AOE_SELF
+    Damage: 0 | Mana: 10 | Cooldown: 8s
+    AoE Radius: 100px | Duration: 5s
+    Effect: Forces all enemies in range to attack you, +1000 threat
+    Description: "AoE provocálás, ellenségek rád támadnak 5 mp-ig"
+
+  T2: BATTLE SHOUT
+    Type: BUFF | Target: AOE_SELF
+    Damage: 0 | Mana: 20 | Cooldown: 25s
+    Duration: 10s | AoE Radius: 150px
+    Effect: Party-wide +15% damage buff
+    Status: DAMAGE_UP (duration: 10s, value: 15%)
+    Description: "Harci kiáltás - csapat +15% sebzés 10 mp-ig"
+
+  T3: INTIMIDATE
+    Type: DEBUFF | Target: AOE_SELF
+    Damage: 0 | Mana: 25 | Cooldown: 15s
+    Duration: 6s | AoE Radius: 100px
+    Effect: Enemies deal -25% damage and -20% movement speed
+    Status: DAMAGE_DOWN + SLOW
+    Description: "Megfélemlítés - ellenségek -25% sebzés, -20% sebesség"
+
+  T4: BERSERKER RAGE
+    Type: BUFF | Target: SELF
+    Damage: 0 | Mana: 35 | Cooldown: 30s
+    Duration: 12s
+    Effect: +40% damage, +30% attack speed, -20% defense
+    Description: "Berserk - +40% sebzés, +30% gyorsaság, -20% védekezés"
+
+  T5 (ULTIMATE): AVATAR OF WAR
+    Type: TRANSFORMATION | Target: SELF
+    Damage: 2.0x | Mana: 85 | Cooldown: 100s
+    Duration: 10s
+    Effect: Transform into giant, all attacks become AoE, +100% damage
+    Description: "Háború Avatárja - óriás forma, minden támadás AoE 10 mp-ig"
+
+── PALADIN/FORTIFY BRANCH ─────────────────────────────────────────
+
+  T1: IRON SKIN
+    Type: BUFF | Target: SELF
+    Damage: 0 | Mana: 15 | Cooldown: 12s
+    Duration: 8s
+    Effect: +30% armor
+    Status: ARMOR_UP (duration: 8s, value: 30%)
+    Description: "Vaspáncél - +30% páncél 8 mp-ig"
+
+  T2: GROUND SLAM
+    Type: AOE | Target: AOE_SELF
+    Damage: 1.3x | Mana: 22 | Cooldown: 10s
+    AoE Radius: 80px
+    Effect: AoE damage + 40% slow
+    Status: SLOW (duration: 3s, value: 40%)
+    Description: "Földcsapás - AoE sebzés és 40% lassítás"
+
+  T3: STONE PILLAR
+    Type: AOE | Target: AOE_GROUND
+    Damage: 0 | Mana: 30 | Cooldown: 20s
+    Duration: 8s
+    Effect: Create impassable terrain block (wall)
+    Description: "Kőoszlop - átjárhatatlan terep akadály 8 mp-ig"
+
+  T4: REGENERATION AURA
+    Type: HEAL | Target: AOE_SELF
+    Damage: 0 | Mana: 40 | Cooldown: 30s
+    Duration: 12s | AoE Radius: 120px
+    Effect: Party regeneration +3% max HP/sec
+    Status: HP_REGEN
+    Description: "Regeneráció aura - csapat +3% HP/mp 12 mp-ig"
+
+  T5 (ULTIMATE): UNBREAKABLE
+    Type: BUFF | Target: SELF
+    Damage: 0 | Mana: 90 | Cooldown: 180s
+    Duration: 8s
+    Effect: CANNOT DIE (HP cannot go below 1)
+    Description: "Megtörhetetlen - 8 mp-ig nem tudsz meghalni"
+
+
+═══════════════════════════════════════════════════════════════════
+MAGE CLASS
+═══════════════════════════════════════════════════════════════════
+
+── ARCANE/FIRE BRANCH ─────────────────────────────────────────────
+
+  T1: FIREBALL
+    Type: PROJECTILE | Target: DIRECTIONAL
+    Damage: 1.5x + AoE | Mana: 15 | Cooldown: 3s
+    AoE Radius: 50px | Range: 200px
+    Effect: Projectile that explodes on hit, applies burn
+    Status: BURN_DOT (duration: 3s, value: 8/tick)
+    DamageType: ARCANE
+    Description: "Tűzgolyó ami robban és éget"
+
+  T2: FLAME WAVE
+    Type: AOE | Target: DIRECTIONAL
+    Damage: 1.0x | Mana: 22 | Cooldown: 8s
+    Duration: 5s
+    Effect: Creates a wall of fire that damages enemies passing through
+    Status: BURN_DOT (duration: 4s, value: 10/tick)
+    DamageType: ARCANE
+    Description: "Tűzfal ami folyamatosan sebez"
+
+  T3: METEOR
+    Type: AOE | Target: AOE_GROUND
+    Damage: 2.5x | Mana: 40 | Cooldown: 16s
+    AoE Radius: 80px | Telegraph: 1.5s delay
+    Effect: Delayed massive AoE, applies burn
+    Status: BURN_DOT (duration: 5s, value: 12/tick)
+    DamageType: ARCANE
+    Description: "Meteor becsapódás 1.5 másodperc késleltetéssel"
+
+  T4: COMBUSTION
+    Type: DEBUFF | Target: AOE_SELF
+    Damage: 0 | Mana: 35 | Cooldown: 20s
+    AoE Radius: 200px
+    Effect: Burning enemies explode on death, dealing 50% max HP as AoE
+    Duration: 15s
+    Description: "Égő ellenségek halálkor robbannak"
+
+  T5 (ULTIMATE): INFERNO
+    Type: CHANNEL | Target: AOE_GROUND
+    Damage: 0.3x/tick | Mana: 80 | Cooldown: 90s
+    Duration: 8s | AoE Radius: 150px
+    Effect: Sustained fire rain over large area for 8 seconds
+    DamageType: ARCANE
+    Description: "Pokoli tűzeső 8 másodpercig nagy területen"
+
+── FROST/ICE BRANCH ───────────────────────────────────────────────
+
+  T1: ICE BOLT
+    Type: PROJECTILE | Target: DIRECTIONAL
+    Damage: 1.0x | Mana: 12 | Cooldown: 2.5s
+    Range: 180px
+    Effect: Projectile that slows target
+    Status: SLOW (duration: 2s, value: 30%)
+    DamageType: FROST
+    Description: "Jégnyíl ami lassítja a célt"
+
+  T2: FROST NOVA
+    Type: AOE | Target: AOE_SELF
+    Damage: 1.2x | Mana: 25 | Cooldown: 12s
+    AoE Radius: 80px
+    Effect: Freeze all nearby enemies
+    Status: FREEZE (duration: 2.5s)
+    DamageType: FROST
+    Description: "Fagyasztó robbanás ami megfagyasztja az ellenségeket"
+
+  T3: BLIZZARD
+    Type: AOE | Target: AOE_GROUND
+    Damage: 0.3x/tick | Mana: 35 | Cooldown: 18s
+    AoE Radius: 100px | Duration: 6s
+    Effect: Sustained cold zone with slow + periodic damage
+    Status: SLOW (duration: continuous, value: 40%)
+    DamageType: FROST
+    Description: "Hóvihar a kijelölt területen 6 mp-ig"
+
+  T4: ICE PRISON
+    Type: DEBUFF | Target: SINGLE_ENEMY
+    Damage: 0.5x | Mana: 40 | Cooldown: 20s
+    Duration: 4s
+    Effect: Single-target freeze for 4 seconds
+    Status: FREEZE (duration: 4s)
+    DamageType: FROST
+    Description: "Jégbörtön - egyetlen célpont befagyasztása 4 mp-re"
+
+  T5 (ULTIMATE): ABSOLUTE ZERO
+    Type: AOE | Target: AOE_SELF
+    Damage: 3.0x (shatter) | Mana: 85 | Cooldown: 100s
+    AoE Radius: 120px
+    Effect: Massive freeze + shatter for 3x damage
+    Status: FREEZE (duration: 6s)
+    DamageType: FROST
+    Description: "Abszolút nulla - masszív fagyasztás és szilánkolás"
+
+── HOLY/ARCANE BRANCH ─────────────────────────────────────────────
+
+  T1: ARCANE MISSILE
+    Type: PROJECTILE | Target: SINGLE_ENEMY
+    Damage: 3 missiles × 0.5x each = 1.5x | Mana: 14 | Cooldown: 3s
+    Range: 200px
+    Effect: 3 homing missiles
+    DamageType: ARCANE
+    Description: "3 irányított mágikus lövedék"
+
+  T2: MANA SHIELD
+    Type: TOGGLE | Target: SELF
+    Damage: 0 | Mana: 0 (passive drain) | Cooldown: 1s
+    Effect: Damage absorbed by mana (1 Mana = 2 Shield HP)
+    Description: "Mana pajzs - sebzés mana-ból vonódik le"
+
+  T3: TELEPORT
+    Type: TELEPORT | Target: AOE_GROUND
+    Damage: 0 | Mana: 20 | Cooldown: 8s
+    Range: 150px
+    Effect: Instant teleport, 2 charges
+    Description: "Azonnali teleport, 2 töltet"
+
+  T4: ARCANE SINGULARITY
+    Type: AOE | Target: AOE_GROUND
+    Damage: 0.3x/tick | Mana: 45 | Cooldown: 22s
+    AoE Radius: 60px | Duration: 3s
+    Effect: Black hole that pulls enemies to center
+    DamageType: ARCANE
+    Description: "Fekete lyuk ami behúzza az ellenségeket"
+
+  T5 (ULTIMATE): ARCANE CATACLYSM
+    Type: CHANNEL | Target: AOE_GROUND
+    Damage: 5 explosions × 1.0x | Mana: 90 | Cooldown: 95s
+    AoE Radius: 100px | Duration: 5s
+    Effect: 5 massive arcane explosions over 5 seconds
+    DamageType: ARCANE
+    Description: "Arkán kataklizma - 5 hatalmas robbanás 5 másodperc alatt"
+
+
+5.4 Skill Execution Types (skill_manager.gd)
+─────────────────────────────────────────────
+  _execute_melee_skill():    Activate hitbox, apply position offset
+  _execute_projectile_skill(): Instantiate Projectile scene, set velocity
+  _execute_aoe_skill():      Area damage at position, visual effect
+  _execute_buff_skill():     Apply StatusEffect to self/party
+  _execute_heal_skill():     Restore HP to self/allies
+  _execute_teleport_skill(): Move to target position/behind enemy
+  _execute_debuff_skill():   Apply negative StatusEffect to enemies
+  _execute_summon_skill():   (Implicit via SUMMON type)
+  _execute_channel_skill():  (Handled by UltimateManager)
+  _execute_transform_skill():(Handled by UltimateManager)
+
+5.5 Ultimate System (ultimate_manager.gd)
+─────────────────────────────────────────
+  - 1 equipped ultimate at a time (from 3 branch T5 skills)
+  - Ultimate types handled: AOE, TRANSFORMATION, BUFF, CHANNEL, HEAL
+  - Transform ultimates modify player.base_damage directly (restored on end)
+  - Channel ultimates disable can_act during channel
+  - Long cooldowns (80s - 180s)
+
+
+================================================================================
+6. STATUS EFFECT SYSTEM (godot/scripts/combat/status_effect*.gd)
+================================================================================
+
+6.1 StatusEffect (Resource/RefCounted)
+──────────────────────────────────────
+  Properties:
+    effect_type: EffectType
+    duration: float (seconds)
+    value: float (magnitude)
+    stacks: int (current stacks)
+    max_stacks: int
+    source: Node (who applied it)
+    tick_rate: float (default 1.0s for DOTs)
+    tick_timer: float
+
+  Tick Behavior (DOTs):
+    Each tick_rate seconds: deal value * stacks damage
+    POISON_DOT → POISON DamageType
+    BURN_DOT   → ARCANE DamageType
+    BLEED_DOT  → BLOOD DamageType
+
+  CC Behavior:
+    SLOW:   speed *= (1.0 - value/100)
+    ROOT:   speed = 0, can still attack
+    STUN:   speed = 0, cannot act
+    FREEZE: speed = 0, cannot act
+    BLIND:  accuracy reduced (miss chance)
+
+6.2 StatusEffectManager (Node)
+──────────────────────────────
+  Functions:
+    apply_effect(effect: StatusEffect):
+      - If same type exists: refresh duration, increment stacks (to max_stacks)
+      - Otherwise: add new effect
+
+    remove_effect(type: EffectType):
+      - Remove first matching effect
+
+    clear_debuffs():
+      - Remove all negative status effects
+
+    get_total_speed_modifier() → float:
+      - Multiplies all SLOW/SPEED_UP/ROOT/STUN/FREEZE effects
+
+    get_total_damage_modifier() → float:
+      - Multiplies all DAMAGE_UP/DAMAGE_DOWN/VULNERABILITY effects
+
+    get_total_armor_modifier() → float:
+      - Multiplies all ARMOR_UP/ARMOR_DOWN effects
+
+    can_act() → bool:
+      - Returns false if any STUN/FREEZE active
+
+    can_move() → bool:
+      - Returns false if any STUN/FREEZE/ROOT active
+
+6.3 Shield System (health_component.gd)
+───────────────────────────────────────
+  Shield Types:
+    Shield Wall (Tank): Fixed absorb amount, duration-limited
+    Mana Shield (Mage): 1 Mana → 2 Shield HP, drains mana/sec while active
+
+  Shield Behavior:
+    - Absorbs damage before HP
+    - Excess damage bleeds through to HP
+    - Duration expiration removes shield
+    - Signals: shield_changed, shield_broken
+
+  HP Regeneration:
+    - Configurable regen_rate
+    - Default tick: 1 HP/sec
+    - Only while alive
+
+  Signals:
+    health_changed(current, maximum)
+    died(entity)
+    healed(entity, amount)
+    damage_taken(entity, amount, damage_type)
+    shield_changed(current, maximum)
+    shield_broken()
+
+
+================================================================================
+7. COMBAT COMPONENTS (godot/scripts/combat/)
+================================================================================
+
+7.1 HitboxComponent (Area2D)
+────────────────────────────
+  Exports: damage, damage_type, knockback_force
+  Methods:
+    activate(duration, override_damage): Enable hitbox for N seconds
+    deactivate(): Disable hitbox
+    set_effect(StatusEffect): Attach status to apply on hit
+    apply_knockback(target): Push target away from source
+
+  Features:
+    - already_hit[] array prevents multi-hit on same target per activation
+    - one_shot mode: true = hit once per activation, false = continuous
+    - Knockback direction calculated from self to target
+
+7.2 HurtboxComponent (Area2D)
+─────────────────────────────
+  Properties: is_invincible (bool)
+  Methods:
+    receive_damage(amount, type, source): Delegates to parent.take_damage()
+
+  Config:
+    monitorable = true (others can detect it)
+    monitoring = false (doesn't detect others)
+
+7.3 Projectile (Area2D)
+────────────────────────
+  Exports:
+    speed: float
+    damage: float
+    damage_type: DamageType
+    lifetime: float (auto-destroy)
+    pierce_count: int (0 = destroyed on first hit)
+    aoe_radius: float (0 = no AoE on impact)
+    tracking_strength: float (0 = straight, >0 = homing)
+
+  AoE on Impact:
+    damage_at_distance = damage * (1.0 - distance/radius * 0.5)
+    (50% damage falloff from center to edge)
+
+  Tracking:
+    direction = direction.lerp(to_target.normalized(), tracking_strength * delta)
+
+  Status Effect:
+    Can carry a StatusEffect to apply on hit
+
+  Destruction:
+    On wall collision, on lifetime expiry, on pierce exhaustion
+
+7.4 Telegraph (Node2D)
+──────────────────────
+  Shape Types: CIRCLE, RECTANGLE, LINE, CONE
+  Visual: Red outline → fills to solid over duration → pulse effect → action
+  
+  Factory Methods:
+    Telegraph.create_circle(position, radius, duration) → Telegraph
+    Telegraph.create_rectangle(position, size, duration) → Telegraph
+    Telegraph.create_line(start, end, width, duration) → Telegraph
+
+  Integration:
+    Boss/enemy creates telegraph → waits duration → executes attack at location
+
+
+================================================================================
+8. ENEMY AI & COMBAT BEHAVIOUR
+================================================================================
+
+8.1 Enemy Base (godot/scripts/ai/enemy_base.gd, 1068 lines)
+─────────────────────────────────────────────────────────────
+  Node Type: CharacterBody2D
+  All child nodes created PROGRAMMATICALLY (no .tscn children):
+    - Sprite2D (placeholder generation)
+    - CollisionShape2D
+    - DetectionArea (Area2D, radius from data)
+    - HurtboxComponent
+    - HitboxComponent
+    - NavigationAgent2D
+    - StatusEffectManager
+    - HealthBar (ProgressBar)
+
+8.2 AI State Machine
+────────────────────
+  States: IDLE → PATROL → ALERT → CHASE → ATTACK → RETREAT → LEASH → DEAD
+
+  State Transitions:
+    IDLE: Random patrol timer (2-5s) → PATROL
+    PATROL: Wander 50-150px from spawn, speed 0.5x
+    ALERT: Target detected but not in attack range
+    CHASE: Move toward target at full speed
+    ATTACK: Execute attack pattern, face target
+    RETREAT: HP < retreat_threshold, move away from target at 1.2x speed
+    LEASH: Too far from spawn → return, regen 10% HP/sec, clear target
+    DEAD: Drop loot, XP, gold → queue_free after 2s
+
+8.3 Behaviour Tree System (custom, godot/scripts/ai/behaviour_tree/)
+─────────────────────────────────────────────────────────────────────
+  Files: behaviour_tree.gd, bt_node.gd, bt_selector.gd, bt_sequence.gd,
+         bt_condition.gd, bt_action.gd, bt_decorator.gd
+
+  BT Conditions (evaluated in enemy_base.gd):
+    _bt_is_dead()          - Check if dead
+    _bt_should_leash()     - Too far from spawn
+    _bt_should_retreat()   - HP below threshold
+    _bt_can_attack()       - Target in attack range + attack off cooldown
+    _bt_has_target()       - Valid target exists
+    _bt_can_charge()       - SubType is CHARGER, has charge attack, in range
+    _bt_target_too_close() - Target within min_range (for ranged)
+    _bt_can_ranged_attack()- Has ranged attack, target in range
+    _bt_needs_reposition() - Needs to find better position
+    _bt_can_cast_spell()   - Is CASTER, has spell, target in range
+    _bt_can_buff_allies()  - Has buff ability, allies nearby
+    _bt_can_heal_allies()  - Has heal ability, allies below HP threshold
+    _bt_can_summon()       - Has summon ability, below max summons
+
+  BT Actions (executed in enemy_base.gd):
+    _bt_action_leash()         → Nav to spawn, regen 10% HP/sec
+    _bt_action_retreat()       → Move away from target at 1.2x speed
+    _bt_action_attack()        → Execute melee attack pattern
+    _bt_action_chase()         → Nav to target at full speed
+    _bt_action_patrol()        → Wander randomly near spawn
+    _bt_action_charge()        → Rush at 2.5x speed toward target
+    _bt_action_heavy_attack()  → 1.5x damage, longer windup
+    _bt_action_swarm_chase()   → Boids-based movement (separation+cohesion)
+    _bt_action_ranged_retreat()→ Move away while facing target
+    _bt_action_sniper_attack() → Long range, high damage attack
+    _bt_action_reposition()    → Find position with LOS (8-dir check)
+    _bt_action_ranged_chase()  → Maintain desired_distance, strafe
+    _bt_action_cast_spell()    → Cast spell attack pattern
+    _bt_action_blink_away()    → Teleport 80-120px away (with wall check)
+    _bt_action_buff_allies()   → Apply buff to nearby allies
+    _bt_action_heal_allies()   → Heal lowest-HP ally
+    _bt_action_summon()        → Spawn minion (max 6 summons)
+
+8.4 Detection System (godot/scripts/ai/detection_system.gd)
+────────────────────────────────────────────────────────────
+  Detection States: UNAWARE → SUSPICIOUS → ALERT → CHASING → LEASH
+  
+  Line-of-Sight: Raycast check every 0.25 seconds
+  
+  Threat Table:
+    - Damage-based: +damage_dealt to threat
+    - Proximity bonus: +(1/distance * 10)
+    - Taunt: +1000 instant threat
+    - Target = highest threat
+    
+  Aggro Memory: 10 seconds
+    - Without LOS: faster decay
+    - Full decay → return to UNAWARE
+
+  Leash Behavior:
+    - Triggered when distance to spawn > leash_range
+    - Returns to spawn position
+    - Clears all threat
+    - Regenerates HP en route
+
+8.5 Attack Manager (godot/scripts/ai/attack_manager.gd)
+────────────────────────────────────────────────────────
+  Attack Selection:
+    - Priority-based with 30% random variation
+    - Respects cooldowns, range requirements, min_range
+    - Checks if target is in range for selected attack
+
+  Attack Execution by Type:
+    MELEE: Activate hitbox with damage * multiplier
+    PROJECTILE: Spawn Projectile scene with configured stats
+    AOE: Area damage at target position
+    CHARGE: Tween-based rapid movement toward target
+    HEAL: Restore % of target max HP
+    BUFF: Apply StatusEffect to self/allies
+    SUMMON: Spawn enemy scene (max 6 summons)
+
+  Telegraph Integration:
+    If attack has telegraph_time > 0:
+      → Create Telegraph at target area
+      → Wait telegraph_time
+      → Execute attack
+
+  MAX_SUMMONS = 6
+
+8.6 Attack Pattern (Resource)
+─────────────────────────────
+  Core Properties:
+    damage_multiplier, damage_type, cooldown, telegraph_time,
+    cast_time, attack_range, min_range
+
+  Area Types: NONE, CIRCLE, CONE, LINE, RECT
+
+  Factory Presets:
+    create_melee_basic()     → 1.0x, 35 range, 2s CD
+    create_heavy_strike()    → 2.0x, 40 range, 5s CD, +STUN
+    create_charge_attack()   → 1.5x, 150 range, 8s CD, +knockback
+    create_bite()            → 1.2x, 30 range, 3s CD, +POISON_DOT
+    create_arrow_shot()      → 1.0x, 200 range, 3s CD
+    create_poison_spit()     → 0.8x, 180 range, 6s CD, AoE+POISON_DOT
+    create_sniper_shot()     → 2.0x, 300 range, 8s CD, 1.5s telegraph
+    create_web_shot()        → 0.3x, 150 range, 10s CD, +ROOT
+    create_fireball()        → 1.5x, 200 range, 5s CD, ARCANE, AoE 40px
+    create_frost_nova()      → 0.8x, 0 range (self), 12s CD, FROST, +SLOW
+    create_curse()           → 0x, 180 range, 15s CD, SHADOW, -25% DMG debuff
+    create_summon_minion()   → 0x, 200 range, 20s CD
+    create_heal_beam()       → 0x, 150 range, 12s CD, heals 15% maxHP
+    create_buff_allies()     → 0x, 120 range, 20s CD, +25% DMG to allies
+
+8.7 Pack AI (godot/scripts/ai/pack_ai.gd)
+──────────────────────────────────────────
+  Pack Roles:
+    LEADER:  Highest-HP member, directs pack behavior
+    FLANKER: Melee subtype, attempts to get behind player
+    SUPPORT: Ranged/caster subtype, maintains distance
+    SWARM:   Swarmer subtype, uses boids movement
+
+  Leader Death Behavior:
+    40% chance: Pack FLEES (3 second scatter)
+    60% chance: Pack ENRAGES (+25% damage for 10 seconds)
+
+  Boids Swarm Movement:
+    Separation: Repulsion if distance < 24px
+    Cohesion: Attraction if distance < 96px
+    Alignment: Match velocity of nearby pack members
+
+8.8 Biome-Specific AI Scripts
+─────────────────────────────
+  godot/scripts/ai/specific/:
+    meadow_ai.gd      - Basic melee/ranged patterns
+    forest_ai.gd      - Poison, web, ambush behaviors
+    spider_ai.gd      - Web traps, wall climbing, egg sacs
+    mountain_ai.gd    - Charge attacks, rockfall
+    frozen_ai.gd      - Frost nova, blizzard patterns
+    swamp_ai.gd       - Poison aura, root, disease
+    skeleton_ai.gd    - Necromancer summons, bone attacks
+    undead_ai.gd      - Lifesteal, death explosion
+    plague_ai.gd      - Disease spread, corpse explosion
+    elemental_ai.gd   - Element switching, multi-damage-type
+    ashlands_ai.gd    - Fire trail, meteor call
+
+8.9 Enemy Combat Rewards
+─────────────────────────
+  Normal Enemy:
+    XP: base_xp * level_scaling
+    Loot chance: 30%
+    Gold: gold_range (from EnemyData)
+
+  Elite Enemy:
+    XP: base_xp * 3.0
+    Loot chance: 80%
+    Gold: gold_range * 2.0
+
+  Multiplayer XP:
+    Split evenly among nearby players
+
+
+================================================================================
+9. ELITE AFFIX SYSTEM (godot/scripts/ai/elite_affix_system.gd)
+================================================================================
+
+  10 Possible Affixes (randomly assigned to elite enemies):
+
+  ┌─────────────┬────────────────────────────────────────────────────────────┐
+  │ Affix       │ Effect                                                     │
+  ├─────────────┼────────────────────────────────────────────────────────────┤
+  │ SHIELDED    │ 50% HP absorb shield, regenerates every 15s               │
+  │ VAMPIRIC    │ 20% lifesteal on all attacks                              │
+  │ THORNS      │ 15% damage reflected to attacker                          │
+  │ ENRAGED     │ Every 20s: 5s of 1.5x damage + 1.3x speed               │
+  │ SUMMONER    │ Every 12s: spawn 2 minions (max 4 alive)                  │
+  │ TELEPORTER  │ Every 8s: blink 128px toward target                       │
+  │ EXPLOSIVE   │ On death: 64px radius explosion, 50% maxHP damage         │
+  │ FROZEN      │ 80px aura: 30% slow to all players                        │
+  │ POISONOUS   │ Leaves poison trail, DoT on contact                       │
+  │ BERSERKER   │ Below 30% HP: permanent 2x damage + 1.5x speed           │
+  └─────────────┴────────────────────────────────────────────────────────────┘
+
+  Elite enemies can have 1-3 affixes depending on difficulty/nightmare tier.
+
+
+================================================================================
+10. BOSS COMBAT SYSTEM (godot/scripts/bosses/)
+================================================================================
+
+10.1 Architecture
+─────────────────
+  boss_base.gd (CharacterBody2D, 760 lines)
+    → boss_data.gd (Resource: stats, phases, loot)
+    → boss_phase.gd (Resource: abilities, thresholds, modifiers)
+    → boss_ability.gd (Resource: damage, telegraph, effects)
+
+  All child nodes created programmatically:
+    - Sprite2D, CollisionShape2D
+    - DetectionArea (320px radius)
+    - HurtboxComponent, HitboxComponent
+    - NavigationAgent2D
+    - StatusEffectManager
+    - BossHealthBar (UI element)
+
+10.2 Boss State Machine
+───────────────────────
+  BossState: IDLE → TELEGRAPH → CASTING → MOVING → TRANSITIONING → ENRAGED → DEAD
+
+  Flow:
+    IDLE → Select ability (cooldown + priority) →
+    TELEGRAPH (visual warning, telegraph_time seconds) →
+    CASTING (execute ability, cast_time seconds) →
+    IDLE (loop)
+
+  Phase Transition:
+    When HP crosses phase threshold (e.g., 75%, 50%, 25%):
+    → TRANSITIONING state
+    → Invulnerable during transition_duration
+    → Apply new phase stat_modifiers
+    → Unlock new abilities
+    → Visual/audio transition effects
+
+10.3 Boss Data (boss_data.gd)
+─────────────────────────────
+  boss_name, boss_id, tier (1-4)
+  base_hp, armor, damage, speed, attack_speed
+  enrage_time (seconds until enrage)
+  phases: Array[BossPhase]
+  loot_table: Dictionary
+
+10.4 Boss Phase (boss_phase.gd)
+───────────────────────────────
+  hp_threshold: float (0.0 - 1.0, e.g., 0.5 = at 50% HP)
+  abilities: Array[BossAbility]
+  stat_modifiers:
+    damage_mult: float (e.g., 1.5 for +50%)
+    speed_mult: float
+    armor_change: float
+    attack_speed_mult: float
+  aura_damage: float (passive damage per tick)
+  aura_range: float
+  transition_duration: float
+  invulnerable_during_transition: bool
+
+10.5 Boss Ability (boss_ability.gd)
+───────────────────────────────────
+  AreaType: NONE, CIRCLE, CONE, LINE, RECT
+  damage, cooldown, range, telegraph_time
+  status_effect: { type, duration, value }
+  projectile config: speed, count, spread_angle, tracking
+  summon_data: { enemy_id, count, spawn_pattern }
+  phase_only: int (-1 = all phases, or specific phase#)
+  callback_name: String (for custom GDScript logic)
+
+10.6 Threat System
+──────────────────
+  - Same as enemy threat table
+  - Tank threat_multiplier: 1.3x base
+  - Taunt skill: +1000 instant threat
+  - Boss targets highest-threat player
+  - Proximity bonus: 1/distance * 10
+  - Aggro memory: 10s, decays faster without LOS
+
+10.7 Enrage Mechanic
+─────────────────────
+  Enrage Timer (from boss_data):
+    Tier 1: ~3-5 min
+    Tier 2: ~5-7 min
+    Tier 3: 5 min
+    Tier 4: 8 min
+
+  Enrage Effect:
+    +100% damage
+    +50% attack speed
+    Continuous increasing damage
+    DPS check mechanic
+
+10.8 Boss Roster (6 Implemented + 7 Missing)
+─────────────────────────────────────────────
+
+  IMPLEMENTED (6/13):
+  ┌───────────────────┬──────┬─────────┬──────────┬───────┬────────┐
+  │ Boss              │ Tier │ Level   │ HP       │ DMG   │ Phases │
+  ├───────────────────┼──────┼─────────┼──────────┼───────┼────────┤
+  │ Plague Rat King   │ T1   │ 10-14   │ 3,000    │ 25-35 │ 2      │
+  │ Cursed Treant     │ T1   │ 12-14   │ 4,000    │ 30-40 │ 2      │
+  │ Shadow Stalker    │ T1   │ 28-32   │ 12,000   │ 80-110│ 3      │
+  │ Spider Matriarch  │ T2   │ 16-20   │ 10,000   │ 45-60 │ 3      │
+  │ Frozen Sentinel   │ T2   │ 22-26   │ 18,000   │ 65-90 │ 3      │
+  │ Necromancer King  │ T2   │ 40-44   │ 45,000   │140-190│ 4      │
+  └───────────────────┴──────┴─────────┴──────────┴───────┴────────┘
+
+  MISSING / TO IMPLEMENT (7/13):
+  ┌───────────────────┬──────┬─────────┬──────────┬───────┬────────┐
+  │ Boss              │ Tier │ Level   │ HP       │ DMG   │ Phases │
+  ├───────────────────┼──────┼─────────┼──────────┼───────┼────────┤
+  │ Ash Warden        │ T1   │ 5-8     │ 1,500    │ 12-18 │ 2      │
+  │ Swamp Hydra       │ T1   │ 26-30   │ 15,000   │ 70-95 │ 3      │
+  │ Volcanic Overlord │ T2   │ 34-38   │ 35,000   │120-160│ 4      │
+  │ Void Weaver       │ T3   │ 48-50   │ 150,000  │200-280│ 5      │
+  │ Ancient Dragon    │ T3   │ 45-48   │ 120,000  │180-250│ 4      │
+  │ Riftlord          │ T3   │ 50      │ 100,000  │170-230│ 3      │
+  │ The Ashen God     │ T4   │ 50+     │ 500,000  │300-400│ 6      │
+  │ The Void Emperor  │ T4   │ 50+NM5  │ 800,000  │400-550│ 8      │
+  └───────────────────┴──────┴─────────┴──────────┴───────┴────────┘
+
+  Tier 3 = World Boss (4-player recommended, open world)
+  Tier 4 = Raid Boss (4-player mandatory, weekly lockout)
+
+10.9 Boss Specific Scripts (godot/scripts/bosses/)
+───────────────────────────────────────────────────
+  boss_base.gd, boss_data.gd, boss_phase.gd, boss_ability.gd
+  + boss_arena.gd, boss_healthbar.gd, boss_loot_table.gd,
+    boss_music_manager.gd, boss_spawn_manager.gd, boss_telegraph.gd
+  + specific/ folder (individual boss implementations)
+
+
+================================================================================
+11. COMBAT EVENT BUS SIGNALS (godot/scripts/core/event_bus.gd)
+================================================================================
+
+  Combat Signals:
+    damage_dealt(source, target, amount: float, damage_type: DamageType)
+    entity_killed(killer, victim)
+    status_effect_applied(target, effect_type: EffectType, duration: float)
+    status_effect_removed(target, effect_type: EffectType)
+    critical_hit(source, target, amount: float)
+
+  Skill Signals:
+    skill_used(player, skill_id: String)
+    skill_cooldown_started(skill_id: String, duration: float)
+    skill_cooldown_finished(skill_id: String)
+    skill_tree_opened()
+    skill_tree_closed()
+    skill_point_allocated(skill_id: String, new_rank: int)
+
+  Player Combat Signals:
+    player_spawned(player)
+    player_died(player)
+    player_leveled_up(player, new_level: int)
+    player_skill_unlocked(player, skill_id: String)
+    player_class_selected(player_class: PlayerClass)
+    player_stats_changed(player)
+
+  Boss Signals:
+    boss_fight_started(boss_id: String)
+    boss_phase_changed(boss_id: String, phase: int)
+    boss_defeated(boss_id: String)
+    boss_enraged(boss_id: String)
+
+  Loot Signals:
+    item_dropped(item_data, position: Vector2)
+    item_picked_up(item_instance)
+    loot_rolled(player, items: Array)
+    item_equipped(player, item_data, slot: EquipSlot)
+
+  Dungeon Boss Signal:
+    dungeon_boss_room_reached(room_index: int)
+
+  Endgame Signals:
+    nightmare_tier_changed(new_tier: int)
+    paragon_level_gained(new_paragon_level: int)
+
+
+================================================================================
+12. COMBAT SCENE STRUCTURE
+================================================================================
+
+12.1 Player Scenes (godot/scenes/player/)
+──────────────────────────────────────────
+  player.tscn            → Main player scene
+  player_camera.tscn     → Camera2D (Stardew Valley-style)
+  player_hud.tscn        → HP/Mana bars, skill slots, minimap
+
+12.2 Enemy Scenes (godot/scenes/enemies/)
+──────────────────────────────────────────
+  enemy_base.tscn        → Base enemy (most nodes generated in code)
+  enemy_melee.tscn       → Melee variant
+  enemy_ranged.tscn      → Ranged variant
+  enemy_caster.tscn      → Caster variant
+  enemy_elite.tscn       → Elite variant (with affixes)
+
+12.3 Boss Scenes (godot/scenes/bosses/)
+───────────────────────────────────────
+  boss_base.tscn         → Base boss scene
+
+12.4 Effect Scenes (godot/scenes/effects/)
+──────────────────────────────────────────
+  projectile.tscn        → Projectile (Area2D)
+  damage_number.tscn     → Floating damage text
+  aoe_effect.tscn        → Area-of-effect visual
+  buff_aura.tscn         → Buff aura visual
+
+12.5 Item Scenes (godot/scenes/items/)
+──────────────────────────────────────
+  (Used for dropped loot visualization)
+
+12.6 Node Hierarchy (typical Enemy)
+───────────────────────────────────
+  CharacterBody2D (enemy_base.gd)
+    ├─ Sprite2D (placeholder/generated)
+    ├─ CollisionShape2D (CircleShape2D r=8)
+    ├─ DetectionArea (Area2D, CircleShape2D r=detection_range)
+    ├─ HurtboxComponent (Area2D, CircleShape2D r=10)
+    ├─ HitboxComponent (Area2D, RectangleShape2D 16x16)
+    ├─ NavigationAgent2D
+    ├─ StatusEffectManager
+    └─ HealthBar (ProgressBar, 32x4)
+
+
+================================================================================
+13. KNOWN ISSUES, TODOs & MISSING DATA
+================================================================================
+
+13.1 CRITICAL: Missing Data Files
+──────────────────────────────────
+  Status: "Kód architektúra KÉSZ, de a tényleges adat fájlok HIÁNYOZNAK."
+  (Code architecture COMPLETE, but actual data files MISSING.)
+
+  Missing .tres Resource files:
+    □ 45 SkillData Resources (skills registered in code but no .tres files)
+    □ 100+ ItemData Resources (weapons, armor, accessories)
+    □ AffixData pool values (random affixes for magic/rare items)
+    □ 8 SetItemData definitions
+    □ 30+ Legendary item definitions with unique effects
+    □ EnemyData Resources per biome/level (stats exist in plan, not in code)
+    □ BossData Resources (boss stats in plan, not loaded)
+    □ CraftingRecipe Resources
+    □ ShopData Resources
+    □ Loot table Resources (per enemy, boss, chest type)
+    □ NPC data Resources
+
+  Only existing data files: gem JSON files in data/gems/
+
+13.2 Code-Level Issues
+──────────────────────
+  ⚠ ISSUE #1: Skill Point Inconsistency
+    - constants.gd defines SKILL_POINTS_PER_LEVEL = 1
+    - Comment says "1 skill point per level (Lv2-50 = 49 total)"
+    - player.gd implements: skill point every 2 levels (level % 2 == 0)
+    - These contradict each other
+    - Impact: 49 skill points vs 24 skill points completely changes build depth
+
+  ⚠ ISSUE #2: SkillManager._find_skill_data() is PLACEHOLDER
+    - File: godot/scripts/classes/skill_manager.gd line 248
+    - Comment: "Placeholder - a tényleges skill data betöltés a
+      ResourceLoader-en keresztül történik"
+    - Currently returns null → no skills can actually be loaded at runtime
+    - Requires: ResourceLoader integration + .tres skill files
+
+  ⚠ ISSUE #3: Placeholder Sprites
+    - File: godot/scripts/ai/enemy_base.gd line 234
+    - Uses: PlaceholderSprites.create_enemy_placeholder()
+    - All enemies currently render as programmatic placeholder rectangles
+    - Requires: actual sprite assets
+
+  ⚠ ISSUE #4: 7 Missing Bosses
+    - Only 6 of 13 planned bosses have script implementations
+    - Missing: Ash Warden, Swamp Hydra, Volcanic Overlord,
+      Void Weaver, Ancient Dragon, Riftlord, The Ashen God, The Void Emperor
+    - Scripts for specific boss AI in bosses/specific/ need verification
+
+13.3 No Runtime TODOs Found
+───────────────────────────
+  Grep search across combat/, player/, classes/, ai/, bosses/ found
+  no TODO/FIXME/HACK comments beyond the items listed above.
+
+
+================================================================================
+14. BALANCE RECOMMENDATIONS & DESIGN NOTES
+================================================================================
+
+14.1 Enemy Stat Reference Table (from plan 16)
+───────────────────────────────────────────────
+  Melee Enemy Baseline:
+  ┌───────┬─────┬──────┬──────┬───────┐
+  │ Level │ HP  │ DMG  │ DEF  │ XP    │
+  ├───────┼─────┼──────┼──────┼───────┤
+  │ 1     │ 30  │ 5    │ 2    │ 10    │
+  │ 10    │ 120 │ 22   │ 12   │ 30    │
+  │ 20    │ 350 │ 55   │ 30   │ 80    │
+  │ 30    │ 600 │ 95   │ 55   │ 150   │
+  │ 40    │ 1000│ 150  │ 85   │ 280   │
+  │ 50    │ 1500│ 210  │ 125  │ 450   │
+  └───────┴─────┴──────┴──────┴───────┘
+
+  Type Multipliers (vs Melee baseline):
+    Ranged: 0.7x HP, 1.1x DMG, 0.6x DEF
+    Caster: 0.6x HP, 1.3x DMG, 0.5x DEF
+    Elite:  3.0x HP, 1.5x DMG, 1.5x DEF, 5x XP, 3x Gold
+
+14.2 Weapon Tier Progression (10 tiers)
+────────────────────────────────────────
+  T1 (Lv 1-5):   DMG 5-8,   Speed 1.0, Crit 2%
+  T5 (Lv 21-25): DMG 35-55, Speed 1.2, Crit 6%
+  T10 (Lv 46-50):DMG 120-180,Speed 1.5, Crit 12%
+
+  Weapon Types: Swords, Daggers, Axes, Staves, Wands
+  (Each type has different speed/crit/damage ratios)
+
+14.3 Biome Level Ranges
+────────────────────────
+  1. Ashen Wastes     → Lv 1-8
+  2. Verdant Meadows  → Lv 6-14
+  3. Corrupted Forest → Lv 12-20
+  4. Crystal Caverns  → Lv 18-26
+  5. Frozen Peaks     → Lv 24-32
+  6. Shadow Marsh     → Lv 28-36
+  7. Volcanic Depths  → Lv 34-42
+  8. Void Realm       → Lv 42-50
+  (Overlapping ranges allow for level progression flexibility)
+
+14.4 Key Balance Ratios
+────────────────────────
+  - Armor effectiveness 0.5 ensures armor is meaningful but never nullifies
+  - 75% elemental resistance cap prevents full immunity
+  - TRUE_DAMAGE bypasses everything → use sparingly for mechanics
+  - CDR cap 40% prevents infinite skill spam
+  - Dodge iframes 0.3s = tight but learnable skill window
+  - Combo XP multiplier caps at 1.5x → encourages multi-kills
+  - 5% gold loss on death → mild but felt punishment
+  - Elite 3x HP/1.5x DMG → significantly harder, not impossible
+
+14.5 Multiplayer Balance Considerations
+───────────────────────────────────────
+  - Boss HP scales non-linearly (not 4x for 4 players but 3.2x)
+  - Tank threat multiplier 1.3x + Taunt 1000 threat ensures aggro control
+  - Party buffs (Battle Shout +15%, Aegis 50% DR) scale with party size value
+  - Healer/support skills (Regen Aura, Holy branch) critical for group content
+  - Weekly lockout on Tier 4 raids limits power gap
+
+
+================================================================================
+END OF COMBAT SYSTEM PLAN
+================================================================================
+Generated from Ashenfall codebase analysis
+Source files: 155+ GDScript files across 6+ directories
+Plan reference: 16_game_data_balance_plan, 03_boss_design_plan, 06_enemy_ai_plan
+================================================================================

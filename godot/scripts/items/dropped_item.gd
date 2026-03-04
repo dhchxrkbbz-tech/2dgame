@@ -158,9 +158,26 @@ func pickup_requested(player: Node) -> void:
 
 func _pickup(player: Node) -> void:
 	if gold_amount > 0:
+		# Gold közvetlen hozzáadás a CurrencyManager-hez
 		EventBus.emit_signal("gold_collected", gold_amount)
+		EventBus.show_notification.emit("+%d Gold" % gold_amount, Enums.NotificationType.LEVEL_UP)
 	elif item_instance:
-		EventBus.emit_signal("item_picked_up", item_instance)
+		# Item hozzáadás az InventoryManager-hez
+		var added := false
+		if has_node("/root/EconomyManager"):
+			var inv_mgr = get_node("/root/EconomyManager").inventory_manager
+			if inv_mgr:
+				added = inv_mgr.add_item(item_instance)
+		
+		if not added:
+			# Fallback: EventBus-on keresztül jelezzük
+			EventBus.emit_signal("item_picked_up", item_instance)
+			# Ha nincs hely, ne vegyük fel
+			if has_node("/root/EconomyManager"):
+				var inv_mgr = get_node("/root/EconomyManager").inventory_manager
+				if inv_mgr and not inv_mgr.has_free_slot():
+					EventBus.show_notification.emit("Inventory Full!", Enums.NotificationType.LEVEL_UP)
+					return
 	
 	# Pickup effect
 	var tween := create_tween()

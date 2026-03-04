@@ -958,11 +958,42 @@ func _die() -> void:
 
 
 func _drop_loot() -> void:
-	if enemy_data:
-		var gold := randi_range(enemy_data.gold_range.x, enemy_data.gold_range.y)
-		if is_elite:
-			gold *= 2
-		EventBus.item_dropped.emit({"type": "gold", "amount": gold}, global_position)
+	if not enemy_data:
+		return
+	
+	# Gold drop
+	var gold := randi_range(enemy_data.gold_range.x, enemy_data.gold_range.y)
+	if is_elite:
+		gold *= 2
+	
+	if gold > 0:
+		var gold_drop := DroppedItem.create_gold_drop(gold, global_position)
+		if get_tree().current_scene:
+			get_tree().current_scene.add_child(gold_drop)
+	
+	# Item drop: LootManager-en keresztül vagy alap generálás
+	var drop_chance := 0.3  # 30% alap drop esély
+	if is_elite:
+		drop_chance = 0.8  # 80% elite drop esély
+	
+	if randf() < drop_chance:
+		var item_data := ItemGenerator.generate_item(enemy_level, Enums.ItemType.WEAPON if randf() > 0.5 else Enums.ItemType.ARMOR, 0.0)
+		if not item_data.is_empty():
+			var item_instance := ItemInstance.new()
+			item_instance.item_level = item_data.get("item_level", enemy_level)
+			item_instance.rarity = item_data.get("rarity", Enums.Rarity.COMMON)
+			item_instance.affixes = []
+			for affix_dict in item_data.get("affixes", []):
+				var affix := AffixData.new()
+				affix.stat_type = affix_dict.get("type", "")
+				affix.affix_name = affix_dict.get("type", "").capitalize()
+				item_instance.affixes.append({"affix": affix, "value": affix_dict.get("value", 0.0)})
+			
+			var item_drop := DroppedItem.create_item_drop(item_instance, global_position)
+			if get_tree().current_scene:
+				get_tree().current_scene.add_child(item_drop)
+	
+	EventBus.item_dropped.emit({"type": "gold", "amount": gold}, global_position)
 
 
 # ============================================================

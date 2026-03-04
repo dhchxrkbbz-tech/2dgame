@@ -281,3 +281,33 @@ func clear_all() -> void:
 		if is_instance_valid(chest.get("node")):
 			chest["node"].queue_free()
 	placed_chests.clear()
+
+
+## DungeonManager által hívott: szoba loot elhelyezése
+func spawn_room_loot(room: DungeonRoom, difficulty: int, parent: Node2D) -> void:
+	dungeon_difficulty = difficulty
+	var chest_nodes := place_room_chests(room, parent)
+	
+	# Chest-ekhez loot generálás és hozzárendelés
+	for node in chest_nodes:
+		if not is_instance_valid(node):
+			continue
+		var chest_type := "common"
+		if node.name.contains("rare") or node.name.contains("Rare"):
+			chest_type = "rare"
+		elif node.name.contains("uncommon") or node.name.contains("Uncommon"):
+			chest_type = "uncommon"
+		elif node.name.contains("boss") or node.name.contains("Boss"):
+			chest_type = "boss"
+		
+		var loot := generate_chest_loot(chest_type)
+		if loot.size() > 0:
+			# Loot adat hozzárendelés a chest node-hoz
+			node.set_meta("loot_data", loot)
+			node.set_meta("chest_type", chest_type)
+			loot_dropped.emit(loot, node.global_position)
+
+
+## DungeonManager által hívott: heal fountain elhelyezése
+func spawn_heal_fountain(world_pos: Vector2, parent: Node2D) -> void:
+	_create_heal_fountain(world_pos, parent)

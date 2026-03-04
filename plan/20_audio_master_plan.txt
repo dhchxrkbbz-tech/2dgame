@@ -1,0 +1,1157 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║              ASHENFALL – 20. AUDIO ASSET MASTER PLAN                        ║
+║                                                                              ║
+║     Minden zeneszám, hangeffekt, ambient hang és audio rendszer terv        ║
+║     Az ÖSSZES korábbi terv (00–18) audio követelményeinek összesítése       ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Státusz: 0% – Jelenleg EGYETLEN audio asset sem létezik.
+  
+  Becsült asset szám: ~120-140 egyedi hang fájl
+  Formátum: .ogg (zene), .wav (SFX) → Godot import .ogg/.wav/.mp3
+  Becsült produkciós idő: 40-60 óra
+  
+  Hivatkozott plan fájlok: 00, 01, 02, 03, 04, 07, 08, 09, 12, 13,
+                           14, 15, 17, 18
+
+================================================================================
+  TARTALOMJEGYZÉK
+================================================================================
+
+  1.  Audio rendszer architektúra (Godot)
+  2.  Források és eszközök
+  3.  Zenei számok (Music Tracks)
+  4.  Combat és harci SFX
+  5.  Skill hangeffektek
+  6.  UI és menü hangeffektek
+  7.  Ambient / környezeti hangok
+  8.  NPC és dialógus hangok
+  9.  Enemy és boss hangok
+  10. Item és loot hangok
+  11. Crafting és profession hangok
+  12. Dungeon specifikus hangok
+  13. Weather és természeti hangok
+  14. Achievement és notification hangok
+  15. Tutorial hangok
+  16. Multiplayer specifikus hangok
+  17. Biome-zene mapping és crossfade rendszer
+  18. Dinamikus audio rendszer specifikáció
+  19. Audio mix és master beállítások
+  20. Produkciós ütemterv
+  21. Teljes audio asset lista összesítés
+  22. Minőségbiztosítási checklist
+
+================================================================================
+  1. AUDIO RENDSZER ARCHITEKTÚRA (GODOT)
+================================================================================
+
+  1.1 Godot Audio Bus Layout
+  ────────────────────────────
+
+    ┌──────────────────────────────────────────────────────────────────┐
+    │                        MASTER BUS                                │
+    │                                                                  │
+    │    ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
+    │    │  MUSIC   │  │   SFX    │  │ AMBIENT  │  │    UI    │      │
+    │    │  Bus     │  │   Bus    │  │  Bus     │  │   Bus    │      │
+    │    │          │  │          │  │          │  │          │      │
+    │    │ Vol: 80% │  │ Vol:100% │  │ Vol: 60% │  │ Vol: 70% │      │
+    │    └──────────┘  └──────────┘  └──────────┘  └──────────┘      │
+    │                                                                  │
+    │    ┌──────────┐  ┌──────────┐                                   │
+    │    │  VOICE   │  │  DIALOG  │                                   │
+    │    │  Bus     │  │   Bus    │                                   │
+    │    │ Vol: 90% │  │ Vol:100% │                                   │
+    │    └──────────┘  └──────────┘                                   │
+    └──────────────────────────────────────────────────────────────────┘
+
+  1.2 Godot Node-ok
+  ──────────────────
+    AudioStreamPlayer  → Zene (non-positional, global)
+    AudioStreamPlayer2D → SFX, enemy hangok (positional, distance falloff)
+    AudioStreamPlayer  → UI hangok (non-positional)
+
+  1.3 Script architektúra (meglévő)
+  ──────────────────────────────────
+    AudioManager (autoload):
+      - background_music_player: AudioStreamPlayer (Music bus)
+      - sfx_pool: 16× AudioStreamPlayer2D (SFX bus)
+      - ambient_player: AudioStreamPlayer (Ambient bus)
+      - ui_player: AudioStreamPlayer (UI bus)
+      
+    Funkciók:
+      play_music(track_name, crossfade_time)
+      play_sfx(sfx_name, position, volume_db, pitch_variation)
+      play_ambient(ambient_name, fade_time)
+      play_ui_sound(sound_name)
+      set_bus_volume(bus_name, volume_linear)
+
+================================================================================
+  2. FORRÁSOK ÉS ESZKÖZÖK
+================================================================================
+
+  2.1 Zene generálás / beszerzés
+  ────────────────────────────────
+
+    ┌──────────────────────┬─────────────────────────────────────────────┐
+    │ Opció                │ Részletek                                   │
+    ├──────────────────────┼─────────────────────────────────────────────┤
+    │ AI generálás         │ Suno AI, Udio, AIVA – dark fantasy stílus │
+    │                      │ Prompt-alapú generálás, ~2-5 perc/track   │
+    │                      │ Pro: gyors, olcsó. Con: licenc kérdéses    │
+    ├──────────────────────┼─────────────────────────────────────────────┤
+    │ Royalty-free library │ OpenGameArt.org, Freesound.org             │
+    │                      │ Incompetech (Kevin MacLeod)                │
+    │                      │ Pro: ingyenes, CC licenc. Con: nem egyedi  │
+    ├──────────────────────┼─────────────────────────────────────────────┤
+    │ Composer megbízás    │ Fiverr, egyéni megállapodás                │
+    │                      │ ~50-200 USD / track                        │
+    │                      │ Pro: egyedi, minőségi. Con: drága          │
+    ├──────────────────────┼─────────────────────────────────────────────┤
+    │ Saját készítés       │ FL Studio, Ableton, LMMS (ingyenes)       │
+    │                      │ Orchestral VST-k: BBC Symphony Discover   │
+    │                      │ Pro: teljes kontroll. Con: időigényes      │
+    └──────────────────────┴─────────────────────────────────────────────┘
+
+    AJÁNLOTT STRATÉGIA:
+      1. Zene: AI generálás (Suno/Udio) + kézi szerkesztés/loop point
+      2. SFX: Royalty-free (Freesound) + szerkesztés Audacity-ben
+      3. Ambient: Royalty-free mix + AI generált háttérzaj
+
+  2.2 SFX eszközök
+  ──────────────────
+    - Audacity (ingyenes): vágás, effektek, format konverzió
+    - sfxr / jsfxr: retro SFX generátor (kiváló pixel art játékokhoz!)
+    - Freesound.org: ingyenes SFX adatbázis (CC0/CC-BY)
+    - Bfxr: kibővített sfxr, több kontroll
+    - LMMS: ingyenes DAW, SFX szerkesztés
+
+  2.3 Technikai specifikációk
+  ────────────────────────────
+    Zene formátum:    .ogg (Vorbis), 44.1kHz, stereo, 128-192kbps
+    SFX formátum:     .wav (PCM), 44.1kHz, mono, 16-bit
+    Ambient formátum: .ogg, 44.1kHz, stereo, 96-128kbps
+    
+    Godot import beállítások:
+      Music:   loop = true, loop_offset beállítva (loop pont)
+      SFX:     loop = false
+      Ambient: loop = true
+
+================================================================================
+  3. ZENEI SZÁMOK (MUSIC TRACKS)
+================================================================================
+
+  3.1 Kötelező zenei számok (8 alap)
+  ───────────────────────────────────
+
+  ┌────┬─────────────────────┬──────────┬────────┬──────────────────────────┐
+  │ #  │ Track neve          │ Hossz    │ Tempo  │ Leírás / hangulat        │
+  ├────┼─────────────────────┼──────────┼────────┼──────────────────────────┤
+  │  1 │ Main Menu Theme     │ 2:00-3:00│ 70 BPM │ Sötét, epikus, vonósok  │
+  │    │                     │          │        │ Piano + kórus, lassú     │
+  │    │                     │          │        │ build, Ashenfall intro    │
+  │    │                     │          │        │ hangulat                  │
+  ├────┼─────────────────────┼──────────┼────────┼──────────────────────────┤
+  │  2 │ Exploration –       │ 3:00-4:00│ 90 BPM │ Nyugodt, melankolikus   │
+  │    │ Peaceful            │          │        │ Csendes gitár/lantos     │
+  │    │                     │          │        │ Ashen Wastes, Crystal    │
+  │    │                     │          │        │ Caverns, Frozen Peaks    │
+  ├────┼─────────────────────┼──────────┼────────┼──────────────────────────┤
+  │  3 │ Exploration –       │ 3:00-4:00│100 BPM │ Feszült, misztikus      │
+  │    │ Dark                │          │        │ Corrupted Forest,        │
+  │    │                     │          │        │ Shadow Marsh, Necrotic   │
+  │    │                     │          │        │ vonósok + fúvós sötét    │
+  ├────┼─────────────────────┼──────────┼────────┼──────────────────────────┤
+  │  4 │ Exploration –       │ 3:00-4:00│110 BPM │ Agresszív, veszélyes    │
+  │    │ Hostile             │          │        │ Volcanic Depths,         │
+  │    │                     │          │        │ Void Realm – nehéz dob   │
+  │    │                     │          │        │ + mély vonósok           │
+  ├────┼─────────────────────┼──────────┼────────┼──────────────────────────┤
+  │  5 │ Combat Theme        │ 2:00-3:00│130 BPM │ Intenzív, gyors,        │
+  │    │                     │          │        │ ütemes dobok, vonósok,   │
+  │    │                     │          │        │ feszültség, adrenalin    │
+  │    │                     │          │        │ Loop pont: 0:08-tól      │
+  ├────┼─────────────────────┼──────────┼────────┼──────────────────────────┤
+  │  6 │ Dungeon Theme       │ 3:00-4:00│ 80 BPM │ Nyomasztó, klausztro-   │
+  │    │                     │          │        │ fóbikus, reverb-heavy    │
+  │    │                     │          │        │ Sötét ambient + ritmikus │
+  │    │                     │          │        │ feszültség               │
+  ├────┼─────────────────────┼──────────┼────────┼──────────────────────────┤
+  │  7 │ Boss Battle Theme   │ 2:30-3:30│140 BPM │ Epikus, drámai, teljes  │
+  │    │                     │          │        │ zenekar, kórus, intenzív │
+  │    │                     │          │        │ dobok, brass fanfár      │
+  │    │                     │          │        │ → Phase 2-re crescendo   │
+  ├────┼─────────────────────┼──────────┼────────┼──────────────────────────┤
+  │  8 │ Victory Fanfare     │ 0:15-0:30│120 BPM │ Rövid, diadalmas        │
+  │    │                     │          │        │ Fanfár + hárfa           │
+  │    │                     │          │        │ Boss kill / quest komplt │
+  └────┴─────────────────────┴──────────┴────────┴──────────────────────────┘
+
+  3.2 Opcionális/bővített zenei számok (post-launch)
+  ───────────────────────────────────────────────────
+
+  ┌────┬─────────────────────┬──────────┬──────────────────────────────────┐
+  │ #  │ Track neve          │ Hossz    │ Leírás                           │
+  ├────┼─────────────────────┼──────────┼──────────────────────────────────┤
+  │  9 │ Town/Safe Zone      │ 2:00-3:00│ Biztonságos NPC terület,        │
+  │    │                     │          │ lantos/gitár, meleg hangulat     │
+  ├────┼─────────────────────┼──────────┼──────────────────────────────────┤
+  │ 10 │ Raid Boss Theme     │ 3:00-4:00│ Még intenzívebb boss zene,      │
+  │    │                     │          │ kórus + teljes epic orchestra    │
+  ├────┼─────────────────────┼──────────┼──────────────────────────────────┤
+  │ 11 │ Void Realm Special  │ 3:00-4:00│ Egyedi alien/horror hangulat,   │
+  │    │                     │          │ szintetizátor + reverb          │
+  ├────┼─────────────────────┼──────────┼──────────────────────────────────┤
+  │ 12 │ Death/Game Over     │ 0:15-0:30│ Rövid, szomorú, mély vonósok   │
+  ├────┼─────────────────────┼──────────┼──────────────────────────────────┤
+  │ 13 │ Character Select    │ 1:30-2:00│ Csendes, misztikus, várakozó   │
+  ├────┼─────────────────────┼──────────┼──────────────────────────────────┤
+  │ 14 │ Credits Theme       │ 2:00-3:00│ Melankolikus összefoglaló,      │
+  │    │                     │          │ piano + vonósok                  │
+  └────┴─────────────────────┴──────────┴──────────────────────────────────┘
+
+  3.3 Loop pont specifikáció
+  ──────────────────────────
+    Minden track-nek meg kell határozni a loop pontot:
+    
+    loop_begin: A zene elejéről az intrót átugorva (csak első lejátszásnál)
+    loop_end:   A zene végén (általában = track hossz)
+    
+    Godot .ogg import-ban:
+      AudioStreamOggVorbis → loop = true, loop_offset = [loop_begin_sec]
+    
+    Példa: Boss Battle Theme
+      loop_begin = 4.0 sec (az első 4 sec intro, nem ismétlődik)
+      loop_end = track vége
+
+  3.4 AI prompt-ok zenéhez (Suno/Udio)
+  ──────────────────────────────────────
+    Main Menu:
+      "Dark fantasy orchestral theme, haunting piano, string section,
+       choir, slow tempo 70bpm, melancholic, epic, medieval dark,
+       game menu music, loop-ready, 2:30"
+
+    Combat:
+      "Intense dark fantasy battle music, fast 130bpm, driving drums,
+       aggressive strings, brass sections, action RPG combat,
+       adrenaline-pumping, loop point at 8 seconds, 2:30"
+
+    Boss Battle:
+      "Epic boss battle orchestral music, 140bpm, full orchestra,
+       dramatic choir, heavy percussion, crescendo, dark fantasy,
+       final confrontation, heroic brass, 3:00"
+
+    Dungeon:
+      "Dark dungeon ambient music, 80bpm, claustrophobic,
+       reverberant, low strings, eerie atmosphere, dripping sounds,
+       tension building, exploration horror, 3:30"
+
+    Exploration Peaceful:
+      "Peaceful dark fantasy exploration music, 90bpm,
+       melancholic lute/guitar, gentle strings, open world,
+       walking through ruins, nostalgic, loop-ready, 3:30"
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN ZENE: 8 kötelező + 6 opcionális = max 14 track
+  Teljes hossz: ~35-50 perc zenei anyag
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  4. COMBAT ÉS HARCI SFX
+================================================================================
+
+  4.1 Melee combat SFX
+  ─────────────────────
+
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ #  │ SFX                      │ Hossz    │ Leírás                       │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │  1 │ sword_swing_1            │ 0.3s     │ Kard suhintás, gyors        │
+  │  2 │ sword_swing_2            │ 0.3s     │ Kard suhintás variáns       │
+  │  3 │ sword_hit_flesh          │ 0.2s     │ Kard becsapódás húsba       │
+  │  4 │ sword_hit_armor          │ 0.2s     │ Kard becsapódás páncélba    │
+  │  5 │ dagger_stab              │ 0.2s     │ Tőr szúrás                  │
+  │  6 │ dagger_slash             │ 0.2s     │ Tőr vágás                   │
+  │  7 │ axe_swing                │ 0.4s     │ Balta suhintás (nehezebb)   │
+  │  8 │ axe_hit                  │ 0.3s     │ Balta becsapódás            │
+  │  9 │ shield_block             │ 0.3s     │ Pajzs blokkol fém csattanás │
+  │ 10 │ shield_break             │ 0.4s     │ Pajzs összetörik            │
+  │ 11 │ critical_hit             │ 0.3s     │ Kritikus találat, húzós     │
+  │ 12 │ miss_whoosh              │ 0.2s     │ Mellé ütés szél hang        │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  4.2 Ranged combat SFX
+  ──────────────────────
+
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ #  │ SFX                      │ Hossz    │ Leírás                       │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │ 13 │ arrow_shoot              │ 0.3s     │ Nyíl kilövés                 │
+  │ 14 │ arrow_hit                │ 0.2s     │ Nyíl becsapódás             │
+  │ 15 │ arrow_fly                │ 0.5s     │ Nyíl szél hang (repülés)    │
+  │ 16 │ throwing_dagger          │ 0.2s     │ Dobott tőr sziszegés        │
+  │ 17 │ projectile_impact        │ 0.2s     │ Általános lövedék impact    │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  4.3 Általános combat SFX
+  ──────────────────────────
+
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ #  │ SFX                      │ Hossz    │ Leírás                       │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │ 18 │ player_hurt_1            │ 0.3s     │ Player sérülés hang 1       │
+  │ 19 │ player_hurt_2            │ 0.3s     │ Player sérülés variáns      │
+  │ 20 │ player_death             │ 0.5s     │ Player halála               │
+  │ 21 │ dodge_roll               │ 0.3s     │ Kitérés/gördülés            │
+  │ 22 │ enemy_hit_generic        │ 0.2s     │ Enemy sérülés általános     │
+  │ 23 │ enemy_death_generic      │ 0.4s     │ Enemy halál általános       │
+  │ 24 │ combat_start_sting       │ 0.5s     │ Harc kezdete rövid zenei    │
+  │ 25 │ combat_end_sting         │ 0.3s     │ Harc vége rövid hang        │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN COMBAT SFX: 25 hang fájl
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  5. SKILL HANGEFFEKTEK
+================================================================================
+
+  5.1 Minden 45 skill-nek saját hang
+  ───────────────────────────────────
+  Hossz: 0.2-1.0s per hang
+  Pitch variation: ±5-10% random (természetesebb)
+
+  ═══ ASSASSIN SHADOW (5 SFX) ═══
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │  1 │ shadow_step              │ 0.3s     │ Árnyék teleport "whoosh"    │
+  │  2 │ smoke_bomb               │ 0.5s     │ Gázos puffanás + sziszegés  │
+  │  3 │ backstab                 │ 0.3s     │ Éles szúrás + szelet hang   │
+  │  4 │ shadow_clone             │ 0.4s     │ Sötét energia summoning     │
+  │  5 │ nightfall                │ 1.0s     │ Mély reverb sötétedés hang  │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ═══ ASSASSIN POISON (5 SFX) ═══
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │  6 │ poison_daggers           │ 0.3s     │ Méreg sziszegés + fém       │
+  │  7 │ venom_cloud              │ 0.5s     │ Gáz felhő terjedés         │
+  │  8 │ toxic_strike             │ 0.3s     │ Mérgezett ütés sziszegés    │
+  │  9 │ infection_spread         │ 0.6s     │ Mélybúgó fertőzés terjedés │
+  │ 10 │ plague_storm             │ 1.0s     │ Méregvihar szél + bugyogás  │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ═══ ASSASSIN BLOOD (5 SFX) ═══
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ 11 │ blood_slash              │ 0.3s     │ Véres vágás + fröcskölés   │
+  │ 12 │ lifesteal_aura           │ 0.4s     │ Beszívó hang, piros reverb │
+  │ 13 │ frenzy                   │ 0.5s     │ Dühöngés ordítás, gyorsulás│
+  │ 14 │ blood_pact               │ 0.6s     │ Rituális hang, mély reverb │
+  │ 15 │ crimson_rage             │ 0.8s     │ Erős dühkitörés, robbanás  │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ═══ TANK GUARDIAN (5 SFX) ═══
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ 16 │ shield_block_skill       │ 0.3s     │ Erős fém csattanás         │
+  │ 17 │ taunt                    │ 0.4s     │ Mély ordítás + echo        │
+  │ 18 │ shield_slam              │ 0.4s     │ Nehéz földbecsapódás       │
+  │ 19 │ fortify                  │ 0.5s     │ Kő/föld hangok, megerősödés│
+  │ 20 │ bulwark                  │ 0.6s     │ Energia dóm felhúzás       │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ═══ TANK WARBRINGER (5 SFX) ═══
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ 21 │ war_cry                  │ 0.5s     │ Harci kiáltás, bátorító    │
+  │ 22 │ ground_slam              │ 0.5s     │ Földrengés, repedés        │
+  │ 23 │ chain_pull               │ 0.4s     │ Lánc csörgés + rángatás    │
+  │ 24 │ rage_burst               │ 0.5s     │ Vörös energia robbanás     │
+  │ 25 │ battlefield_control      │ 0.8s     │ Masszív földrengés, stun   │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ═══ TANK PALADIN (5 SFX) ═══
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ 26 │ holy_shield              │ 0.4s     │ Éteri fény burok hang      │
+  │ 27 │ light_heal               │ 0.5s     │ Meleg fénysugár, hárfa-szerű│
+  │ 28 │ blessing_aura            │ 0.5s     │ Angyal-kórus rövid         │
+  │ 29 │ radiant_strike           │ 0.4s     │ Fénylő ütés, magas tónus  │
+  │ 30 │ divine_protection        │ 0.6s     │ Teljes fény-dóm, kórus     │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ═══ MAGE ARCANE (5 SFX) ═══
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ 31 │ arcane_bolt              │ 0.3s     │ Energia lövedék kilövés    │
+  │ 32 │ arcane_orb               │ 0.4s     │ Lila gömb forgás + lövedék │
+  │ 33 │ mana_burst               │ 0.5s     │ Mana robbanás, magas tónus │
+  │ 34 │ teleport                 │ 0.3s     │ Lila portál zaj + whoosh   │
+  │ 35 │ arcane_collapse          │ 0.8s     │ Masszív vortex + robbanás  │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ═══ MAGE FROST (5 SFX) ═══
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ 36 │ ice_lance                │ 0.3s     │ Jég kristály lövedék       │
+  │ 37 │ blizzard                 │ 1.0s     │ Szélvihar + jég csattogás  │
+  │ 38 │ frost_nova               │ 0.4s     │ Jégrobbanes, kristály törés│
+  │ 39 │ ice_barrier              │ 0.4s     │ Jég burok felhúzás         │
+  │ 40 │ frozen_realm             │ 1.0s     │ Masszív jégterjedés, mély  │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ═══ MAGE HOLY (5 SFX) ═══
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ 41 │ heal                     │ 0.4s     │ Fényes heal, hárfa          │
+  │ 42 │ chain_heal               │ 0.5s     │ Ugráló fénygömb hangok     │
+  │ 43 │ protective_shield        │ 0.4s     │ Burok felhúzás, fém tónus  │
+  │ 44 │ purify                   │ 0.4s     │ Tisztulás, magas fénycsengés│
+  │ 45 │ sanctuary                │ 0.8s     │ Kórus + fényoszlop, epikus │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  5.2 Skill hang kategóriák összefoglaló
+  ───────────────────────────────────────
+    Shadow/Stealth:  mély, sötét, whoosh, reverb
+    Poison:          sziszegő, bugyogó, savas
+    Blood:           nedves, vágás, fröcskölés
+    Guardian:        fém, kő, nehéz, grounding
+    Warbringer:      robbanás, ordítás, földrengés
+    Paladin:         éteri, kórus, fényes, meleg
+    Arcane:          energia, elektromos, lila tónus
+    Frost:           kristályos, szél, repedés, jég
+    Holy:            hárfa, kórus, fénycsengés
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN SKILL SFX: 45 hang fájl
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  6. UI ÉS MENÜ HANGEFFEKTEK
+================================================================================
+
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ #  │ SFX                      │ Hossz    │ Leírás                       │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │  1 │ button_hover             │ 0.05s    │ Finom kattintás/tick         │
+  │  2 │ button_click             │ 0.1s     │ Határozott kattintás        │
+  │  3 │ button_back              │ 0.1s     │ Visszalépés hang            │
+  │  4 │ menu_open                │ 0.2s     │ Panel megnyitás (súlyos)    │
+  │  5 │ menu_close               │ 0.2s     │ Panel bezárás              │
+  │  6 │ tab_switch               │ 0.1s     │ Tab váltás kattintás       │
+  │  7 │ inventory_open           │ 0.3s     │ Backpack/bőr hang          │
+  │  8 │ item_pickup              │ 0.2s     │ Felszedés plink             │
+  │  9 │ item_equip               │ 0.3s     │ Felszerelés fém/ruha        │
+  │ 10 │ item_unequip             │ 0.2s     │ Levetés                     │
+  │ 11 │ item_drop                │ 0.2s     │ Eldobás/lerakás            │
+  │ 12 │ gold_pickup              │ 0.2s     │ Pénz csengés, érme         │
+  │ 13 │ gold_spend               │ 0.2s     │ Pénz fizetés               │
+  │ 14 │ skill_point_assign       │ 0.2s     │ Skill pont elköltés pling  │
+  │ 15 │ level_up                 │ 0.8s     │ Szintlépés! Fanfár-jellegű│
+  │ 16 │ error_buzz               │ 0.2s     │ Hiba / nem megengedett     │
+  │ 17 │ notification_pop         │ 0.1s     │ Figyelmeztetés popup       │
+  │ 18 │ map_open                 │ 0.2s     │ Térkép kinyitás            │
+  │ 19 │ tooltip_show             │ 0.05s    │ Finom tooltip megjelenés   │
+  │ 20 │ scroll_tick              │ 0.03s    │ Lista görgetés              │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN UI SFX: 20 hang fájl
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  7. AMBIENT / KÖRNYEZETI HANGOK
+================================================================================
+
+  7.1 Biome ambient loop-ok
+  ──────────────────────────
+    Minden biome-nak saját háttérzaj loop:
+
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ #  │ Ambient                  │ Hossz    │ Leírás                       │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │  1 │ ambient_ashen_wastes     │ 30-60s   │ Szél, hamu hullás, távoli  │
+  │    │                          │ loop     │ roppanás, üresség           │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │  2 │ ambient_corrupted_forest │ 30-60s   │ Madarak (torz), rovar       │
+  │    │                          │ loop     │ zümmögés, levél susogás     │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │  3 │ ambient_crystal_caverns  │ 30-60s   │ Csepegés, kristály rezonál, │
+  │    │                          │ loop     │ távoli víz, visszhang       │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │  4 │ ambient_frozen_peaks     │ 30-60s   │ Szél (erős), hó recsegés,  │
+  │    │                          │ loop     │ jég repedés, hideg üresség  │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │  5 │ ambient_shadow_marsh     │ 30-60s   │ Bugyogás, béka, rovar,     │
+  │    │                          │ loop     │ mocsári víz, tücsök        │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │  6 │ ambient_volcanic_depths  │ 30-60s   │ Láva bugyogás, távoli      │
+  │    │                          │ loop     │ robbanás, gőz sziszegés    │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │  7 │ ambient_necrotic_ruins   │ 30-60s   │ Szél romos épületben,      │
+  │    │                          │ loop     │ rémes sípolás, csontropogás│
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │  8 │ ambient_void_realm       │ 30-60s   │ Mély zúgás, dimenzionális  │
+  │    │                          │ loop     │ torzítás, alien szintetikus│
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │  9 │ ambient_dungeon_generic  │ 30-60s   │ Csepegés, távoli csikorgás,│
+  │    │                          │ loop     │ reverb, sötét feszültség   │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │ 10 │ ambient_safe_zone        │ 30-60s   │ Városias hangok, beszéd    │
+  │    │                          │ loop     │ mormolás, tűzhely, madarak │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  7.2 Egyedi ambient SFX (one-shot, random trigger)
+  ──────────────────────────────────────────────────
+
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │  1 │ bird_call_1              │ 1-2s     │ Madár (forest)              │
+  │  2 │ bird_call_2              │ 1-2s     │ Varjú (necrotic, wasteland) │
+  │  3 │ wolf_howl                │ 2-3s     │ Farkas üvöltés (peaks, forest)│
+  │  4 │ insect_buzz              │ 1s       │ Rovar (marsh, forest)       │
+  │  5 │ water_drip               │ 0.5s     │ Csepp (caverns, dungeon)    │
+  │  6 │ rock_crumble             │ 1s       │ Kő omlik (caverns, ruins)   │
+  │  7 │ wind_gust                │ 1-2s     │ Széllökés (peaks, wastes)   │
+  │  8 │ distant_thunder           │ 2-3s     │ Távoli dörgés (marsh, void) │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN AMBIENT: 10 loop + 8 one-shot = 18 hang fájl
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  8. NPC ÉS DIALÓGUS HANGOK
+================================================================================
+
+  8.1 NPC interakció hangok
+  ──────────────────────────
+    NPC dialogue "blip" / "mumble" – a szöveg betűnként begépelésekor:
+    
+    ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+    │  1 │ npc_talk_male_1          │ 0.05s    │ Férfi "blip" hang 1        │
+    │  2 │ npc_talk_male_2          │ 0.05s    │ Férfi "blip" variáns       │
+    │  3 │ npc_talk_female_1        │ 0.05s    │ Női "blip" hang 1          │
+    │  4 │ npc_talk_female_2        │ 0.05s    │ Női "blip" variáns         │
+    │  5 │ npc_talk_mysterious      │ 0.05s    │ Misztikus/éteri hang       │
+    │  6 │ npc_greeting             │ 0.3s     │ NPC shop "köszöntés" hang  │
+    │  7 │ npc_farewell             │ 0.2s     │ NPC elköszön              │
+    └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN NPC SFX: 7 hang fájl
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  9. ENEMY ÉS BOSS HANGOK
+================================================================================
+
+  9.1 Általános enemy hangok
+  ───────────────────────────
+
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │  1 │ enemy_aggro_grunt        │ 0.3s     │ Enemy észrevesz (mormogás) │
+  │  2 │ enemy_attack_melee       │ 0.2s     │ Melee attack hang          │
+  │  3 │ enemy_attack_ranged      │ 0.3s     │ Ranged attack hang         │
+  │  4 │ enemy_hurt_small         │ 0.2s     │ Enemy kis sérülés          │
+  │  5 │ enemy_hurt_large         │ 0.3s     │ Enemy nagy sérülés         │
+  │  6 │ enemy_death_small        │ 0.3s     │ Kis enemy halál            │
+  │  7 │ enemy_death_large        │ 0.4s     │ Nagy enemy halál           │
+  │  8 │ enemy_spawn              │ 0.3s     │ Enemy megjelenés           │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  9.2 Enemy típus-specifikus hangok
+  ──────────────────────────────────
+  Nem szükséges minden enemy-nek egyedi hang – típus alapú:
+
+  ┌────┬──────────────────────────┬──────────────────────────────────────────┐
+  │  9 │ creature_growl           │ Állatszerű enemy-k (wolf, rat, spider) │
+  │ 10 │ undead_moan              │ Undead enemy-k (skeleton, lich, zombie)│
+  │ 11 │ elemental_hum            │ Elementális (fire, ice, crystal golem) │
+  │ 12 │ insect_chittering        │ Rovar-szerű (crawler, bat, spider)    │
+  │ 13 │ ghost_wail               │ Szellem-szerű (wraith, wisp, stalker) │
+  │ 14 │ construct_clank          │ Gépies (golem, construct, sentinel)    │
+  └────┴──────────────────────────┴──────────────────────────────────────────┘
+
+  9.3 Boss-specifikus hangok
+  ───────────────────────────
+
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ 15 │ boss_intro_rumble        │ 2.0s     │ Boss megjelenés, mély      │
+  │    │                          │          │ dörgés + földrengés         │
+  │ 16 │ boss_phase_transition    │ 1.5s     │ Phase váltás, energia surge│
+  │ 17 │ boss_roar                │ 1.0s     │ Boss ordítás, félelmet keltő│
+  │ 18 │ boss_special_attack      │ 0.8s     │ Boss speciális támadás hang│
+  │ 19 │ boss_enrage              │ 1.0s     │ Boss enrage üvöltés        │
+  │ 20 │ boss_death               │ 2.0s     │ Boss halál, dramatikus     │
+  │    │                          │          │ összeomlás               │
+  │ 21 │ boss_telegraph_warning   │ 0.5s     │ Figyelmeztetés: nagy attack│
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  9.4 Elite enemy kiegészítő hangok
+  ──────────────────────────────────
+
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ 22 │ elite_spawn_sting        │ 0.5s     │ Elite megjelenés figyelmeztetés│
+  │ 23 │ affix_activate           │ 0.3s     │ Affix ability aktiválás    │
+  │ 24 │ elite_death_big          │ 0.6s     │ Elite halál (juicier)      │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN ENEMY/BOSS SFX: 24 hang fájl
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  10. ITEM ÉS LOOT HANGOK
+================================================================================
+
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ #  │ SFX                      │ Hossz    │ Leírás                       │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │  1 │ loot_drop_normal         │ 0.2s     │ Normál item ejtés          │
+  │  2 │ loot_drop_magic          │ 0.3s     │ Varázslatos kék item ejtés │
+  │  3 │ loot_drop_rare           │ 0.4s     │ Ritka arany item ejtés     │
+  │  4 │ loot_drop_epic           │ 0.5s     │ Epikus lila item + sting   │
+  │  5 │ loot_drop_legendary      │ 0.8s     │ Legendary narancs, fanfár! │
+  │  6 │ loot_drop_set            │ 0.5s     │ Set item ejtés, zöld       │
+  │  7 │ chest_open_wood          │ 0.3s     │ Fa láda nyitás             │
+  │  8 │ chest_open_iron          │ 0.4s     │ Vas láda nyitás            │
+  │  9 │ chest_open_gold          │ 0.5s     │ Arany láda nyitás + csengés│
+  │ 10 │ chest_open_ancient       │ 0.6s     │ Ősi láda, misztikus hang   │
+  │ 11 │ mimic_reveal             │ 0.4s     │ Mimic felfedés, horror sting│
+  │ 12 │ potion_drink             │ 0.3s     │ Fiola ivás hang            │
+  │ 13 │ scroll_use               │ 0.3s     │ Tekercs megnyitás          │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN ITEM SFX: 13 hang fájl
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  11. CRAFTING ÉS PROFESSION HANGOK
+================================================================================
+
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ #  │ SFX                      │ Hossz    │ Leírás                       │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │  1 │ craft_anvil_hit          │ 0.3s     │ Kovács kalapálás            │
+  │  2 │ craft_success            │ 0.5s     │ Sikeres crafting csengés    │
+  │  3 │ craft_fail               │ 0.3s     │ Sikertelen crafting zaj     │
+  │  4 │ enchant_process          │ 0.6s     │ Enchant folyamat (varázs)  │
+  │  5 │ enchant_success          │ 0.5s     │ Sikeres enchant, csillogás │
+  │  6 │ enchant_fail             │ 0.3s     │ Sikertelen enchant, puff    │
+  │  7 │ gem_socket               │ 0.3s     │ Gem behelyezés kattanás    │
+  │  8 │ gem_remove               │ 0.3s     │ Gem kivétel húzás          │
+  │  9 │ gem_combine              │ 0.5s     │ Gem kombinálás csillogás   │
+  │ 10 │ mining_hit               │ 0.3s     │ Csákány ütés, kő          │
+  │ 11 │ mining_success           │ 0.4s     │ Érc kibányászás plink      │
+  │ 12 │ herb_gather              │ 0.3s     │ Növény gyűjtés, levél hang│
+  │ 13 │ woodcutting_chop         │ 0.3s     │ Favágás, fa repedés       │
+  │ 14 │ fishing_cast             │ 0.3s     │ Horgász kidobás, vízcsapás │
+  │ 15 │ fishing_reel             │ 0.3s     │ Horgász behúzás            │
+  │ 16 │ fishing_catch            │ 0.4s     │ Hal fogás, vízfröcskölés   │
+  │ 17 │ salvage_break            │ 0.3s     │ Item szétszedés/larmots    │
+  │ 18 │ repair_fix               │ 0.4s     │ Javítás hangok             │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN CRAFT SFX: 18 hang fájl
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  12. DUNGEON SPECIFIKUS HANGOK
+================================================================================
+
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ #  │ SFX                      │ Hossz    │ Leírás                       │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │  1 │ door_open_wood           │ 0.4s     │ Fa ajtó nyitás              │
+  │  2 │ door_open_stone          │ 0.6s     │ Kő ajtó nyitás (nehéz)    │
+  │  3 │ door_locked              │ 0.3s     │ Zárt ajtó próbálás        │
+  │  4 │ key_use                  │ 0.3s     │ Kulcs behelyezés + zárkatt │
+  │  5 │ trap_spike               │ 0.3s     │ Tüskés csapda kioldás     │
+  │  6 │ trap_poison_gas          │ 0.5s     │ Mérges gáz sziszegés      │
+  │  7 │ trap_fire                │ 0.4s     │ Tűz csapda lángolás       │
+  │  8 │ trap_arrow               │ 0.2s     │ Nyíl csapda kilövés       │
+  │  9 │ pressure_plate           │ 0.2s     │ Nyomólap lenyomás katt    │
+  │ 10 │ lever_pull               │ 0.3s     │ Kar meghúzás csikorgás    │
+  │ 11 │ secret_wall              │ 0.6s     │ Titkos fal kinyílik       │
+  │ 12 │ portal_open              │ 0.5s     │ Portál megnyitás energia   │
+  │ 13 │ portal_enter             │ 0.4s     │ Portálba lépés whoosh      │
+  │ 14 │ puzzle_piece_place       │ 0.2s     │ Puzzle elem behelyezés    │
+  │ 15 │ puzzle_complete          │ 0.5s     │ Puzzle megoldva fanfár     │
+  │ 16 │ dungeon_enter_stinger    │ 0.8s     │ Dungeon belépés mini-sting │
+  │ 17 │ dungeon_clear_stinger    │ 1.0s     │ Dungeon teljesítés fanfár │
+  │ 18 │ room_reveal              │ 0.3s     │ Új szoba feltárul          │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN DUNGEON SFX: 18 hang fájl
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  13. WEATHER ÉS TERMÉSZETI HANGOK
+================================================================================
+
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ #  │ SFX/Loop                 │ Hossz    │ Leírás                       │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │  1 │ rain_light               │ 30s loop │ Enyhe eső csobogás         │
+  │  2 │ rain_heavy               │ 30s loop │ Erős eső, viharos         │
+  │  3 │ thunder_1                │ 2s       │ Mennydörgés 1              │
+  │  4 │ thunder_2                │ 3s       │ Mennydörgés 2 (távolabbi)  │
+  │  5 │ wind_howl                │ 30s loop │ Szél üvöltés (peaks, wastes)│
+  │  6 │ fire_crackle             │ 30s loop │ Tűz pattogás (volcanic,    │
+  │    │                          │          │ tábortűz)                  │
+  │  7 │ water_flow               │ 30s loop │ Folyóvíz hang (river, marsh)│
+  │  8 │ lava_bubble              │ 30s loop │ Láva bugyogás loop         │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN WEATHER: 8 hang fájl
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  14. ACHIEVEMENT ÉS NOTIFICATION HANGOK
+================================================================================
+
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ #  │ SFX                      │ Hossz    │ Leírás                       │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │  1 │ achievement_unlock       │ 0.6s     │ Achievement megnyitás       │
+  │    │                          │          │ diadalmas sting             │
+  │  2 │ quest_accept             │ 0.3s     │ Quest elfogadás pling       │
+  │  3 │ quest_progress           │ 0.2s     │ Quest előrehaladás tick    │
+  │  4 │ quest_complete           │ 0.6s     │ Quest teljesítés fanfár    │
+  │  5 │ waypoint_unlock          │ 0.5s     │ Waypoint felfedezés        │
+  │  6 │ new_area_discovered      │ 0.4s     │ Új terület felfedezés      │
+  │  7 │ party_invite_received    │ 0.3s     │ Party meghívó beérkezett   │
+  │  8 │ xp_gain_tick             │ 0.05s    │ XP szerzés rövid tick      │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN: 8 hang fájl
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  15. TUTORIAL HANGOK
+================================================================================
+
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ #  │ SFX                      │ Hossz    │ Leírás                       │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │  1 │ tutorial_popup           │ 0.2s     │ Tutorial ablak megjelenés  │
+  │  2 │ tutorial_hint_ding       │ 0.15s    │ Tipp megjelenés kicsi ding │
+  │  3 │ tutorial_step_complete   │ 0.3s     │ Tutorial lépés kész, tick  │
+  │  4 │ tutorial_all_complete    │ 0.5s     │ Teljes tutorial kész fanfár│
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN: 4 hang fájl
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  16. MULTIPLAYER SPECIFIKUS HANGOK
+================================================================================
+
+  ┌────┬──────────────────────────┬──────────┬──────────────────────────────┐
+  │ #  │ SFX                      │ Hossz    │ Leírás                       │
+  ├────┼──────────────────────────┼──────────┼──────────────────────────────┤
+  │  1 │ player_join              │ 0.3s     │ Más játékos csatlakozik    │
+  │  2 │ player_leave             │ 0.2s     │ Játékos kilépett           │
+  │  3 │ trade_request            │ 0.3s     │ Trade kérelem beérkezett   │
+  │  4 │ trade_complete           │ 0.4s     │ Trade sikeres              │
+  │  5 │ trade_cancel             │ 0.2s     │ Trade törölve              │
+  │  6 │ chat_message             │ 0.1s     │ Chat üzenet beérkezett     │
+  │  7 │ ready_check              │ 0.3s     │ Készenlét jelzés           │
+  └────┴──────────────────────────┴──────────┴──────────────────────────────┘
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN: 7 hang fájl
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  17. BIOME–ZENE MAPPING ÉS CROSSFADE RENDSZER
+================================================================================
+
+  17.1 Biome → Zene hozzárendelés
+  ────────────────────────────────
+
+    ┌──────────────────────┬──────────────────────────┬──────────────────┐
+    │ Biome                │ Exploration Track        │ Ambient Loop     │
+    ├──────────────────────┼──────────────────────────┼──────────────────┤
+    │ Ashen Wastes         │ Exploration – Peaceful   │ ambient_ashen    │
+    │ Corrupted Forest     │ Exploration – Dark       │ ambient_corrupt  │
+    │ Crystal Caverns      │ Exploration – Peaceful   │ ambient_crystal  │
+    │ Frozen Peaks         │ Exploration – Peaceful   │ ambient_frozen   │
+    │ Shadow Marsh         │ Exploration – Dark       │ ambient_marsh    │
+    │ Volcanic Depths      │ Exploration – Hostile    │ ambient_volcanic │
+    │ Necrotic Ruins       │ Exploration – Dark       │ ambient_necrotic │
+    │ Void Realm           │ Exploration – Hostile    │ ambient_void     │
+    │ Safe Zone / Town     │ Town Theme (opcionális)  │ ambient_safe     │
+    │ Dungeon (bármely)    │ Dungeon Theme            │ ambient_dungeon  │
+    └──────────────────────┴──────────────────────────┴──────────────────┘
+
+  17.2 Zene átmenetek (crossfade)
+  ────────────────────────────────
+    Biome → Biome:      3.0s crossfade (lowpass filter out → new track in)
+    Exploration → Combat: 1.5s crossfade (gyors, adrenalin)
+    Combat → Exploration: 3.0s crossfade (lassú visszalépés)
+    Overworld → Dungeon:  2.0s crossfade + volume ducking
+    Normal → Boss:        2.0s crossfade + előzetes stinger
+    Boss halál → Victory: Cut to Victory Fanfare (nincs crossfade)
+
+    Implementáció (AudioManager):
+      func _crossfade_music(new_track: AudioStream, duration: float):
+          var tween = create_tween()
+          # Fade out current
+          tween.tween_property(current_player, "volume_db",
+                               -40.0, duration * 0.6)
+          # Start new track
+          next_player.stream = new_track
+          next_player.volume_db = -40.0
+          next_player.play()
+          # Fade in new
+          tween.tween_property(next_player, "volume_db",
+                               0.0, duration * 0.4)
+          # Swap references
+          await tween.finished
+          swap_players()
+
+  17.3 Combat zene trigger szabályok
+  ───────────────────────────────────
+    ENGAGE:
+      - Player sebződik enemy-től VAGY
+      - Player támadd enemy-t VAGY
+      - Enemy aggro-ba kerül (detection system)
+      → Indíts Combat Theme (1.5s crossfade)
+
+    DISENGAGE:
+      - Nincs aktív enemy 5 tile-on belül ÉS
+      - Nincs a player combat-ban 5 sec-e
+      → Visszatérés biome track-re (3.0s crossfade)
+
+    BOSS:
+      - Boss room-ba lépés → Boss Battle Theme (2.0s + stinger)
+      - Boss phase transition → rövid zenei shift (crescendo)
+      - Boss death → Victory Fanfare
+
+================================================================================
+  18. DINAMIKUS AUDIO RENDSZER SPECIFIKÁCIÓ
+================================================================================
+
+  18.1 Adaptív rétegezés (layered audio)
+  ───────────────────────────────────────
+    A 3 exploration track mindegyike opcionálisan 2-3 stem-ből áll:
+    
+    Layer 1: Alap ritmus/drone (mindig szól)
+    Layer 2: Dallamok (intenzitástól függően fade in/out)
+    Layer 3: Kiegészítő textúrák (veszély közeli → erősödik)
+    
+    Danger proximity: 0.0 (biztonságos) → 1.0 (veszélyes)
+    Layer 2 volume: danger × linear (0.5-1.0)
+    Layer 3 volume: max(0, danger - 0.3) × linear
+
+  18.2 Pitch és volume variáció
+  ──────────────────────────────
+    Minden SFX lejátszásnál:
+      pitch_variation: rand_range(0.95, 1.05)
+      volume_variation: rand_range(-2.0, 0.0) dB
+    
+    Cél: ugyanaz a hang ne szóljon pontosan ugyanúgy kétszer
+
+  18.3 SFX prioritás és polyphony
+  ────────────────────────────────
+    Max egyidejű SFX: 16 (SFX pool méret)
+    Prioritás rendszer:
+      1. (legmagasabb) Boss hangok
+      2. Player skill hangok
+      3. Player sérülés hangok
+      4. Enemy hangok
+      5. Loot/item hangok
+      6. Ambient one-shot
+    
+    Ha pool tele → legalacsonyabb prioritású hang kiszorul
+
+  18.4 Distance attenuation (2D)
+  ───────────────────────────────
+    AudioStreamPlayer2D beállítás:
+      max_distance: 500px (kb. 15 tile)
+      attenuation: 1.5 (inverse distance power)
+      panning_strength: 0.8 (80% stereo panning)
+
+  18.5 Day/Night audio váltás
+  ────────────────────────────
+    Éjjel: ambient volume ×1.3, random one-shot gyakoriság ×1.5
+    Éjjel speciális: wolf_howl, distant_thunder, insect_buzz gyakrabban
+    Nappal: bird_call gyakrabban
+
+================================================================================
+  19. AUDIO MIX ÉS MASTER BEÁLLÍTÁSOK
+================================================================================
+
+  19.1 Alapértelmezett bus hangerő (Settings menu szóló)
+  ──────────────────────────────────────────────────────
+
+    ┌──────────────┬────────────┬───────────┬──────────────────────────────┐
+    │ Bus          │ Default %  │ dB        │ Megjegyzés                   │
+    ├──────────────┼────────────┼───────────┼──────────────────────────────┤
+    │ Master       │ 80%        │ -4.0 dB   │ Globális                     │
+    │ Music        │ 70%        │ -6.0 dB   │ Háttérbe szorul SFX mellé   │
+    │ SFX          │ 100%       │  0.0 dB   │ Fő hangok                   │
+    │ Ambient      │ 50%        │ -12.0 dB  │ Háttérhangulat              │
+    │ UI           │ 60%        │ -8.0 dB   │ Nem zavaró, de hallható     │
+    │ Voice/Dialog │ 90%        │ -2.0 dB   │ NPC dialógus blip           │
+    └──────────────┴────────────┴───────────┴──────────────────────────────┘
+
+  19.2 Audio effektek bus-onként
+  ──────────────────────────────
+    Music bus:
+      - Compressor (threshold: -20dB, ratio: 4:1)
+      - Low-pass filter: crossfade közben (1000Hz cutoff → unmute)
+
+    SFX bus:
+      - Limiter (ceiling: -1dB)
+      
+    Ambient bus:
+      - Reverb (dungeon-ben erősebb: wet 0.6, room_size 0.8)
+      - LP filter (aláfestés jelleg)
+
+  19.3 Settings menü opciók (Plan 17)
+  ─────────────────────────────────────
+    Master Volume:   0-100% slider
+    Music Volume:    0-100% slider
+    SFX Volume:      0-100% slider
+    Ambient Volume:  0-100% slider
+    UI Volume:       0-100% slider (opcionális, rejtett)
+    Mute All:        toggleI
+
+================================================================================
+  20. PRODUKCIÓS ÜTEMTERV
+================================================================================
+
+  Feltételezés: AI zene (Suno/Udio) + Freesound SFX + Audacity szerkesztés
+  Heti kapacitás: ~5-8 óra
+  Teljes becsült idő: 40-60 óra → 6-10 hét
+
+  ┌──────────┬──────────────────────────────────────────────────────────────┐
+  │ Hét      │ Feladatok                                                    │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 1   │ AUDIO PIPELINE SETUP                                        │
+  │          │ - Audacity telepítés + plugin-ek                            │
+  │          │ - Suno/Udio account + teszt generálás                      │
+  │          │ - jsfxr/bfxr kipróbálás retro SFX-hez                     │
+  │          │ - Godot Audio Bus layout beállítás (5 bus)                 │
+  │          │ - AudioManager autoload tesztelés                           │
+  │          │ Deliverable: működő audio pipeline                         │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 2   │ ZENEI SZÁMOK (8 kötelező)                                   │
+  │          │ - Main Menu Theme generálás + loop point                   │
+  │          │ - 3 Exploration track generálás + loop                     │
+  │          │ - Combat Theme generálás + loop                            │
+  │          │ - Dungeon Theme generálás + loop                           │
+  │          │ - Boss Battle Theme generálás + loop                       │
+  │          │ - Victory Fanfare generálás                                 │
+  │          │ - Crossfade tesztelés Godot-ban                            │
+  │          │ Deliverable: 8 track .ogg, loop pont beállítva             │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 3   │ COMBAT SFX (25 db)                                          │
+  │          │ - Melee SFX (12 db) – jsfxr + Freesound mix               │
+  │          │ - Ranged SFX (5 db)                                        │
+  │          │ - Általános combat SFX (8 db)                              │
+  │          │ - Audacity: normalization, trim, format konverzió          │
+  │          │ Deliverable: 25 combat .wav fájl                           │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 4   │ SKILL SFX (45 db)                                           │
+  │          │ - Assassin Shadow (5 SFX)                                   │
+  │          │ - Assassin Poison (5 SFX)                                   │
+  │          │ - Assassin Blood (5 SFX)                                    │
+  │          │ - Tank Guardian (5 SFX)                                     │
+  │          │ - Tank Warbringer (5 SFX)                                   │
+  │          │ - Tank Paladin (5 SFX)                                      │
+  │          │ - Mage Arcane (5 SFX)                                       │
+  │          │ - Mage Frost (5 SFX)                                        │
+  │          │ - Mage Holy (5 SFX)                                         │
+  │          │ - Layering: alap SFX + elem overlay                        │
+  │          │ Deliverable: 45 skill .wav fájl                            │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 5   │ UI + ITEM + NPC SFX                                         │
+  │          │ - UI SFX (20 db) – legtöbb jsfxr-rel                      │
+  │          │ - Item/Loot SFX (13 db)                                    │
+  │          │ - NPC hangok (7 db)                                        │
+  │          │ - Tutorial SFX (4 db)                                      │
+  │          │ - Achievement/notification SFX (8 db)                      │
+  │          │ Deliverable: 52 SFX fájl                                   │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 6   │ AMBIENT + ENEMY + DUNGEON                                   │
+  │          │ - 10 biome ambient loop (30-60s .ogg)                      │
+  │          │ - 8 ambient one-shot                                       │
+  │          │ - 24 enemy/boss SFX                                        │
+  │          │ - 18 dungeon SFX                                            │
+  │          │ - 8 weather/nature hangok                                  │
+  │          │ Deliverable: 68 hang fájl                                  │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 7   │ MULTIPLAYER + OPCIONÁLIS ZENE                               │
+  │          │ - 7 multiplayer SFX                                        │
+  │          │ - 6 opcionális zenei szám (Town, Raid, Void, stb.)        │
+  │          │ Deliverable: 13 extra fájl                                 │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 8   │ INTEGRÁCIÓ + TESZTELÉS                                      │
+  │          │ - Minden hang Godot-ba importálás                          │
+  │          │ - AudioManager script bővítés (SFX dictionary)             │
+  │          │ - Biome-music mapping implementálás                        │
+  │          │ - Crossfade tesztelés minden átmenetre                     │
+  │          │ - Volume balance in-game tesztelés                         │
+  │          │ - Bus effektek finomhangolás                                │
+  │          │ - Distance attenuation tesztelés                           │
+  │          │ Deliverable: AUDIO PRODUKCIÓ KÉSZ                         │
+  └──────────┴──────────────────────────────────────────────────────────────┘
+
+================================================================================
+  21. TELJES AUDIO ASSET LISTA ÖSSZESÍTÉS
+================================================================================
+
+  ┌──────────────────────────────────────────┬──────────┬───────────────────┐
+  │ Kategória                                │ Darabszám│ Formátum          │
+  ├──────────────────────────────────────────┼──────────┼───────────────────┤
+  │ Zenei számok (8 kötelező)                │     8    │ .ogg stereo       │
+  │ Zenei számok (6 opcionális)              │     6    │ .ogg stereo       │
+  │ Combat SFX (melee+ranged+general)        │    25    │ .wav mono         │
+  │ Skill SFX (45 skill)                     │    45    │ .wav mono         │
+  │ UI és menü SFX                           │    20    │ .wav mono         │
+  │ Ambient loop-ok (10 biome)               │    10    │ .ogg stereo       │
+  │ Ambient one-shot                         │     8    │ .wav mono/stereo  │
+  │ NPC és dialógus SFX                      │     7    │ .wav mono         │
+  │ Enemy és boss SFX                        │    24    │ .wav mono         │
+  │ Item és loot SFX                         │    13    │ .wav mono         │
+  │ Crafting és profession SFX               │    18    │ .wav mono         │
+  │ Dungeon specifikus SFX                   │    18    │ .wav mono         │
+  │ Weather és természeti hangok             │     8    │ .wav/.ogg         │
+  │ Achievement és notification              │     8    │ .wav mono         │
+  │ Tutorial SFX                             │     4    │ .wav mono         │
+  │ Multiplayer SFX                          │     7    │ .wav mono         │
+  ├──────────────────────────────────────────┼──────────┼───────────────────┤
+  │ ÖSSZESEN (kötelező)                      │   223    │                   │
+  │ ÖSSZESEN (opcionálissal)                 │   229    │                   │
+  └──────────────────────────────────────────┴──────────┴───────────────────┘
+
+  BECSÜLT TÁRHELY:
+    Zene (14 track × átlag 4MB):    ~56 MB
+    SFX (190+ × átlag 50KB):        ~10 MB
+    Ambient (18 × átlag 1MB):       ~18 MB
+    ──────────────────────────────────────
+    ÖSSZESEN:                        ~84 MB
+
+================================================================================
+  22. MINŐSÉGBIZTOSÍTÁSI CHECKLIST
+================================================================================
+
+  TECHNIKAI MINŐSÉG:
+    □ Minden .wav fájl: 44.1kHz, 16-bit, mono
+    □ Minden .ogg fájl: 44.1kHz, stereo, 128-192kbps
+    □ Nincs clipping (peak < -1dB)
+    □ Normalization alkalmazva (target: -3dB peak)
+    □ Nincs DC offset
+    □ DC noise filter alkalmazva
+    □ Trimmed: nincs felesleges csend az elején/végén
+    □ Fade-in/out alkalmazva ahol szükséges (pop-mentesítés)
+
+  LOOP MINŐSÉG (zene + ambient):
+    □ Loop pont simán átmegy (nincs hallható vágás)
+    □ Loop pont zeneileg helyes (ütem elejére esik)
+    □ Godot import: loop flag beállítva
+    □ Loop_offset helyesen konfigurálva
+
+  STÍLUS KONZISZTENCIA:
+    □ Minden SFX hasonló "loudness" (A-weighted RMS)
+    □ SFX nem túl "modern" (illeszkedik pixel art stílushoz)
+    □ Zene sötét fantasy hangulat konzisztens
+    □ Ambient hangulat illeszkedik a biome-hoz
+
+  IMPLEMENTÁCIÓ TESZT:
+    □ AudioManager dictionary minden SFX-et tartalmazza
+    □ Crossfade smooth minden átmenetre
+    □ Distance attenuation természetesen hangzik
+    □ Pitch variation nem túl sok / nem túl kevés
+    □ SFX prioritás jól működik (16 pool)
+    □ Bus volume slider-ek reagálnak (Settings menü)
+    □ Nincs audio "pop" scene váltásoknál
+    □ Multiplayer: hang pozíció szinkronizált
+
+  IN-GAME TESZT SZITUÁCIÓK:
+    □ Biome séta: zene+ambient természetesen szól
+    □ Biome váltás: crossfade smooth
+    □ Combat: gyors zenei váltás + SFX fedés
+    □ Boss fight: boss zene + voice + skill SFX együtt
+    □ Dungeon: nyomasztó ambient + csapda SFX
+    □ Crafting: kalapálás + siker/kudarc hang
+    □ Kereskedés: UI hangok nem zavaróak
+    □ 4 player co-op: SFX pool nem telik meg
+    □ Volume 0%: MINDEN hang csend (nincs bypass)
+    □ Volume 100%: nincs clipping/distortion
+
+================================================================================
+  GODOT MAPPASTRUKTÚRA (AJÁNLOTT)
+================================================================================
+
+  godot/
+  └── assets/
+      └── audio/
+          ├── music/
+          │   ├── main_menu_theme.ogg
+          │   ├── exploration_peaceful.ogg
+          │   ├── exploration_dark.ogg
+          │   ├── exploration_hostile.ogg
+          │   ├── combat_theme.ogg
+          │   ├── dungeon_theme.ogg
+          │   ├── boss_battle_theme.ogg
+          │   └── victory_fanfare.ogg
+          ├── sfx/
+          │   ├── combat/
+          │   │   ├── sword_swing_1.wav
+          │   │   ├── sword_hit_flesh.wav
+          │   │   └── ... (25 fájl)
+          │   ├── skills/
+          │   │   ├── shadow_step.wav
+          │   │   ├── arcane_bolt.wav
+          │   │   └── ... (45 fájl)
+          │   ├── ui/
+          │   │   ├── button_click.wav
+          │   │   ├── menu_open.wav
+          │   │   └── ... (20 fájl)
+          │   ├── items/
+          │   │   ├── loot_drop_normal.wav
+          │   │   ├── chest_open_wood.wav
+          │   │   └── ... (13 fájl)
+          │   ├── enemies/
+          │   │   ├── enemy_aggro_grunt.wav
+          │   │   ├── boss_intro_rumble.wav
+          │   │   └── ... (24 fájl)
+          │   ├── crafting/
+          │   │   ├── craft_anvil_hit.wav
+          │   │   ├── gem_socket.wav
+          │   │   └── ... (18 fájl)
+          │   ├── dungeon/
+          │   │   ├── door_open_wood.wav
+          │   │   ├── trap_spike.wav
+          │   │   └── ... (18 fájl)
+          │   ├── weather/
+          │   │   ├── rain_light.ogg
+          │   │   ├── thunder_1.wav
+          │   │   └── ... (8 fájl)
+          │   ├── notification/
+          │   │   ├── achievement_unlock.wav
+          │   │   ├── quest_complete.wav
+          │   │   └── ... (8+4+7 fájl)
+          │   └── multiplayer/
+          │       ├── player_join.wav
+          │       └── ... (7 fájl)
+          └── ambient/
+              ├── ambient_ashen_wastes.ogg
+              ├── ambient_corrupted_forest.ogg
+              ├── ambient_crystal_caverns.ogg
+              ├── ambient_frozen_peaks.ogg
+              ├── ambient_shadow_marsh.ogg
+              ├── ambient_volcanic_depths.ogg
+              ├── ambient_necrotic_ruins.ogg
+              ├── ambient_void_realm.ogg
+              ├── ambient_dungeon_generic.ogg
+              └── ambient_safe_zone.ogg
+
+================================================================================
+FÁJL VÉGE – 20_audio_master_plan.txt
+================================================================================

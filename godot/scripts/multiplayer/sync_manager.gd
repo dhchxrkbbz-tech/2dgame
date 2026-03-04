@@ -9,6 +9,7 @@ var loot_sync: Node
 var world_sync: Node
 var combat_sync: Node
 var animation_sync: Node
+var inventory_sync: Node
 
 func _ready() -> void:
 	_setup_sync_managers()
@@ -42,6 +43,10 @@ func _setup_sync_managers() -> void:
 	animation_sync = preload("res://scripts/multiplayer/sync/animation_sync.gd").new()
 	animation_sync.name = "AnimationSyncManager"
 	add_child(animation_sync)
+	
+	inventory_sync = preload("res://scripts/multiplayer/sync/inventory_sync.gd").new()
+	inventory_sync.name = "InventorySyncManager"
+	add_child(inventory_sync)
 
 func reset() -> void:
 	player_sync.reset()
@@ -51,6 +56,7 @@ func reset() -> void:
 	world_sync.reset()
 	combat_sync.reset()
 	animation_sync.reset()
+	inventory_sync.reset()
 
 func _on_network_tick(tick_number: int) -> void:
 	if NetworkManager.is_server():

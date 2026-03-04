@@ -16,6 +16,7 @@ static func initialize() -> void:
 	_register_mage_legendaries()
 	_register_universal_legendaries()
 	_register_boss_legendaries()
+	_register_plan16_legendaries()
 
 
 static func get_legendary(legendary_id: String) -> Dictionary:
@@ -555,5 +556,87 @@ static func _register_boss_legendaries() -> void:
 			"description": "Endgame progression: unlock ascension levels (+1% all stats per ascension)",
 			"effect": "ascension_unlock",
 			"value": 1.0,
+		},
+	})
+
+
+# =================== PLAN 16 KIEGÉSZÍTÉS – 4 hiányzó legendary ===================
+
+static func _register_plan16_legendaries() -> void:
+	# Plan 16 #1: Blade of Ashes (Kard, Assassin) – weapon #9
+	_reg("blade_of_ashes", {
+		"name": "Blade of Ashes",
+		"slot": Enums.EquipSlot.MAIN_HAND,
+		"item_type": Enums.ItemType.WEAPON,
+		"required_class": Enums.PlayerClass.ASSASSIN,
+		"fixed_stats": {
+			"physical_damage": 48,
+			"crit_chance": 12,
+			"crit_damage": 30,
+			"attack_speed": 10,
+		},
+		"unique_property": {
+			"name": "Ashen Explosion",
+			"description": "On kill, the target explodes dealing 200% damage to nearby enemies",
+			"effect": "kill_explosion",
+			"value": 200.0,
+		},
+	})
+	
+	# Plan 16 #5: Stormwand (Pálca, Mage) – weapon #10
+	_reg("stormwand", {
+		"name": "Stormwand",
+		"slot": Enums.EquipSlot.MAIN_HAND,
+		"item_type": Enums.ItemType.WEAPON,
+		"required_class": Enums.PlayerClass.MAGE,
+		"fixed_stats": {
+			"magic_damage": 52,
+			"crit_chance": 8,
+			"mana_regen": 5,
+			"attack_speed": 15,
+		},
+		"unique_property": {
+			"name": "Chain Lightning",
+			"description": "Spells have 30% chance to chain lightning to 3 additional targets for 50% damage",
+			"effect": "chain_lightning",
+			"value": 30.0,
+		},
+	})
+	
+	# Plan 16 #28: Death's Pendant (Amulett) – accessory #7
+	_reg("deaths_pendant", {
+		"name": "Death's Pendant",
+		"slot": Enums.EquipSlot.AMULET,
+		"item_type": Enums.ItemType.ACCESSORY,
+		"required_class": -1,
+		"fixed_stats": {
+			"max_hp": 60,
+			"lifesteal": 5,
+			"crit_chance": 5,
+		},
+		"unique_property": {
+			"name": "Soul Harvest",
+			"description": "On kill: restore 3% HP and 2% Mana. Elite/Boss kill: 15% HP and 10% Mana",
+			"effect": "kill_restore",
+			"value": 3.0,
+		},
+	})
+	
+	# Plan 16 #29: Veil Ring (Gyűrű, Assassin) – accessory #8
+	_reg("veil_ring", {
+		"name": "Veil Ring",
+		"slot": Enums.EquipSlot.RING_1,
+		"item_type": Enums.ItemType.ACCESSORY,
+		"required_class": Enums.PlayerClass.ASSASSIN,
+		"fixed_stats": {
+			"evasion": 12,
+			"movement_speed": 10,
+			"crit_damage": 20,
+		},
+		"unique_property": {
+			"name": "Shadow Veil",
+			"description": "Auto-stealth 3s after leaving combat. First strike from stealth deals +50% damage",
+			"effect": "auto_stealth_bonus",
+			"value": 50.0,
 		},
 	})

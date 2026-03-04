@@ -686,3 +686,42 @@ func get_sync_data() -> Dictionary:
 func apply_sync_data(sync_data: Dictionary) -> void:
 	if door_controller and sync_data.has("door_states"):
 		door_controller.apply_sync_data(sync_data["door_states"])
+
+
+## Room loot generálás publikus metódus (Plan 18 stub implementation)
+## Szoba kitisztítása után hívható az extra loot generáláshoz
+func generate_loot_for_room(room_index: int) -> Array[Dictionary]:
+	if room_index < 0 or room_index >= rooms.size():
+		return []
+	
+	var room: DungeonRoom = rooms[room_index]
+	if not room:
+		return []
+	
+	# Difficulty-alapú loot generálás
+	var loot: Array[Dictionary] = []
+	if loot_spawner:
+		var chest_type := "common"
+		match room.room_type:
+			DungeonRoom.RoomType.BOSS:
+				chest_type = "boss"
+			DungeonRoom.RoomType.TREASURE:
+				chest_type = "rare"
+			DungeonRoom.RoomType.SECRET:
+				chest_type = "rare"
+			_:
+				chest_type = "common"
+		loot = loot_spawner.generate_chest_loot(chest_type)
+	else:
+		# Fallback: alap loot
+		var item_count := randi_range(1, 2 + current_dungeon_tier)
+		for i in item_count:
+			loot.append({
+				"type": "item",
+				"item_type": "weapon" if randf() > 0.5 else "armor",
+				"rarity": randi_range(0, mini(current_dungeon_tier, 3)),
+				"level": current_dungeon_level,
+			})
+		loot.append({"type": "gold", "amount": randi_range(10, 50) * current_dungeon_tier})
+	
+	return loot

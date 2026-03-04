@@ -15,8 +15,8 @@ const TICK_RATE: int = 20  # szerver tick/sec
 
 # === Player ===
 const MAX_LEVEL: int = 50
-const SKILL_POINTS_PER_2_LEVELS: int = 1
-const MAX_SKILL_POINTS: int = 25
+## Plan 16: 1 skill point per level (Lv2-50 = 49 total), replaces old per-2-levels
+const MAX_SKILL_POINTS: int = 49
 const PLAYER_SPRITE_SIZE: Vector2i = Vector2i(32, 48)
 
 # === Movement ===
@@ -34,6 +34,7 @@ const IFRAMES_DURATION: float = 0.3  # invincibility frames
 # === Dodge ===
 const DODGE_SPEED_MULTIPLIER: float = 2.5
 const DODGE_DURATION: float = 0.3
+const DODGE_COOLDOWN: float = 0.8  # Plan 21: cooldown between dodges
 
 # === Camera ===
 const CAMERA_SMOOTHING_SPEED: float = 5.0
@@ -45,11 +46,40 @@ const DAMAGE_NUMBER_DURATION: float = 1.0
 const DAMAGE_NUMBER_RISE: float = 50.0
 
 # === XP rendszer ===
-const BASE_XP_PER_LEVEL: int = 100
-const XP_GROWTH_FACTOR: float = 1.15
+## Képlet: xp_for_level = floor(100 * (level ^ 1.8))
+## Lv1→2: 100, Lv10: ~5180, Lv25: ~43100, Lv50: ~227000
+## Összesen 1→50: ~2,500,000 XP (40-60 óra normál tempóval)
+const BASE_XP_COEFFICIENT: int = 100
+const XP_EXPONENT: float = 1.8
+
+# === Stat növekedés szintenként ===
+const STAT_POINTS_PER_LEVEL: int = 3  # Szabadon elosztható STR/DEX/INT/VIT
+const SKILL_POINTS_PER_LEVEL: int = 1  # 1 skill pont szintenként (Lv2-50 = 49)
+const HP_PER_LEVEL_BASE: int = 15      # +15 HP base per level
+const HP_PER_VIT: float = 2.0          # +VIT×2 HP bonus
+const MANA_PER_LEVEL_BASE: int = 8     # +8 mana base per level
+const MANA_PER_INT: float = 1.5        # +INT×1.5 mana bonus
+const DAMAGE_SCALE_STR: float = 0.5    # STR×0.5 melee damage
+const DAMAGE_SCALE_DEX: float = 0.5    # DEX×0.5 ranged damage
+const DAMAGE_SCALE_INT: float = 0.8    # INT×0.8 spell damage
+const RESPEC_COST_PER_LEVEL: int = 1000  # Respec ár = level × 1000 Gold
 
 # === Loot ===
 const ITEM_PICKUP_RANGE: float = 48.0  # pixel
+
+# === Death & Respawn (Plan 21 §2.11) ===
+const DEATH_GOLD_PENALTY_PERCENT: float = 0.05  # 5% of total gold
+const RESPAWN_TIMER: float = 5.0  # seconds
+const RESPAWN_HP_PERCENT: float = 0.5  # 50% of max
+const RESPAWN_MANA_PERCENT: float = 0.5  # 50% of max
+const RESPAWN_INVINCIBILITY_DURATION: float = 3.0  # seconds
+
+# === Combo System (Plan 21 §2.8) ===
+const COMBO_TIMEOUT: float = 3.0  # seconds between kills to maintain combo
+const COMBAT_TIMEOUT: float = 5.0  # seconds without damage → peace state
+const COMBO_XP_MULT_3: float = 1.1   # combo 3-4
+const COMBO_XP_MULT_5: float = 1.25  # combo 5-9
+const COMBO_XP_MULT_10: float = 1.5  # combo 10+
 
 # === Mana regen ===
 const BASE_MANA_REGEN_ASSASSIN: float = 2.0
@@ -116,7 +146,32 @@ const GEM_MINING_QUALITY_PER_LEVEL: float = 0.10
 
 const REPAIR_COST_PER_LEVEL: int = 5
 const FAST_TRAVEL_BASE_COST: int = 20
+const FAST_TRAVEL_COST_PER_CHUNK: int = 2
+const FAST_TRAVEL_COOLDOWN: float = 30.0
+const FAST_TRAVEL_TELEPORT_DURATION: float = 2.0
 const SKILL_RESET_BASE_COST: int = 500
+
+# === Achievement ===
+const ACHIEVEMENT_POPUP_DURATION: float = 3.0
+
+# === World Events ===
+const WORLD_EVENT_MIN_INTERVAL: float = 1800.0  # 30 perc
+const WORLD_EVENT_MAX_INTERVAL: float = 3600.0  # 60 perc
+const WORLD_EVENT_COOLDOWN_PER_TYPE: float = 600.0  # 10 perc típusonként
+
+# === Endgame / Paragon ===
+const PARAGON_HP_PER_POINT: int = 1
+const PARAGON_DAMAGE_PER_10_POINTS: float = 0.005  # 0.5%
+const PARAGON_MAGIC_FIND_PER_5_POINTS: float = 0.003  # 0.3%
+
+# === Nightmare dungeon scaling (Plan 21 §2.9) ===
+const NIGHTMARE_SCALING: Dictionary = {
+	1: {"enemy_hp": 0.25, "enemy_damage": 0.25, "magic_find": 0.25},
+	2: {"enemy_hp": 0.60, "enemy_damage": 0.50, "magic_find": 0.60},
+	3: {"enemy_hp": 1.00, "enemy_damage": 0.80, "magic_find": 1.00},
+	4: {"enemy_hp": 1.80, "enemy_damage": 1.20, "magic_find": 1.80},
+	5: {"enemy_hp": 3.00, "enemy_damage": 2.00, "magic_find": 3.00},
+}
 
 # Enhancement success rate-ek (+1 → +10)
 const ENHANCEMENT_SUCCESS_RATES: Array[float] = [
@@ -169,10 +224,12 @@ const MAX_CRAFTING_PROFESSIONS: int = 2
 # === Rarity színek ===
 const RARITY_COLORS: Dictionary = {
 	Enums.Rarity.COMMON: Color(0.8, 0.8, 0.8),        # Szürke
-	Enums.Rarity.UNCOMMON: Color(0.0, 0.8, 0.0),      # Zöld
+	Enums.Rarity.MAGIC: Color(0.0, 0.8, 0.0),         # Zöld (volt UNCOMMON)
 	Enums.Rarity.RARE: Color(0.0, 0.4, 1.0),          # Kék
 	Enums.Rarity.EPIC: Color(0.6, 0.0, 0.8),          # Lila
 	Enums.Rarity.LEGENDARY: Color(1.0, 0.6, 0.0),     # Narancs
+	Enums.Rarity.SET: Color(0.0, 0.9, 0.0),           # Zöld (set)
+	Enums.Rarity.UNIQUE: Color(0.85, 0.5, 0.1),       # Sötét narancs
 }
 
 # === Gem színek ===
@@ -229,10 +286,11 @@ const CLASS_BASE_STATS: Dictionary = {
 }
 
 # === XP tábla generálás ===
+## Plan 16 képlet: floor(100 * (level ^ 1.8))
 static func get_xp_for_level(level: int) -> int:
 	if level <= 1:
 		return 0
-	return int(BASE_XP_PER_LEVEL * pow(XP_GROWTH_FACTOR, level - 1))
+	return int(floor(BASE_XP_COEFFICIENT * pow(float(level), XP_EXPONENT)))
 
 # === Dungeon ===
 const DUNGEON_WIDTH: int = 80      # Dungeon szélesség tile-okban
@@ -263,4 +321,76 @@ const DUNGEON_BIOME_DIFFICULTY: Dictionary = {
 	Enums.BiomeType.FROZEN_WASTES: 7,
 	Enums.BiomeType.ASHLANDS: 8,
 	Enums.BiomeType.PLAGUE_LANDS: 9,
+}
+
+# === Branch Passive Bonuses (Plan 21 §5.2) ===
+# Per-point bonuses when allocating skills in a branch
+const BRANCH_PASSIVES: Dictionary = {
+	# Assassin
+	Enums.SkillBranch.SHADOW: {"crit_chance": 0.01, "dodge_chance": 0.005},
+	Enums.SkillBranch.POISON: {"dot_damage": 0.02, "dot_duration": 0.01},
+	Enums.SkillBranch.BLOOD: {"lifesteal": 0.01, "hp_bonus": 0.02},
+	# Tank
+	Enums.SkillBranch.GUARDIAN: {"armor": 0.03, "block_chance": 0.01},
+	Enums.SkillBranch.WARBRINGER: {"damage": 0.02, "threat_generation": 0.05},
+	Enums.SkillBranch.PALADIN: {"heal_power": 0.02, "holy_damage": 0.015},
+	# Mage
+	Enums.SkillBranch.ARCANE: {"spell_damage": 0.03, "mana_cost_reduction": 0.01},
+	Enums.SkillBranch.FROST: {"slow_effectiveness": 0.02, "freeze_duration": 0.01},
+	Enums.SkillBranch.HOLY: {"heal_power": 0.03, "shield_strength": 0.02},
+}
+
+# === Boss Enrage Timers (Plan 21 §10.7) ===
+const BOSS_ENRAGE_TIMERS: Dictionary = {
+	1: 240.0,  # T1: ~4 min
+	2: 360.0,  # T2: ~6 min
+	3: 300.0,  # T3: 5 min
+	4: 480.0,  # T4: 8 min
+}
+
+# === Boss HP Multiplayer Scaling (Plan 21 §3.4) ===
+const BOSS_HP_MULTIPLAYER: Dictionary = {
+	1: 1.0,
+	2: 1.8,
+	3: 2.5,
+	4: 3.2,
+}
+
+# === Elite Enemy Scaling (Plan 21 §3.6) ===
+const ELITE_HP_MULT: float = 3.0
+const ELITE_DAMAGE_MULT: float = 1.5
+const ELITE_ARMOR_MULT: float = 2.0
+const ELITE_SPEED_MULT: float = 1.1
+const ELITE_XP_MULT: float = 3.0
+const ELITE_LOOT_CHANCE: float = 0.80
+const ELITE_GOLD_MULT: float = 2.0
+const NORMAL_LOOT_CHANCE: float = 0.30
+
+# === Enemy Scaling Rates (Plan 21 §3.3) ===
+const ENEMY_HP_SCALE_RATE: float = 0.15    # +15% per level
+const ENEMY_DAMAGE_SCALE_RATE: float = 0.12  # +12% per level
+const ENEMY_ARMOR_SCALE_RATE: float = 0.10  # +10% per level
+const ENEMY_XP_SCALE_RATE: float = 0.20    # +20% per level
+
+# === Multiplayer Enemy Scaling (Plan 21 §3.7) ===
+const ENEMY_HP_PER_PLAYER: float = 0.5  # +50% HP per additional player
+
+# === Consumable Values (Plan 21 §4.9) ===
+const POTION_HP_SMALL: int = 50
+const POTION_HP_MEDIUM: int = 150
+const POTION_HP_LARGE: int = 400
+const POTION_MP_SMALL: int = 30
+const POTION_MP_MEDIUM: int = 80
+const POTION_MP_LARGE: int = 200
+
+# === Biome Level Ranges (Plan 21 §14.3) ===
+const BIOME_LEVEL_RANGES: Dictionary = {
+	Enums.BiomeType.STARTING_MEADOW: {"min": 1, "max": 8},
+	Enums.BiomeType.CURSED_FOREST: {"min": 12, "max": 20},
+	Enums.BiomeType.DARK_SWAMP: {"min": 28, "max": 36},
+	Enums.BiomeType.RUINS: {"min": 6, "max": 14},
+	Enums.BiomeType.MOUNTAINS: {"min": 24, "max": 32},
+	Enums.BiomeType.FROZEN_WASTES: {"min": 18, "max": 26},
+	Enums.BiomeType.ASHLANDS: {"min": 34, "max": 42},
+	Enums.BiomeType.PLAGUE_LANDS: {"min": 42, "max": 50},
 }

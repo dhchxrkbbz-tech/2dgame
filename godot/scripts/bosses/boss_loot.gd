@@ -211,3 +211,48 @@ static func create_loot_table_tier2(boss_id: String) -> Dictionary:
 			}
 		_:
 			return {"guaranteed": [{"type": "gold", "amount_min": 80, "amount_max": 150}], "rare": [], "ultra_rare": []}
+
+
+## Tier 3 (World Bosses) – Plan 16
+static func create_loot_table_tier3(boss_id: String) -> Dictionary:
+	return {
+		"guaranteed": [
+			{"type": "gold", "amount_min": 500, "amount_max": 1500},
+			{"type": "material", "item_id": "mat_rare_essence", "name": "Rare Essence", "amount_min": 5, "amount_max": 10},
+			{"type": "material", "item_id": "mat_legendary_essence", "name": "Legendary Essence", "amount_min": 1, "amount_max": 3},
+			{"type": "xp", "amount": 2000},
+		],
+		"rare": [
+			{"type": "item", "rarity": Enums.Rarity.LEGENDARY, "chance": 0.15, "item_id": boss_id + "_weapon", "name": boss_id + " Weapon"},
+			{"type": "item", "rarity": Enums.Rarity.EPIC, "chance": 0.25, "item_id": boss_id + "_armor", "name": boss_id + " Armor"},
+			{"type": "set_piece", "chance": 0.20, "item_id": boss_id + "_set", "name": boss_id + " Set Piece"},
+		],
+		"ultra_rare": [
+			{"type": "item", "rarity": Enums.Rarity.LEGENDARY, "chance": 0.05, "item_id": boss_id + "_unique", "name": boss_id + " Unique"},
+			{"type": "cosmetic", "item_id": boss_id + "_title", "name": boss_id + " Slayer Title", "chance": 0.10},
+		],
+	}
+
+
+## Tier 4 (Raid Bosses) – Plan 16
+static func create_loot_table_tier4(boss_id: String) -> Dictionary:
+	return {
+		"guaranteed": [
+			{"type": "gold", "amount_min": 2000, "amount_max": 5000},
+			{"type": "material", "item_id": "mat_legendary_essence", "name": "Legendary Essence", "amount_min": 5, "amount_max": 10},
+			{"type": "material", "item_id": "mat_aetherium_shard", "name": "Aetherium Shard", "amount_min": 1, "amount_max": 3},
+			{"type": "material", "item_id": "mat_god_essence", "name": "God Essence", "amount_min": 1, "amount_max": 2},
+			{"type": "xp", "amount": 5000},
+			{"type": "item", "rarity": Enums.Rarity.LEGENDARY, "chance": 1.0, "item_id": boss_id + "_legendary1", "name": boss_id + " Legendary Drop 1"},
+			{"type": "item", "rarity": Enums.Rarity.LEGENDARY, "chance": 1.0, "item_id": boss_id + "_legendary2", "name": boss_id + " Legendary Drop 2"},
+		],
+		"rare": [
+			{"type": "set_piece", "chance": 0.50, "item_id": boss_id + "_set", "name": boss_id + " Set Piece"},
+			{"type": "item", "rarity": Enums.Rarity.LEGENDARY, "chance": 0.30, "item_id": boss_id + "_weapon", "name": boss_id + " Exclusive Weapon"},
+		],
+		"ultra_rare": [
+			{"type": "cosmetic", "item_id": boss_id + "_cosmetic", "name": boss_id + " Cosmetic", "chance": 0.15},
+			{"type": "cosmetic", "item_id": boss_id + "_title", "name": boss_id + " Conqueror Title", "chance": 0.25},
+			{"type": "item", "rarity": Enums.Rarity.LEGENDARY, "chance": 0.05, "item_id": boss_id + "_mythic", "name": boss_id + " Mythic Artifact"},
+		],
+	}

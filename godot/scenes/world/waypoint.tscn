@@ -1,0 +1,163 @@
+[gd_scene load_steps=2 format=3 uid="uid://waypoint01"]
+
+[sub_resource type="GDScript" id="GDScript_waypoint"]
+script/source = "## Waypoint - Interaktálható fast travel pont a világban
+## Aktiválás: játékos közeledik + interact gomb
+extends Area2D
+
+@export var waypoint_id: String = \"\"
+@export var waypoint_name: String = \"Waypoint\"
+@export var biome_type: int = 0  # Enums.BiomeType
+@export var is_dungeon_entrance: bool = false
+@export var is_boss_arena: bool = false
+
+var _is_discovered: bool = false
+var _player_in_range: bool = false
+var _sprite: Sprite2D = null
+var _label: Label = null
+var _interact_label: Label = null
+var _particles: CPUParticles2D = null
+
+
+func _ready() -> void:
+	# Collision setup
+	collision_layer = 0
+	collision_mask = Constants.LAYER_PLAYER_PHYSICS
+	
+	# Interaction area
+	var shape := CollisionShape2D.new()
+	var circle := CircleShape2D.new()
+	circle.radius = 32.0
+	shape.shape = circle
+	add_child(shape)
+	
+	# Sprite (placeholder kő)
+	_sprite = Sprite2D.new()
+	_sprite.modulate = Color(0.4, 0.5, 0.7, 0.8)
+	add_child(_sprite)
+	
+	# Placeholder sprite rajzolás
+	_draw_placeholder_sprite()
+	
+	# Waypoint név label
+	_label = Label.new()
+	_label.text = waypoint_name
+	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_label.position = Vector2(-40, -30)
+	_label.size = Vector2(80, 20)
+	_label.add_theme_font_size_override(\"font_size\", 8)
+	_label.add_theme_color_override(\"font_color\", Color(0.8, 0.8, 0.9))
+	add_child(_label)
+	
+	# Interact hint label
+	_interact_label = Label.new()
+	_interact_label.text = \"[E] Aktiválás\"
+	_interact_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_interact_label.position = Vector2(-40, 20)
+	_interact_label.size = Vector2(80, 16)
+	_interact_label.add_theme_font_size_override(\"font_size\", 7)
+	_interact_label.add_theme_color_override(\"font_color\", Color(0.9, 0.8, 0.3))
+	_interact_label.visible = false
+	add_child(_interact_label)
+	
+	# Részecske effekt
+	_setup_particles()
+	
+	# Signal-ok
+	body_entered.connect(_on_body_entered)
+	body_exited.connect(_on_body_exited)
+	
+	# Regisztráció a FastTravel rendszerbe
+	if has_node(\"/root/FastTravel\"):
+		FastTravel.register_waypoint(waypoint_id, {
+			\"name\": waypoint_name,
+			\"position\": global_position,
+			\"biome\": biome_type,
+			\"is_dungeon\": is_dungeon_entrance,
+			\"is_boss_arena\": is_boss_arena,
+			\"discovered\": _is_discovered,
+		})
+
+
+func _draw_placeholder_sprite() -> void:
+	# Egyszerű placeholder waypoint kő rajzolás
+	var img := Image.create(16, 24, false, Image.FORMAT_RGBA8)
+	# Kő alap
+	for y in range(24):
+		for x in range(16):
+			var dist_from_center := Vector2(x - 8, y - 12).length()
+			if dist_from_center < 7:
+				var shade := 0.3 + randf() * 0.15
+				img.set_pixel(x, y, Color(shade, shade, shade + 0.1, 1.0))
+			# Rúna rajz a kő közepén
+			if y >= 8 and y <= 16 and x >= 5 and x <= 11:
+				if (x + y) % 3 == 0:
+					img.set_pixel(x, y, Color(0.3, 0.5, 0.9, 1.0))
+	
+	var tex := ImageTexture.create_from_image(img)
+	_sprite.texture = tex
+
+
+func _setup_particles() -> void:
+	_particles = CPUParticles2D.new()
+	_particles.emitting = false
+	_particles.amount = 8
+	_particles.lifetime = 1.5
+	_particles.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE
+	_particles.emission_sphere_radius = 12.0
+	_particles.direction = Vector2(0, -1)
+	_particles.spread = 30.0
+	_particles.initial_velocity_min = 10.0
+	_particles.initial_velocity_max = 20.0
+	_particles.gravity = Vector2(0, -5)
+	_particles.scale_amount_min = 0.5
+	_particles.scale_amount_max = 1.5
+	_particles.color = Color(0.3, 0.5, 0.9, 0.7)
+	add_child(_particles)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _player_in_range and event.is_action_pressed(\"interact\"):
+		_interact()
+
+
+func _interact() -> void:
+	if not _is_discovered:
+		# Első felfedezés
+		_is_discovered = true
+		if has_node(\"/root/FastTravel\"):
+			FastTravel.discover_waypoint(waypoint_id)
+		
+		# Vizuális feedback
+		_sprite.modulate = Color(0.5, 0.7, 1.0, 1.0)
+		_particles.emitting = true
+		_interact_label.text = \"[E] Fast Travel\"
+	else:
+		# Már felfedezve → térkép megnyitás fast travel-hez
+		EventBus.screen_opened.emit(\"map_screen\")
+
+
+func _on_body_entered(body: Node2D) -> void:
+	if body == GameManager.player:
+		_player_in_range = true
+		_interact_label.visible = true
+		if _is_discovered:
+			_interact_label.text = \"[E] Fast Travel\"
+
+
+func _on_body_exited(body: Node2D) -> void:
+	if body == GameManager.player:
+		_player_in_range = false
+		_interact_label.visible = false
+
+
+## Felfedezett állapot betöltése (save-ből)
+func set_discovered(discovered: bool) -> void:
+	_is_discovered = discovered
+	if discovered:
+		_sprite.modulate = Color(0.5, 0.7, 1.0, 1.0)
+		_particles.emitting = true
+"
+
+[node name="Waypoint" type="Area2D"]
+script = SubResource("GDScript_waypoint")

@@ -1,0 +1,413 @@
+================================================================================
+ASHENFALL – 17. ACCESSIBILITY & LOCALIZATION PLAN
+================================================================================
+Státusz: Teljesen hiányzik – sem accessibility, sem lokalizáció nincs.
+A játék jelenleg vegyes magyar-angol kontenttel rendelkezik.
+================================================================================
+
+1. ÁTTEKINTÉS
+================================================================================
+
+Ez a terv két összefüggő területet fed le:
+ A) Accessibility (akadálymentesítés) – a játék minden játékos számára
+    hozzáférhető legyen
+ B) Localization (lokalizáció) – többnyelvű támogatás, elsősorban
+    magyar és angol nyelv
+
+Jelenlegi helyzet:
+ - Nincs controller/gamepad támogatás (csak billentyűzet + egér)
+ - Nincs colorblind mód
+ - Nincs szövegméretezés
+ - Nincs key rebinding UI (InputManager feltérképezi, de nincs UI)
+ - Nincs i18n rendszer (tr() nem használt)
+ - A kód kommentek és enum nevek angolul vannak
+ - A tervdokumentumok magyarul vannak
+ - NPC/quest szövegek még nem léteznek
+ - Nincs nyelv választási opció
+
+================================================================================
+
+2. CONTROLLER / GAMEPAD TÁMOGATÁS
+================================================================================
+
+2.1 Input mapping – Godot InputMap kiterjesztés:
+──────────────────────────────────────────────────
+
+Jelenlegi billentyű → Gamepad mapping:
+
+  WASD mozgás          → Left Stick
+  Egér pozíció         → Right Stick (aim irány)
+  Bal klikk (attack)   → Right Trigger (RT)
+  Jobb klikk (skill2)  → Left Trigger (LT)
+  1-5 skill gombok     → A/B/X/Y + LB/RB
+  Tab (inventory)      → Select/Back gomb
+  M (map)              → D-pad Up
+  Esc (menu)           → Start gomb
+  E (interact)         → A gomb (context)
+  Space (dodge)        → B gomb
+  Q (ultimate)         → LB + RB egyszerre
+  F (potion)           → D-pad Down
+  C (character)        → D-pad Left
+  T (skill tree)       → D-pad Right
+
+2.2 Controller UI navigáció:
+─────────────────────────────
+  - Menü navigáció: D-pad vagy Left Stick
+  - Választás: A gomb
+  - Vissza: B gomb
+  - Tab váltás UI-ban: LB/RB
+  - Tooltip megjelenítés: X gomb hover
+  - Drag & Drop (inventory): A (pick up) → move → A (put down)
+  - Radial menu skill-ekhez: RB hold + Right Stick irány
+
+2.3 Cursor szimuláció:
+───────────────────────
+  - Gamepad módban: szoftver kurzor Right Stick-kel
+  - Aim assist: enyhe snap-to-enemy (5° kúp)
+  - Auto-target legközelebbi ellenségre ha nincs Right Stick mozgás
+  - Kurzor sebesség beállítható: Slow/Medium/Fast
+
+2.4 Implementáció:
+───────────────────
+  scripts/core/input_manager.gd módosítás:
+    - Controller detection: Input.get_connected_joypads()
+    - Auto-switch KB/Controller UI prompt ikonok
+    - Deadzone beállítás (default: 0.2)
+    - Vibration támogatás (hit feedback, boss mechanics)
+
+  Szükséges asset-ek:
+    - Xbox gomb ikonok (16×16 sprite sheet)
+    - PlayStation gomb ikonok (16×16 sprite sheet)
+    - UI prompt rendszer ami váltja az ikonokat
+
+================================================================================
+
+3. ACCESSIBILITY FUNKCIÓK
+================================================================================
+
+3.1 Vizuális accessibility:
+────────────────────────────
+
+COLORBLIND MÓDOK:
+  Protanopia (vörös-zöld, ~8% férfiak):
+    - Vörös → Narancssárga/Sárga csere
+    - Zöld → Kék árnyalat
+    - HP bar: Piros → Fehér + minta
+    - Méreg effekt: Zöld → Lila
+
+  Deuteranopia (zöld-vörös, ~6% férfiak):
+    - Hasonló a protanopia-hoz, más árnyalatokkal
+    - Ellenség jelölők: Szín → Szín + szimbólum
+
+  Tritanopia (kék-sárga, ~0.01%):
+    - Kék → Cián
+    - Sárga → Fehér/Arany
+
+  Implementáció módja:
+    - Shader-based: palette_swap.gdshader kiterjesztés
+    - Uniform változók a color remap-hez
+    - Vagy: CanvasItem szintű color modulate-tal
+    - Ritkaság jelzés: szín + szimbólum + keretminta kombináció:
+        Normal: Szürke + nincs szimbólum
+        Magic:  Kék + kör szimbólum
+        Rare:   Sárga + háromszög
+        Epic:   Lila + rombusz
+        Legend: Narancssárga + csillag
+        Set:    Zöld + pajzs
+
+SZÖVEG MÉRETEZÉS:
+  3 preset: Small (alapértelmezett), Medium (+25%), Large (+50%)
+  - Minden Label node: dynamic font size
+  - Theme override-ok méret szerint
+  - Tooltip max width növelés nagy betűnél
+  - Chat szöveg külön állítható
+
+SCREEN SHAKE INTENZITÁS:
+  Slider 0-100% (default 100%)
+  - 0% = teljes kikapcsolás (motion sickness)
+  - Csak camera shake érintett, UI shake nem
+
+FLASH/STROBE LIMIT:
+  Opció: "Reduce Flashing" toggle
+  - Crit flash: rövidebb (0.05s → 0.02s) vagy kikapcsolt
+  - Status effect villogás: folyamatos szín csere animáció
+  - Boss fázis transition: fade használata flash helyett
+
+3.2 Auditív accessibility:
+───────────────────────────
+
+SUBTITLE RENDSZER:
+  - Minden NPC dialógus szöveggel is megjelenik (már tervben van)
+  - Környezeti hangok opcionális caption:
+      "[Csatazaj a közelben]"
+      "[Csepegő víz]"
+      "[Ajtó nyikorgás]"
+  - Caption pozíció: alsó harmad, átlátszó háttérrel
+  - Subtitle méret: a szövegméretezéssel együtt skálázódik
+
+VIZUÁLIS INDIKÁTOROK HANGOKHOZ:
+  - Audio cue → képernyő szélén irány indikátor
+  - Boss attack telegraph: hang + vizuális flash a telegraph-on
+  - Offscreen ellenség: minimap + széljelzés
+
+AUDIO BALANCE:
+  Külön csúszkák (már tervezett az audio_plan-ban):
+  - Master, Music, SFX, Ambient, UI, Voice
+  - Mono audio opció (egyetlen hangszóróhoz / hallássérültnek)
+
+3.3 Motor accessibility:
+─────────────────────────
+
+KEY REBINDING:
+  - Teljes key rebind UI a settings menüben
+  - Conflict detection (dupla binding figyelmeztetés)
+  - Reset to defaults gomb
+  - Preset profilok: Default, Lefty, One-handed
+
+TOGGLE vs HOLD:
+  Beállítható a következőknél:
+  - Sprint: toggle vagy hold
+  - Block/Shield: toggle vagy hold
+  - Channel skills: toggle vagy hold
+  - Auto-attack: opció (tartás nélkül is támad)
+
+AUTO AIM SEGÍTSÉG:
+  3 szint: Off / Subtle / Strong
+  - Subtle: enyhe aim magnetizmus (10°)
+  - Strong: auto-target legközelebbi ellenségre
+  - Loot pickup: terület gyűjtés (pickup radius növelés)
+
+GAME SPEED:
+  Opció: 50% / 75% / 100% (alapértelmezett)
+  - Engine.time_scale módosítás
+  - Csak single player módban elérhető
+  - Nem befolyásolja az XP/loot rátákat
+
+3.4 Kognitív accessibility:
+────────────────────────────
+
+QUEST TRACKING:
+  - Világos célpont jelölés minimapen
+  - Útvonal rajzolás opció (nyilak a földön a cél felé)
+  - Jelenlegi quest emlékeztető 5 percenként (opcionális)
+
+DIFFICULTY SELECTION (single player only):
+  - Story Mode: Enemy DMG ×0.5, Player DMG ×1.5, Auto-potions
+  - Normal: Alapértelmezett
+  - Hard: Enemy DMG ×1.3, Player DMG ×0.9
+  - Nightmare: Plan 15 szerinti rendszer
+
+  Megjegyzés: Multiplayer mindig Normal. A Nightmare dungeon tiers
+  külön endgame rendszer.
+
+UI EGYSZERŰSÍTÉS:
+  Opció: "Simplified UI" toggle
+  - Kevesebb stat megjelenítés
+  - Egyszerűbb tooltip (csak fő statok)
+  - Affix részletezés elrejtése (csak "+damage, +defense" szinten)
+
+================================================================================
+
+4. LOKALIZÁCIÓS RENDSZER (i18n)
+================================================================================
+
+4.1 Godot beépített lokalizáció:
+──────────────────────────────────
+
+Godot 4.x támogatja:
+  - TranslationServer
+  - .csv vagy .po fájlok
+  - tr() függvény kódban
+  - %s placeholder-ek
+
+Választott formátum: CSV (egyszerűbb kezelés)
+
+Fájl: res://translations/translations.csv
+
+Struktúra:
+  keys,hu,en
+  MENU_PLAY,Játék,Play
+  MENU_SETTINGS,Beállítások,Settings
+  MENU_QUIT,Kilépés,Quit
+  ...
+
+4.2 Szöveg kategóriák és becsült mennyiségek:
+───────────────────────────────────────────────
+
+  Menü szövegek:              ~80 kulcs
+  HUD elemek:                 ~40 kulcs
+  Skill nevek + leírások:     ~90 kulcs (45 skill × 2)
+  Item nevek (base):          ~120 kulcs
+  Affix szövegek:             ~60 kulcs
+  Set item nevek + bónuszok:  ~50 kulcs
+  Legendary nevek + powerek:  ~90 kulcs (30 × 3)
+  Enemy nevek:                ~50 kulcs
+  Boss nevek + emote:         ~30 kulcs
+  NPC párbeszédek:            ~500 kulcs (Plan 12 alapján)
+  Quest szövegek:             ~400 kulcs (160 quest × ~2.5)
+  Tutorial szövegek:          ~100 kulcs (Plan 14 alapján)
+  Achievement szövegek:       ~140 kulcs (70 × 2)
+  UI tooltip-ek:              ~80 kulcs
+  Loading screen tip-ek:      ~40 kulcs
+  System üzenetek:            ~60 kulcs
+  Chat előre definiált:       ~30 kulcs
+  ──────────────────────────────────
+  ÖSSZESEN:                   ~1,960 kulcs
+
+4.3 Nyelvek – Fázisok:
+───────────────────────
+
+  Fázis 1: Magyar (HU) + Angol (EN)
+    - A játék fejlesztési nyelve magyar
+    - Angol a fő export nyelv
+    - Mindkét nyelv párhuzamosan készül
+
+  Fázis 2 (jövőbeli, ha igény van):
+    - Német (DE) – nagy Steam piaci részesedés
+    - Spanyol (ES) – nagy játékos bázis
+    - Japán (JA) – ARPG népszerű
+
+4.4 Implementációs lépések:
+────────────────────────────
+
+1. Minden hardcoded string kigyűjtése a kódból:
+   - grep -r '"' scripts/ → magyar és angol stringek listázása
+   - Minden UI text label átírása tr("KEY") formára
+   - Minden notification, dialog, tooltip szöveg
+
+2. Translation CSV legenerálása:
+   - Üres template az összes kulccsal
+   - Magyar oszlop kitöltése (elsődleges)
+   - Angol oszlop kitöltése (fordítás)
+
+3. Project beállítás:
+   - project.godot-ban: locale/translations hozzáadása
+   - project.godot-ban: locale/fallback = "en"
+   - Settings menübe: nyelv választó dropdown
+
+4. Font támogatás:
+   - Unicode font ami mindkét nyelvet támogatja
+   - Speciális magyar karakterek: áéíóöőúüű ÁÉÍÓÖŐÚÜŰ
+   - Ékezetes karakterek tesztelése minden UI elemen
+
+5. Dinamikus szöveg kezelés:
+   - Számformátumok: 1,000 (EN) vs 1 000 (HU)
+   - Dátum: MM/DD/YYYY (EN) vs YYYY.MM.DD (HU)
+   - Pluralizáció: tr("ITEMS_COUNT").format({"count": n})
+
+4.5 Fordítási irányelvek:
+──────────────────────────
+
+ITEM/SKILL NEVEK:
+  - Hangulatos, fantasy stílusú nevek mindkét nyelven
+  - A magyar verzió az elsődleges (fejlesztő anyanyelve)
+  - Angol: tömör, idiomatikus fordítás
+  - Példa: "Hamvak Pengéje" → "Blade of Ashes"
+
+NPC DIALÓGUS:
+  - A hangnem illeszkedik a karakterhez
+  - Magyar: közvetlen, kevés archaizmus
+  - Angol: light fantasy register
+
+SKILL LEÍRÁSOK:
+  - Technikai pontosság mindkét nyelven
+  - Számértékek azonosak (nem fordítás kérdése)
+  - Mechanika kulcsszavak konzisztens fordítása:
+      Damage = Sebzés
+      Armor = Páncél
+      Health = Életerő
+      Mana = Mana (nem fordítjuk)
+      Cooldown = Visszatöltés / CD
+      Critical = Kritikus
+      Dodge = Kitérés
+      Block = Blokkolás
+      Stun = Bénítás
+      Freeze = Fagyasztás
+      Poison = Mérgezés
+      Buff = Erősítés
+      Debuff = Gyengítés
+
+================================================================================
+
+5. SETTINGS MENÜ MÓDOSÍTÁSOK
+================================================================================
+
+A settings_menu.gd/tscn kiegészítése a következő fülekkel:
+
+CONTROLS TAB:
+  - Key rebinding tábla (Action → Key → [Rebind] gomb)
+  - Controller sensitivity slider
+  - Controller deadzone slider
+  - Controller vibration toggle + intensity
+  - Mouse sensitivity slider
+  - Toggle vs Hold beállítások (4 opció)
+  - Auto-aim szint (Off/Subtle/Strong)
+  - Controller/KB auto-detect toggle
+
+ACCESSIBILITY TAB:
+  - Colorblind mód: Off / Protanopia / Deuteranopia / Tritanopia
+  - Text size: Small / Medium / Large
+  - Screen shake: slider 0-100%
+  - Reduce flashing: toggle
+  - Sound captions: toggle
+  - Difficulty: Story / Normal / Hard (single player only)
+  - Game speed: 50% / 75% / 100% (single player only)
+  - Simplified UI: toggle
+  - Quest path indicator: toggle
+  - Auto-pickup radius: slider
+
+LANGUAGE TAB:
+  - Nyelv: Magyar / English
+  - (Jövőben: Deutsch, Español, 日本語)
+
+================================================================================
+
+6. IMPLEMENTÁCIÓS PRIORITÁS
+================================================================================
+
+KRITIKUS (launch előtt kell):
+  1. Alapvető lokalizációs rendszer (CSV + tr())    – 3-4 nap
+  2. Magyar + Angol szövegek a menüknek             – 2 nap
+  3. Key rebinding UI                                – 2 nap
+  4. Controller alapvető támogatás                   – 3 nap
+
+FONTOS (launch-hoz erősen ajánlott):
+  5. Colorblind mód (legalább Protanopia)            – 2 nap
+  6. Text méretezés                                  – 1 nap
+  7. Screen shake / flash beállítások                – 1 nap
+  8. Subtitle rendszer NPC dialógusokhoz             – 2 nap
+  9. Difficulty opciók (single player)               – 1 nap
+
+LATER (post-launch bővítés):
+  10. Teljes quest szöveg fordítás (EN)              – folyamatos
+  11. Controller vibration fine-tuning               – 1 nap
+  12. További nyelvek                                – igény szerint
+  13. Mono audio + advanced accessibility            – 1 nap
+
+================================================================================
+
+7. TESZTELÉSI TERV
+================================================================================
+
+□ Gamepad: Xbox controller teljes gameplay teszt
+□ Gamepad: PlayStation controller teszt
+□ Gamepad: Menu navigáció teljesen controller-rel
+□ Gamepad: Inventory drag & drop controller-rel
+□ Gamepad: Radial skill menu teszt
+□ KB: Minden rebindelt gomb működik
+□ KB: Conflict detection működik
+□ Colorblind: Protanopia – minden ritkaság megkülönböztethető
+□ Colorblind: Deuteranopia – HP/mana bar olvasható
+□ Text: Large mód – semmi nem lóg ki a UI-ból
+□ Flash: Reduced flash – nincs villogás
+□ Shake: 0% mód – nincs kamera shake
+□ i18n: Magyar teljes gameplay
+□ i18n: Angol teljes gameplay
+□ i18n: Nyelv váltás runtime (nem kell restart)
+□ i18n: Ékezetes karakterek minden betűméretben
+□ i18n: Hosszabb angol szövegek nem lógnak ki
+□ Difficulty: Story mód – elejétől végéig végigjátszható
+
+================================================================================
+FÁJL VÉGE
+================================================================================

@@ -68,6 +68,7 @@ func _is_swarm(member: Node) -> bool:
 ## Pack update - hívandó frame-enként
 func update(delta: float) -> void:
 	# Clean dead members
+	var had_leader := pack_leader != null and is_instance_valid(pack_leader)
 	pack_members = pack_members.filter(func(m): return is_instance_valid(m) and m.current_hp > 0)
 	
 	if pack_members.is_empty():
@@ -75,14 +76,48 @@ func update(delta: float) -> void:
 	
 	# Leader update
 	if pack_leader == null or not is_instance_valid(pack_leader) or pack_leader.current_hp <= 0:
-		# Új leader
+		var leader_died := had_leader
+		# Új leader kiválasztása
 		if not pack_members.is_empty():
 			pack_leader = pack_members[0]
 			pack_leader.set_meta("pack_role", PackRole.LEADER)
+		
+		# Leader halál reakció: morale check
+		if leader_died:
+			_on_leader_died()
 	
 	# Target megosztás
 	if pack_leader and is_instance_valid(pack_leader) and "current_target" in pack_leader:
 		target = pack_leader.current_target
+
+
+## Leader halálára reagálás
+func _on_leader_died() -> void:
+	for member in pack_members:
+		if not is_instance_valid(member):
+			continue
+		
+		# Morale check: 40% eséllyel elmenekülnek
+		if randf() < 0.4:
+			# Scatter: menekülés random irányba
+			if member.has_method("_bt_retreat_action") or "ai_state" in member:
+				member.ai_state = EnemyBase.AIState.RETREAT
+				var flee_angle := randf() * TAU
+				var flee_dir := Vector2(cos(flee_angle), sin(flee_angle))
+				member.velocity = flee_dir * member.move_speed * 1.5
+				
+				# 3 másodperc menekülés után visszatérnek
+				if member.has_method("get_tree") and member.get_tree():
+					var timer := member.get_tree().create_timer(3.0)
+					timer.timeout.connect(func():
+						if is_instance_valid(member) and member.is_alive:
+							member.ai_state = EnemyBase.AIState.IDLE
+					)
+		else:
+			# Düh: megnövelt damage rövid időre
+			if "status_manager" in member and member.status_manager:
+				var rage := StatusEffect.create(Enums.EffectType.DAMAGE_UP, 10.0, 25.0, null)
+				member.status_manager.apply_effect(rage)
 
 
 ## Pozíció számítás pack role alapján

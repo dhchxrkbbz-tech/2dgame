@@ -32,29 +32,43 @@ static func initialize_pools() -> void:
 		return
 	_pool_initialized = true
 	
-	# Prefixes
-	PREFIX_POOL.append(_create("Blazing", AffixType.PREFIX, "fire_damage", Vector2(3, 20), Vector2(5, 35)))
-	PREFIX_POOL.append(_create("Frozen", AffixType.PREFIX, "ice_damage", Vector2(3, 20), Vector2(5, 35)))
-	PREFIX_POOL.append(_create("Toxic", AffixType.PREFIX, "poison_damage", Vector2(3, 20), Vector2(5, 35)))
-	PREFIX_POOL.append(_create("Sturdy", AffixType.PREFIX, "armor", Vector2(2, 15), Vector2(4, 25)))
-	PREFIX_POOL.append(_create("Vicious", AffixType.PREFIX, "physical_damage", Vector2(2, 15), Vector2(5, 30)))
-	PREFIX_POOL.append(_create("Arcane", AffixType.PREFIX, "spell_damage", Vector2(3, 18), Vector2(6, 30)))
-	PREFIX_POOL.append(_create("Heavy", AffixType.PREFIX, "max_hp", Vector2(5, 40), Vector2(10, 80)))
-	PREFIX_POOL.append(_create("Quick", AffixType.PREFIX, "attack_speed", Vector2(3, 12), Vector2(5, 20), true))
-	PREFIX_POOL.append(_create("Vampiric", AffixType.PREFIX, "lifesteal", Vector2(1, 5), Vector2(2, 10), true))
-	PREFIX_POOL.append(_create("Blessed", AffixType.PREFIX, "heal_effectiveness", Vector2(3, 15), Vector2(5, 25), true))
-	
-	# Suffixes
-	SUFFIX_POOL.append(_create("of the Bear", AffixType.SUFFIX, "max_hp", Vector2(5, 40), Vector2(10, 80)))
-	SUFFIX_POOL.append(_create("of the Fox", AffixType.SUFFIX, "dodge", Vector2(1, 5), Vector2(2, 10), true))
-	SUFFIX_POOL.append(_create("of the Eagle", AffixType.SUFFIX, "crit_chance", Vector2(1, 4), Vector2(2, 8), true))
-	SUFFIX_POOL.append(_create("of the Tiger", AffixType.SUFFIX, "crit_damage", Vector2(5, 20), Vector2(10, 40), true))
-	SUFFIX_POOL.append(_create("of Haste", AffixType.SUFFIX, "move_speed", Vector2(2, 8), Vector2(3, 15), true))
-	SUFFIX_POOL.append(_create("of Fortune", AffixType.SUFFIX, "gold_find", Vector2(5, 20), Vector2(10, 50), true))
-	SUFFIX_POOL.append(_create("of Discovery", AffixType.SUFFIX, "magic_find", Vector2(3, 12), Vector2(5, 25), true))
-	SUFFIX_POOL.append(_create("of Vitality", AffixType.SUFFIX, "hp_regen", Vector2(1, 5), Vector2(2, 12)))
-	SUFFIX_POOL.append(_create("of Wisdom", AffixType.SUFFIX, "xp_gain", Vector2(2, 10), Vector2(5, 20), true))
-	SUFFIX_POOL.append(_create("of Protection", AffixType.SUFFIX, "damage_reduction", Vector2(1, 5), Vector2(2, 12), true))
+	# === OFFENSIVE PREFIXES ===
+	PREFIX_POOL.append(_create("Sharp", AffixType.PREFIX, "flat_damage", Vector2(1, 26), Vector2(3, 40)))
+	PREFIX_POOL.append(_create("Blazing", AffixType.PREFIX, "fire_damage", Vector2(5, 33), Vector2(8, 45), true))
+	PREFIX_POOL.append(_create("Frozen", AffixType.PREFIX, "ice_damage", Vector2(5, 33), Vector2(8, 45), true))
+	PREFIX_POOL.append(_create("Toxic", AffixType.PREFIX, "poison_damage", Vector2(5, 33), Vector2(8, 45), true))
+	PREFIX_POOL.append(_create("Swift", AffixType.PREFIX, "attack_speed", Vector2(3, 21), Vector2(5, 28), true))
+	PREFIX_POOL.append(_create("Deadly", AffixType.PREFIX, "crit_chance", Vector2(1, 11), Vector2(2, 15), true))
+	PREFIX_POOL.append(_create("Brutal", AffixType.PREFIX, "crit_damage", Vector2(5, 46), Vector2(10, 60), true))
+	PREFIX_POOL.append(_create("Piercing", AffixType.PREFIX, "armor_pen", Vector2(2, 26), Vector2(4, 36)))
+
+	# === DEFENSIVE PREFIXES ===
+	PREFIX_POOL.append(_create("Sturdy", AffixType.PREFIX, "armor", Vector2(3, 41), Vector2(6, 60)))
+	PREFIX_POOL.append(_create("Vital", AffixType.PREFIX, "max_hp", Vector2(8, 81), Vector2(15, 120)))
+	PREFIX_POOL.append(_create("Hardy", AffixType.PREFIX, "all_resist", Vector2(2, 20), Vector2(4, 26), true))
+	PREFIX_POOL.append(_create("Evasive", AffixType.PREFIX, "dodge", Vector2(1, 11), Vector2(2, 14), true))
+	PREFIX_POOL.append(_create("Blocking", AffixType.PREFIX, "block_chance", Vector2(2, 19), Vector2(4, 24), true))
+
+	# === UTILITY PREFIXES ===
+	PREFIX_POOL.append(_create("Wise", AffixType.PREFIX, "xp_gain", Vector2(3, 24), Vector2(5, 32), true))
+	PREFIX_POOL.append(_create("Lucky", AffixType.PREFIX, "magic_find", Vector2(5, 41), Vector2(10, 55), true))
+	PREFIX_POOL.append(_create("Wealthy", AffixType.PREFIX, "gold_find", Vector2(8, 59), Vector2(15, 80), true))
+
+	# === SUFFIXES ===
+	SUFFIX_POOL.append(_create("of Fire", AffixType.SUFFIX, "fire_resist", Vector2(5, 30), Vector2(10, 40), true))
+	SUFFIX_POOL.append(_create("of Ice", AffixType.SUFFIX, "ice_resist", Vector2(5, 30), Vector2(10, 40), true))
+	SUFFIX_POOL.append(_create("of Venom", AffixType.SUFFIX, "poison_resist", Vector2(5, 30), Vector2(10, 40), true))
+	SUFFIX_POOL.append(_create("of Shadow", AffixType.SUFFIX, "shadow_resist", Vector2(5, 30), Vector2(10, 40), true))
+	SUFFIX_POOL.append(_create("of Storm", AffixType.SUFFIX, "lightning_resist", Vector2(5, 30), Vector2(10, 40), true))
+	SUFFIX_POOL.append(_create("of the Mage", AffixType.SUFFIX, "max_mana", Vector2(5, 40), Vector2(10, 60)))
+	SUFFIX_POOL.append(_create("of War", AffixType.SUFFIX, "strength", Vector2(2, 15), Vector2(4, 22)))
+	SUFFIX_POOL.append(_create("of the Fox", AffixType.SUFFIX, "dexterity", Vector2(2, 15), Vector2(4, 22)))
+	SUFFIX_POOL.append(_create("of the Owl", AffixType.SUFFIX, "intelligence", Vector2(2, 15), Vector2(4, 22)))
+	SUFFIX_POOL.append(_create("of Life", AffixType.SUFFIX, "hp_regen", Vector2(1, 8), Vector2(2, 12)))
+	SUFFIX_POOL.append(_create("of Mana", AffixType.SUFFIX, "mana_regen", Vector2(0.5, 4), Vector2(1, 6)))
+	SUFFIX_POOL.append(_create("of Leech", AffixType.SUFFIX, "lifesteal", Vector2(1, 6), Vector2(2, 8), true))
+	SUFFIX_POOL.append(_create("of the Star", AffixType.SUFFIX, "all_stats", Vector2(1, 5), Vector2(1, 8)))
+	SUFFIX_POOL.append(_create("of Light", AffixType.SUFFIX, "light_radius", Vector2(1, 5), Vector2(1, 5)))
 
 
 static func _create(p_name: String, p_type: AffixType, p_stat: String,

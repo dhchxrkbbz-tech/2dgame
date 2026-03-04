@@ -102,13 +102,37 @@ func enhance_item(item: ItemInstance) -> Dictionary:
 			"stat_bonus": item.enhancement_level * 0.05,
 		}
 	else:
-		# Fail: material elvész, item NEM törik el
+		# Fail: material elvész + downgrade risk +7 felett
+		var downgraded := false
+		var destroyed := false
+		var old_level := item.enhancement_level
+		
+		if item.enhancement_level >= 7:
+			# +7 felett: 30% eséllyel 1 szintet veszít
+			if randf() < 0.3:
+				item.enhancement_level = maxi(0, item.enhancement_level - 1)
+				downgraded = true
+		if item.enhancement_level >= 9:
+			# +9 felett: 5% eséllyel tönkremegy (reset 0-ra)
+			if randf() < 0.05:
+				item.enhancement_level = 0
+				destroyed = true
+				downgraded = false
+		
 		EventBus.enhancement_attempted.emit(item.uuid, item.enhancement_level, false)
-		return {
+		var result := {
 			"success": false,
 			"reason": "enhancement_failed",
 			"current_level": item.enhancement_level,
+			"downgraded": downgraded,
+			"destroyed": destroyed,
+			"old_level": old_level,
 		}
+		if downgraded:
+			result["reason"] = "enhancement_downgraded"
+		if destroyed:
+			result["reason"] = "enhancement_destroyed"
+		return result
 
 
 # ============================================================

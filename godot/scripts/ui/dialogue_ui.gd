@@ -1,5 +1,6 @@
 ## DialogueUI - NPC párbeszéd megjelenítés
 ## Typewriter effekt, válaszopciók, portrait
+## DialogueManager-rel integrált
 class_name DialogueUI
 extends CanvasLayer
 
@@ -25,12 +26,18 @@ var typewriter_done: bool = true
 var is_open: bool = false
 var current_npc_id: String = ""
 var can_advance: bool = false
+var _managed_by_dialogue_manager: bool = false
 
 
 func _ready() -> void:
 	layer = 50
 	_build_ui()
 	_set_visible(false)
+	
+	# DialogueManager integráció
+	if has_node("/root/DialogueManager"):
+		DialogueManager.dialogue_ui = self
+		_managed_by_dialogue_manager = true
 
 
 func _build_ui() -> void:
@@ -174,9 +181,16 @@ func _input(event: InputEvent) -> void:
 			can_advance = true
 			continue_indicator.visible = options_container.get_child_count() == 0
 		elif can_advance and options_container.get_child_count() == 0:
-			close_dialogue()
+			# DialogueManager-en keresztül advance
+			if _managed_by_dialogue_manager and has_node("/root/DialogueManager"):
+				DialogueManager.advance_dialogue()
+			else:
+				close_dialogue()
 		get_viewport().set_input_as_handled()
 	
 	if event.is_action_pressed("ui_cancel"):
-		close_dialogue()
+		if _managed_by_dialogue_manager and has_node("/root/DialogueManager"):
+			DialogueManager.end_dialogue()
+		else:
+			close_dialogue()
 		get_viewport().set_input_as_handled()

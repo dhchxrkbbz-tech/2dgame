@@ -1,0 +1,921 @@
+================================================================================
+ASHENFALL – COMPREHENSIVE ASSET EXTRACTION REPORT  (v2)
+================================================================================
+Generated from 14 plan files (02–18, excluding 05, 11, 13)
+Game: Ashenfall – 2D top-down pixel art dark fantasy ARPG
+Engine: Godot 4.x | Tile: 64×64px | Viewport: 640×360 native (integer scale)
+
+PIPELINE VÁLTOZÁS (v1 → v2):
+  v1: Stable Diffusion XL + ComfyUI + LoRA + Aseprite
+  v2: Claude Opus 4.6 → GDScript (Godot Image API) → PNG export
+
+KULCS VÁLTOZÁSOK:
+  - Minden sprite GDScript kóddal generálódik (set_pixel / fill_rect)
+  - Tile méret: 32×32 → 64×64 pixel (minden sprite méret ×2)
+  - Nincs külső eszköz (SD, ComfyUI, Aseprite, stb.)
+  - Asset-ek: generators/ mappában lévő .gd fájlok exportálják
+  - Batch export: EditorScript (batch_export_tool.gd)
+================================================================================
+
+TABLE OF CONTENTS
+  1. GRAND TOTALS SUMMARY
+  2. FILE-BY-FILE EXTRACTION (frissített méretekkel)
+  3. SHADER INVENTORY
+  4. CLAUDE GDSCRIPT PIPELINE DETAILS
+  5. MASTER ASSET CHECKLIST
+
+================================================================================
+1. GRAND TOTALS SUMMARY
+================================================================================
+
+  ┌───────────────────────────────┬──────────┬───────────────────────────────┐
+  │ VISUAL ASSETS                 │ COUNT    │ GENERATOR FILE                │
+  ├───────────────────────────────┼──────────┼───────────────────────────────┤
+  │ Player sprite sheets          │ 3        │ characters/[class]_gen.gd     │
+  │ Enemy sprite sheets (base)    │ 40       │ enemies/[biome]_enemies.gd    │
+  │ Elite enemy variants (shader) │ 40       │ enemies/[biome]_enemies.gd    │
+  │ Rare enemy variants           │ 15       │ enemies/rare_enemies.gd       │
+  │ Boss sprite sheets            │ 14       │ bosses/tier[N]_bosses.gd      │
+  │ NPC portraits (128×128)       │ 6        │ npcs/npc_generator.gd         │
+  │ NPC world sprites (64×96)     │ ~20      │ npcs/npc_generator.gd         │
+  │ World tilesets (biome)        │ 8        │ tilesets/world_tileset.gd     │
+  │ Dungeon tilesets              │ 7        │ tilesets/dungeon_tileset.gd   │
+  │ Dungeon tiles total           │ ~350     │ tilesets/dungeon_tileset.gd   │
+  │ World tiles total             │ ~320     │ tilesets/world_tileset.gd     │
+  │ Skill effect sprites          │ 45       │ effects/vfx_generator.gd      │
+  │ Skill icons (64×64)           │ 48       │ icons/skill_icon_gen.gd       │
+  │ Item icons (64×64)            │ ~232     │ icons/item_icon_gen.gd        │
+  │ Gem sprites                   │ 51       │ icons/gem_icon_gen.gd         │
+  │ Currency icons (48×48)        │ 3        │ icons/hud_icon_gen.gd         │
+  │ Boss attack effect sprites    │ ~30      │ effects/vfx_generator.gd      │
+  │ Enemy projectile sprites      │ ~12      │ effects/combat_vfx_gen.gd     │
+  │ Dungeon props                 │ ~80      │ props/dungeon_props.gd        │
+  │ World decoration props        │ ~100     │ props/world_props.gd          │
+  │ Shop building sprites         │ ~6       │ props/world_props.gd          │
+  │ Crafting station sprites      │ 5        │ props/world_props.gd          │
+  │ Resource node sprites         │ 8×2=16   │ props/world_props.gd          │
+  │ UI panels / backgrounds       │ ~15      │ ui/ui_element_gen.gd          │
+  │ UI buttons / frames           │ ~35      │ ui/ui_element_gen.gd          │
+  │ Chest sprites                 │ 5 types  │ props/dungeon_props.gd        │
+  │ Door sprites                  │ 4 types  │ props/dungeon_props.gd        │
+  │ Controller button icons       │ 2 sheets │ ui/misc_icons.gd              │
+  │ Particle textures             │ ~20      │ effects/particle_textures.gd  │
+  │ Waypoint sprite               │ 1        │ props/world_props.gd          │
+  │ Font resources                │ 3        │ ui/font_gen.gd                │
+  ├───────────────────────────────┼──────────┼───────────────────────────────┤
+  │ TOTAL UNIQUE VISUAL ASSETS    │ ~850–900 │ ~20 generator .gd fájl        │
+  └───────────────────────────────┴──────────┴───────────────────────────────┘
+
+  ┌───────────────────────────────┬──────────┐
+  │ AUDIO ASSETS (változatlan)    │ COUNT    │
+  ├───────────────────────────────┼──────────┤
+  │ Music tracks (.ogg)           │ 6–8      │
+  │ SFX sounds (.wav)             │ ~50–80   │
+  │ Boss music tracks             │ 13       │
+  │ Biome ambient sounds          │ 8        │
+  │ Achievement unlock SFX        │ 1        │
+  │ Legendary drop SFX            │ 1        │
+  ├───────────────────────────────┼──────────┤
+  │ TOTAL AUDIO FILES             │ ~85–110  │
+  └───────────────────────────────┴──────────┘
+
+  ┌───────────────────────────────┬──────────┐
+  │ GDSCRIPT GENERATOR FILES      │ COUNT    │
+  ├───────────────────────────────┼──────────┤
+  │ base_pixel_art.gd             │ 1        │
+  │ characters/ generators        │ 3        │
+  │ enemies/ generators           │ 9        │
+  │ bosses/ generators            │ 4        │
+  │ npcs/npc_generator.gd         │ 1        │
+  │ tilesets/ generators          │ 2        │
+  │ props/ generators             │ 2        │
+  │ icons/ generators             │ 4        │
+  │ effects/ generators           │ 3        │
+  │ ui/ generators                │ 2        │
+  │ export/batch_export_tool.gd   │ 1        │
+  ├───────────────────────────────┼──────────┤
+  │ TOTAL GENERATOR FILES         │ ~32 .gd  │
+  └───────────────────────────────┴──────────┘
+
+  ┌───────────────────────────────┬──────────┐
+  │ SHADERS (.gdshader)           │ COUNT    │
+  ├───────────────────────────────┼──────────┤
+  │ palette_swap.gdshader         │ 1        │
+  │ elite_aura.gdshader           │ 1        │
+  │ rarity_border.gdshader        │ 1        │
+  │ fog_of_war.gdshader           │ 1        │
+  │ day_night.gdshader            │ 1        │
+  │ water.gdshader                │ 1        │
+  │ corruption.gdshader           │ 1        │
+  │ colorblind_remap.gdshader     │ 1        │
+  │ highlight.gdshader            │ 1        │
+  │ vignette.gdshader             │ 1        │
+  ├───────────────────────────────┼──────────┤
+  │ TOTAL SHADERS                 │ 10       │
+  └───────────────────────────────┴──────────┘
+
+  ESTIMATED CLAUDE GENERATION + REVIEW TIME: ~80–140 hours
+
+================================================================================
+2. FILE-BY-FILE EXTRACTION (FRISSÍTETT)
+================================================================================
+
+────────────────────────────────────────────────────────────────────────────────
+2.1  02_procedural_world_plan.txt – VIZUÁLIS VÁLTOZÁSOK
+────────────────────────────────────────────────────────────────────────────────
+
+  TILE RENDSZER (frissített):
+  ────────────────────────────
+    Tile méret: 64×64 pixel (volt: 32×32)
+    Chunk: 16×16 tiles = 1024×1024 pixel (volt: 512×512)
+    TileMap layers: Ground, Decoration, Overlay, Collision (változatlan)
+    Terrain: 47-tile blob autotile Godot-ban (változatlan)
+
+  8 World Tilesets – GDScript generátor:
+    Forrás: generators/tilesets/world_tileset_generator.gd
+    Minden biome egy static class / nested class a fájlban
+
+    Per-biome tile breakdown (frissített méretek):
+      Ground tiles: 4 variáns, 64×64
+      Transition tiles: 16 per biome, 64×64
+      Road tiles: 6 per biome, 64×64
+      Decoration tiles: 10–15 per biome, 64×64
+      Water animation tiles: 3–4 frames (lava: 8–12 frames), 64×64
+      TOTAL: ~8 biomes × ~40 tiles = ~320 tiles + ~50 animated frames
+
+    GDScript generálás módszer:
+      - Minden tile Image.create(64, 64, ...) call
+      - Alap fill + textúra foltok RandomNumberGenerator seed-del
+      - Seamless edge: szélső 4 pixel átlagolva szomszéd tile-lal
+      - Godot TileSet: tiles automatikusan hozzárendelve terrain-ekhez
+
+  World Props (frissített méretek, ×2):
+    Trees:      small 64×96, medium 96×128, large 128×192
+    Bushes:     64×64
+    Rocks:      64×64 (small), 96×96 (large)
+    Flowers:    32×32
+    Ruins/col:  64×128
+    Campfire:   64×64 (animated, 4–6 frames)
+    Chest:      64×64 (open/closed)
+    Barrel:     32×32 (intact/broken)
+    Harvest node: 64×64 (intact/depleted)
+
+  Minden prop: generators/props/world_props.gd
+
+  AI Pipeline szekció → TÖRÖLVE
+  Helyette GDScript workflow (lásd Section 4 ebben a dokumentumban)
+
+────────────────────────────────────────────────────────────────────────────────
+2.2  03_boss_design_plan.txt – VIZUÁLIS VÁLTOZÁSOK
+────────────────────────────────────────────────────────────────────────────────
+
+  14 Unique Bosses (frissített méretek, ×2):
+    Tier 1 (Mini):   96×96  – 128×128 px
+    Tier 2 (Dungeon):128×128 – 192×192 px
+    Tier 3 (World):  192×192 – 256×256 px
+    Tier 4 (Raid):   256×256 – 384×384 px
+
+  Boss specifikus méretek:
+    Plague Rat King:    96×128
+    Shadow Stalker:     96×128
+    Cursed Treant:      128×128
+    Ash Warden:         96×96
+    Spider Matriarch:   128×128
+    Frozen Sentinel:    128×128
+    Volcanic Overlord:  192×192
+    Necromancer King:   128×128
+    Swamp Hydra:        192×192 + fejenként 48×48 gyerek sprite
+    Void Weaver:        256×256
+    Ancient Dragon:     384×384 (legnagyobb entity)
+    Riftlord:           256×256
+    Ashen God:          256×256
+    Void Emperor:       384×384 (végső boss)
+
+  Boss Arena tile-ok: 64×64 méret (volt: 32×32)
+    Minden arena saját tile theme, GDScript generátor
+
+  Boss telegraph vizuálok (változatlan logika, frissített méret):
+    ColorRect + shader alapú (nem sprite)
+    Kör AoE: 64–256px (volt: 32–128px)
+    Vonal/kúp/téglalap: arányosan nagyobb
+
+  Boss Attack Effects (frissített méretek):
+    Projectilek:
+      Death Bolt:       32×32, 6 frames (volt: 16×16)
+      Fire Breath:      128×64, 8 frames (volt: 64×32)
+      Ice Lance:        32×64, 4 frames (volt: 16×32)
+      Void Bolt:        32×32, 6 frames (volt: 16×16)
+
+    AoE Effects:
+      Bone Storm:       256×256, 8 frames (volt: 128×128)
+      Corruption Blast: 320×320, 10 frames (volt: 160×160)
+      Meteor:           64×64→192×192, 12 frames (volt: 32×32→96×96)
+      Frost Nova:       256×256, 8 frames (volt: 128×128)
+
+  Boss Node Structure (változatlan logika):
+    BossSprite (AnimatedSprite2D) → SpriteFrames (GDScript-ből töltve)
+    HealthBar, TelegraphManager, AbilitySpawner (változatlan)
+
+  GDScript prompt sablon boss-okhoz:
+    "Írj GDScript kódot, amely Godot 4 Image API-val pixel-by-pixel
+     megrajzolja a [BOSS_NÉV] boss sprite-ot. Méret: [W]×[H].
+     Fázisok: [FÁZIS_LEÍRÁS]. Animáció: [LISTA].
+     Kinézet: [RÉSZLETES_LEÍRÁS]. Szín paletta: [PALETTA].
+     Stílus: dark fantasy pixel art, 1px fekete outline,
+     top-down nézet. Használd a PixelArtBase helper osztályt."
+
+────────────────────────────────────────────────────────────────────────────────
+2.3  04_economy_system_plan.txt – VIZUÁLIS VÁLTOZÁSOK
+────────────────────────────────────────────────────────────────────────────────
+
+  UI Panel méretek (frissített):
+    Inventory:    800×1200 px (volt: 400×600)
+    Shop:         1200×1000 px (volt: 600×500)
+    Marketplace:  1600×1200 px (volt: 800×600)
+    Crafting:     1000×1000 px (volt: 500×500)
+
+  Inventory Slot Frame: 72×72 px (volt: 40×40), 4 state
+
+  Currency Icons (48×48 px – volt: 24×24):
+    Gold coin, Dark Essence, Relic Fragment
+    Animált: 4 frame forgás/pulzálás
+
+  NPC Portraits (128×128 px – volt: 96×96):
+    1. General Store
+    2. Blacksmith
+    3. Alchemist
+    4. Enchanter
+    5. Relic Vendor
+    6. Traveling Merchant
+    Generator: generators/npcs/npc_generator.gd
+
+  NPC World Sprites: 64×96 px (volt: 32×48)
+    Idle animáció: 4 frame, GDScript-ből generálva
+
+  Shop Buildings (frissített méretek):
+    Blacksmith forge:  192×256 px (volt: 96×128)
+    Alchemy shop:      160×224 px (volt: 80×112)
+    General store:     160×224 px (volt: 80×112)
+    Generator: generators/props/world_props.gd
+
+  Resource Node Sprites: 64×64 px (volt: 32×32), intact + depleted
+    8 típus: Wood, Stone, Ore, Herb, Crystal, Dark Root, Bone, Ember Coal
+
+  Crafting Station Sprites (frissített méretek):
+    Anvil:           64×64 px (volt: 32×32)
+    Alchemy Table:   96×64 px (volt: 48×32)
+    Enchanting Table:96×96 px (volt: 48×48)
+    Workbench:       96×64 px (volt: 48×32)
+
+  Item/Weapon Icons: 64×64 px (volt: 32×32)
+    GDScript generator: generators/icons/item_icon_gen.gd
+
+  Rarity Visual System: shader-alapú (változatlan logika)
+    + GDScript palette overlay opció (apply_palette())
+
+────────────────────────────────────────────────────────────────────────────────
+2.4  06_enemy_ai_plan.txt – VIZUÁLIS VÁLTOZÁSOK
+────────────────────────────────────────────────────────────────────────────────
+
+  ~95 total enemy (40 base + 40 elite shader + 15 rare)
+
+  Enemy Sprite Méretek (frissített, ×2):
+    Normal:  64×64 px (volt: 32×32)
+    Brute:   96×96 px (volt: 48×48)
+    Swarmer: 48×48 px (volt: 24×24)
+
+  Sprite Sheet Struktúra (változatlan logika):
+    Row 0: idle (4 frames)
+    Row 1: walk (6 frames)
+    Row 2: attack_1 (5 frames)
+    Row 3: attack_2 (5 frames, optional)
+    Row 4: hit (3 frames)
+    Row 5: death (6 frames)
+    4 irány OR 2 irány + flip
+    GDScript-ből generálva: generators/enemies/[biome]_enemies.gd
+
+  40 Enemy – GDScript generálási módszer:
+    Minden enemy:
+      1. static func gen_[name]_idle_south(frame_idx: int) -> Image
+      2. Ismételve minden animáció/irány kombinációra
+      3. static func build_sprite_frames() -> SpriteFrames
+      4. Palette Dictionary a test részeinek
+    
+    Példa a teljes enemy listára (BIOME-ONKÉNT, frissített méretek):
+      Starting Meadow:  Forest Slime(64×64), Wild Boar(64×64),
+                        Bandit(64×96), Bandit Archer(64×96), Rabid Wolf(64×64)
+      Cursed Forest:    Giant Spider(64×64), Poison Archer(64×96),
+                        Dark Witch(64×96), Shadow Wolf(64×64), Corrupted Treant(96×128)
+      Dark Swamp:       Swamp Lurker(64×96), Toxic Frog(64×64),
+                        Bog Witch(64×96), Vine Creeper(64×64), Swamp Horror(96×96)
+      Ruins:            Skeleton Warrior(64×96), Skeleton Archer(64×96),
+                        Ghost(64×96), Animated Armor(64×96), Wraith(64×96)
+      Mountains:        Mountain Goat(64×64), Rock Elemental(96×96),
+                        Harpy(64×96), Yeti(96×128), Mountain Bandit(64×96)
+      Frozen Wastes:    Ice Wolf(64×64), Frost Mage(64×96),
+                        Ice Golem(96×96), Snow Wraith(64×96), Frozen Revenant(64×96)
+      Ashlands:         Flame Imp(48×64), Fire Elemental(64×96),
+                        Ash Golem(96×128), Magma Worm(96×64), Infernal Knight(64×96)
+      Plague Lands:     Plague Zombie(64×96), Plague Rat(48×48),
+                        Abomination(96×96), Plague Doctor(64×96), Death Knight(64×96)
+
+  Elite Visual Effects (változatlan shader logika):
+    + GDScript generate_elite_variant(base_img) → palette darkening
+
+  Enemy Projectile Sprites (frissített méretek):
+    Arrow:     16×32 px (volt: 8×16)
+    Poison spit: 32×32 px (volt: 16×16)
+    Fireball:  32×32 px (volt: 16×16)
+    Ice shard: 16×32 px (volt: 8×16)
+    Web ball:  32×32 px (volt: 16×16)
+    Dark bolt: 32×32 px (volt: 16×16)
+    Generator: generators/effects/combat_vfx_gen.gd
+
+  AI Pipeline szekció → TÖRÖLVE
+  Palette swap shader: megmarad (elite variáns + colorblind mód)
+
+────────────────────────────────────────────────────────────────────────────────
+2.5  07_dungeon_generation_plan.txt – VIZUÁLIS VÁLTOZÁSOK
+────────────────────────────────────────────────────────────────────────────────
+
+  7 Dungeon Tilesets – GDScript generátor:
+    generators/tilesets/dungeon_tileset_generator.gd
+    (1 fájl, 7 nested class / theme)
+
+  TileMap Layers: Floor, Wall, Decoration, Overlay (változatlan)
+
+  Per-biome dungeon tile tartalom (frissített méret: 64×64):
+    Floor tiles:    4–6 variáns
+    Wall tiles:     16 autotile blob
+    Door:           2 state × 2 orientation = 4 sprite
+    Stairs:         up/down = 2 sprite
+    Hazard tiles:   variáns/biome
+    TOTAL: ~50 tiles/biome × 7 = ~350 dungeon tiles (64×64)
+
+  Dungeon Props (frissített méretek):
+    Chest types (wood/iron/gold/boss/mimic): 128×128 px (volt: 64×64)
+    MEGJEGYZÉS: Chest 128×128 megfelelő a 64×64 tile mérethez,
+    mivel egy chest 2×2 tile-t foglal.
+    Kisebb chest: 64×64 ha 1×1 tile marad.
+    Torches:     32×64 (volt: 16×32), fali változat
+    Interactive: 64×64 (lever, pressure plate, stb.)
+    Traps:       64×64 (activated/idle)
+    
+    Összes dungeon prop: ~80 sprite
+    Generator: generators/props/dungeon_props.gd
+
+  GDScript tile generálás – dungeon:
+    static func gen_[theme]_floor(variant: int) -> Image
+    static func gen_[theme]_wall(edge_mask: int) -> Image
+    static func gen_[theme]_door(state: int, orientation: int) -> Image
+    Minden függvény 64×64 Image-et ad vissza
+
+  Fog of War shader: változatlan (fog_of_war.gdshader)
+
+────────────────────────────────────────────────────────────────────────────────
+2.6  08_loot_system_plan.txt – VIZUÁLIS VÁLTOZÁSOK
+────────────────────────────────────────────────────────────────────────────────
+
+  Item Counts (változatlan):
+    ~100 base items, ~30 crafting, ~15 consumables,
+    ~35 set, ~30 legendary → ~232 total
+
+  Item Sprite Méretek (frissített):
+    Inventory icon:    64×64 px (volt: 32×32)
+    Dropped item (ground): 32×32 px (volt: 16×16)
+    Tooltip large image: 128×128 px (volt: 64×64)
+
+  DroppedItem Node: változatlan (ItemSprite, GlowEffect, RarityParticle)
+
+  Rarity Drop Visuals: változatlan logika, frissített méretek
+  Rarity Border Shader: változatlan (rarity_border.gdshader)
+
+  Generator: generators/icons/item_icon_gen.gd
+    Minden item ikon 64×64-es Image.create()-vel kezdődik
+    Rarity overlay: shader-alapú VAGY GDScript frame + glow
+
+────────────────────────────────────────────────────────────────────────────────
+2.7  09_gem_system_plan.txt – VIZUÁLIS VÁLTOZÁSOK
+────────────────────────────────────────────────────────────────────────────────
+
+  Gem Méretek (frissített):
+    Inventory icon:  64×64 px (volt: 32×32)
+    Socket display:  32×32 px (volt: 16×16)
+    Dropped gem:     32×32 px + glow (volt: 16×16)
+
+  Gem Colors és tier leírások: változatlan (lásd Section 9 a master planban)
+
+  Socket Glow Animation: 32×32 (volt: 16×16), 4-frame pulse loop
+    Generator: generators/icons/gem_icon_gen.gd
+
+  Gem Combination Animation:
+    8 frames (3 gem megközelít → flash → 1 nagyobb gem)
+    Méret: 64×64 (volt: 32×32)
+
+  Legendary Gem Aura: 6-frame loop, 96×96 overlay (volt: 48×48)
+
+────────────────────────────────────────────────────────────────────────────────
+2.8  10_godot_architecture_plan.txt – FRISSÍTETT STRUKTÚRA
+────────────────────────────────────────────────────────────────────────────────
+
+  Asset Directory Struktúra (frissített):
+    assets/sprites/            (PNG export célkönyvtár)
+      characters/
+        assassin/
+        tank/
+        mage/
+      enemies/
+        8 biome subdir
+      bosses/
+        tier1/, tier2/, tier3/, tier4/
+      npcs/
+      effects/
+        skills/, impacts/, projectiles/, auras/
+      ui/
+        icons/skills/, icons/items/, icons/gems/, icons/currencies/
+        frames/, buttons/, backgrounds/
+    assets/tilesets/world/
+    assets/tilesets/dungeons/
+
+    generators/               (GDScript forrás – Claude írja)
+      base_pixel_art.gd
+      characters/
+      enemies/
+      bosses/
+      npcs/
+      tilesets/
+      props/
+      icons/
+      effects/
+      ui/
+      export/
+        batch_export_tool.gd
+
+  Viewport: 640×360 native, integer scaling ×2, ×3, ×4 (változatlan)
+
+  HUD Layout (változatlan logika, frissített méretek):
+    HP bar: 320×32 px (volt: 160×16)
+    Mana bar: 240×24 px (volt: 160×12)
+    XP bar: 640×16 px (volt: 320×8)
+    Skill bar: 640×96 px (volt: 320×48)
+    Skill slot: 80×80 px (volt: 40×40)
+    Minimap frame: 320×320 px (volt: 160×160)
+
+  Rendering Performance Limits (frissített):
+    Particle limit: max 500 (változatlan)
+    Light2D limit: max 20 (változatlan)
+    TextureAtlas: több kisebb sprite → nagy atlas (batch_export_tool csinálja)
+
+  ASSET COUNT TABLE (frissített):
+    ┌──────────────────────────┬─────────┐
+    │ Category                 │ Count   │
+    ├──────────────────────────┼─────────┤
+    │ Player sprite sheets     │ 3       │
+    │ Enemy sprite sheets      │ 40      │
+    │ Elite enemy variants     │ 40 (shd)│
+    │ Boss sprite sheets       │ 14      │
+    │ NPC sprites              │ ~20     │
+    │ World tilesets           │ 8       │
+    │ Dungeon tilesets         │ 7       │
+    │ Skill effect sprites     │ 45      │
+    │ Item icons               │ 232     │
+    │ Gem icons                │ 51      │
+    │ UI elements              │ 30–50   │
+    │ Dungeon props            │ 80      │
+    │ Projectile sprites       │ 15–20   │
+    │ Decorations              │ 50+     │
+    ├──────────────────────────┼─────────┤
+    │ TOTAL                    │ ~850–900│
+    └──────────────────────────┴─────────┘
+
+  Becsült Claude generálás + review idő:
+    Claude kód megírás: 2–5 min/sprite függvény
+    Fejlesztő review + Godot teszt: 5–15 min/sprite csoport
+    Full pipeline: ~80–140 óra (volt: ~200–300 óra)
+
+  AUDIO: változatlan (Section 2.14-ben)
+
+────────────────────────────────────────────────────────────────────────────────
+2.9  12_quest_story_plan.txt – VIZUÁLIS VÁLTOZÁSOK
+────────────────────────────────────────────────────────────────────────────────
+
+  NPC Quest Indicator mérete: 32×64 px (volt: 16×32)
+  NPC Portraits: 128×128 px (volt: 96×96)
+
+  Quest NPC típusok, world sprite: 64×96 px (változatlan felsorolás)
+  Minimap quest markerek: 16×16 px (volt: 8×8)
+
+────────────────────────────────────────────────────────────────────────────────
+2.10  14_tutorial_onboarding_plan.txt – VIZUÁLIS VÁLTOZÁSOK
+────────────────────────────────────────────────────────────────────────────────
+
+  Tutorial popup: változatlan logika, GDScript-ből generált keret
+  Arrow indikátor: 32×64 px (volt: 16×32), 4 irány
+  Kéz kurzor: 32×32 px (volt: 16×16)
+  First-time badge: 32×32 px (volt: 16×16)
+
+────────────────────────────────────────────────────────────────────────────────
+2.11  15_achievement_endgame_plan.txt – VIZUÁLIS VÁLTOZÁSOK
+────────────────────────────────────────────────────────────────────────────────
+
+  ~70 achievement ikon: 64×64 px (volt: 32×32)
+  Locked/unlocked: GDScript palette shift (szürke vs. színes)
+  Achievement popup banner: 640×128 px (volt: 320×64)
+  Waypoint sprite: 64×64 px
+
+────────────────────────────────────────────────────────────────────────────────
+2.12  16_game_data_balance_plan.txt – VIZUÁLIS VÁLTOZÁSOK
+────────────────────────────────────────────────────────────────────────────────
+
+  Skill Icons: 64×64 px (volt: 32×32), 45 skill + 3 ultimate
+  Generator: generators/icons/skill_icon_gen.gd
+
+  Item vizuális (frissített méretek):
+    Weapon: 5 típus × 10 tier × 64×64 = 50 ikon
+    Armor: 6 slot × 10 tier × 64×64 = 60 ikon
+    Accessories: 10 ikon
+
+  Set item keretek: zöld border overlay, 64×64-es base-re
+  Legendary item ikonok: narancs izzás overlay shader
+
+  Boss-ok hiányoznak (7+1 boss): generators/bosses/ fájlokban megírni
+    Ash Warden, Swamp Hydra, Volcanic Overlord, Void Weaver,
+    Ancient Dragon, Riftlord, Ashen God, Void Emperor
+
+  Gathering Node Sprites (frissített):
+    Mining: 7 típus × 2 state × 64×64 = 14 sprite
+    Herbalism: 7 típus × 2 state = 14
+    Woodcutting: 5 × 2 = 10
+    Fishing: 5 × 2 = 10
+    ÖSSZESEN: 48 resource node sprite
+
+────────────────────────────────────────────────────────────────────────────────
+2.13  17_accessibility_localization_plan.txt – VIZUÁLIS VÁLTOZÁSOK
+────────────────────────────────────────────────────────────────────────────────
+
+  Controller Button Icons (frissített):
+    Xbox: 32×32 sprite sheet (volt: 16×16)
+    PlayStation: 32×32 sprite sheet
+    Generator: generators/ui/misc_icons.gd
+
+  Colorblind Mode: változatlan logika
+    Shader: colorblind_remap.gdshader (új shader, palette_swap-alapú)
+
+  Rarity szimbólumok (colorblind): 32×32 px (volt: 16×16)
+
+────────────────────────────────────────────────────────────────────────────────
+2.14  18_polish_qa_plan.txt – PIPELINE VÁLTOZÁS
+────────────────────────────────────────────────────────────────────────────────
+
+  JELENLEGI ÁLLAPOT: 0 vizuális asset (placeholder colored rectangles)
+  PIPELINE: Claude Opus 4.6 GDScript → Godot Image API → PNG export
+
+  Placeholder → Végleges csere workflow:
+    1. Claude generálja a .gd fájlt az adott kategóriának
+    2. Fejlesztő importálja a .gd fájlt a generators/ mappába
+    3. batch_export_tool.gd futtatása (Tools → Execute Script Godot-ban)
+    4. PNG-ek megjelennek assets/ alatt
+    5. Godot auto-import (nearest filter)
+    6. In-game teszt AnimatedSprite2D-vel
+    7. Ha szükséges: Claude módosítja a .gd-t → újra-export
+
+  Release Milestones (változatlan):
+    Alpha: placeholder sprites
+    Beta: player + first biome real GDScript art
+    RC: ALL ~850+ assets exported, ALL ~90 audio complete
+
+  FRISSÍTETT ASSET CHECKLIST (sprint tracking):
+    □ base_pixel_art.gd megírva és tesztelve
+    □ batch_export_tool.gd megírva
+    □ 3 player generator .gd megírva, PNG-ek exportálva
+    □ 8 enemy biome generator .gd
+    □ 14 boss generator function-ök
+    □ 7 dungeon tileset generator
+    □ 8 world tileset generator
+    □ ~80 dungeon prop function
+    □ ~100 world prop function
+    □ 232 item icon function
+    □ 48 skill icon function
+    □ 51 gem icon function
+    □ ~90 UI element function
+    □ 45 VFX function
+    □ 20 particle texture function
+    □ Audio: ~90 fájl (Claude nem generál audiót – külső tool)
+
+================================================================================
+3. SHADER INVENTORY
+================================================================================
+
+  Meglévő 7 shader (változatlan):
+    1. palette_swap.gdshader   – Elite variant + colorblind extension
+    2. elite_aura.gdshader     – Elite izzó outline
+    3. rarity_border.gdshader  – Item ritkaság keret pulzálás
+    4. fog_of_war.gdshader     – Dungeon felfedezés
+    5. day_night.gdshader      – Nap/éjszaka tint
+    6. water.gdshader          – Víz animáció/torzítás
+    7. corruption.gdshader     – Biome corruption overlay
+
+  Új szükséges shaderek (3 db):
+    8. colorblind_remap.gdshader
+       Funkció: Palette remap protanopia/deuteranopia/tritanopia módhoz
+       Alapja: palette_swap.gdshader bővítése
+       Uniform: colorblind_mode (int: 0=off, 1=protan, 2=deutan, 3=tritan)
+
+    9. highlight.gdshader
+       Funkció: Tutorial/UI elem kiemelés (arany pulsing border)
+       Uniform: highlight_color (vec4), pulse_speed (float)
+
+    10. vignette.gdshader
+        Funkció: Halál overlay, game over sötétedés
+        Uniform: intensity (float 0–1), color (vec4)
+
+================================================================================
+4. CLAUDE GDSCRIPT PIPELINE DETAILS
+================================================================================
+
+  4.1 Szoftver Stack (v2 – csak Godot-natív)
+  ────────────────────────────────────────────
+    • Claude Opus 4.6 (kód generálás)
+    • Godot 4.x (futtatás + export)
+    • GDScript Image API (rajzolás)
+    • EditorScript (batch export)
+    • Git (verziókövetés a .gd fájlokra)
+    Nincs szükség: SD, ComfyUI, LoRA, Aseprite, GIMP, GPU
+
+  4.2 Hardware Követelmény (v2)
+  ──────────────────────────────
+    CPU: bármilyen modern processzor
+    RAM: 8GB+ (Godot fut, Claude API hívások)
+    Storage: 10GB (PNG exportok + projekt)
+    GPU: NEM szükséges (nincs AI generálás)
+    Internet: Claude API hívásokhoz
+
+  4.3 Generáló Engine: Godot Image API
+  ──────────────────────────────────────
+    Legfontosabb metódusok:
+      Image.create(width, height, mipmaps, format)
+      image.set_pixel(x, y, color)
+      image.get_pixel(x, y)
+      image.fill(color)
+      image.save_png(path)
+      ImageTexture.create_from_image(image)
+      SpriteFrames.new() / add_animation() / add_frame()
+
+    PixelArtBase helper osztály metódusai:
+      fill_rect(img, x, y, w, h, color)
+      draw_outline(img, color, thickness)
+      draw_circle(img, cx, cy, r, color)
+      draw_line_px(img, x0, y0, x1, y1, color)
+      apply_palette(img, palette_dict) → Image
+      shift_image(img, dx, dy) → Image
+      flip_horizontal(img) → Image
+      add_noise(img, rng, strength, seed) → void
+
+  4.4 Claude Prompt Sablon (részletes)
+  ──────────────────────────────────────
+    Minden GDScript asset kéréshez használt prompt struktúra:
+
+    ┌────────────────────────────────────────────────────────────────────┐
+    │ CLAUDE PROMPT SABLON – ASSET GENERATION                          │
+    │                                                                    │
+    │ KONTEXTUS:                                                        │
+    │   "GDScript kódot írsz Godot 4 Image API-val. Az alaposztály    │
+    │   PixelArtBase, amelynek helper metódusait statikusan hívhatod.  │
+    │   Minden sprite: top-down 2D pixel art, 1px fekete outline,      │
+    │   átlátszó háttér (Image.FORMAT_RGBA8)."                         │
+    │                                                                    │
+    │ FELADAT:                                                          │
+    │   "Generáld a [ASSET_KATEGÓRIA] sprite-okat.                     │
+    │   Entitás neve: [NÉV]                                            │
+    │   Méret: [W]×[H] pixel                                           │
+    │   Animáció: [ANIM_LISTA] (frame_idx: 0..N)                       │
+    │   Irányok: [4/2/1] (south, north, east, west)"                  │
+    │                                                                    │
+    │ VIZUÁLIS LEÍRÁS:                                                  │
+    │   Paletta: [SZÍNEK HEX-BEN]                                      │
+    │   Megjelenés: [RÉSZLETES SZÖVEGES LEÍRÁS]                        │
+    │   Testtartás: [IDLE/WALK/ATTACK LEÍRÁS]                          │
+    │   Animáció részletek: [LÉGZÉS, LÉPÉS, ÜTÉS LEÍRÁS]              │
+    │                                                                    │
+    │ KÓD KÖVETELMÉNYEK:                                                │
+    │   - class_name [Névből generált]Generator                        │
+    │   - extends PixelArtBase                                          │
+    │   - Minden függvény static                                        │
+    │   - gen_[anim]_[irány](frame_idx: int) -> Image                  │
+    │   - build_sprite_frames() -> SpriteFrames                        │
+    │   - export_all(base_path: String) -> void                        │
+    │   - Kommenteld a főbb testrészek rajzolását                     │
+    └────────────────────────────────────────────────────────────────────┘
+
+  4.5 Sprite Méret Táblázat (v2 – minden ×2)
+  ────────────────────────────────────────────
+
+    ┌────────────────────────────┬────────────────┬────────────────────┐
+    │ Asset típus                │ v1 (32×32 tile)│ v2 (64×64 tile)    │
+    ├────────────────────────────┼────────────────┼────────────────────┤
+    │ Tile (alap)                │ 32×32          │ 64×64              │
+    │ Player/NPC karakter        │ 32×48          │ 64×96              │
+    │ Normal enemy               │ 32×32          │ 64×64              │
+    │ Swarmer enemy              │ 24×24          │ 48×48              │
+    │ Large enemy                │ 48×48          │ 96×96              │
+    │ Tier 1 boss (small)        │ 48×48          │ 96×96              │
+    │ Tier 1 boss (normal)       │ 48×64          │ 96×128             │
+    │ Tier 2 boss                │ 64×64          │ 128×128            │
+    │ Tier 2 boss (large)        │ 96×96          │ 192×192            │
+    │ Tier 3 world boss          │ 128×128        │ 256×256            │
+    │ Tier 4 raid boss           │ 192×192        │ 384×384            │
+    │ Item ikon (inventory)      │ 32×32          │ 64×64              │
+    │ Item ikon (ground drop)    │ 16×16          │ 32×32              │
+    │ Currency ikon (HUD)        │ 16×16          │ 32×32              │
+    │ Minimap ikon               │ 8×8            │ 16×16              │
+    │ Particle textúra (kis)     │ 4×4            │ 8×8                │
+    │ Particle textúra (nagy)    │ 16×16          │ 32×32              │
+    │ NPC portré                 │ 96×96          │ 128×128            │
+    │ Boss HP bar                │ 480×24         │ 960×48             │
+    └────────────────────────────┴────────────────┴────────────────────┘
+
+  4.6 Post-Processing (v2 – minimális, Godot-natív)
+  ───────────────────────────────────────────────────
+    1. GDScript generate → Image objektum
+    2. draw_outline() hívás (minden sprite-on kötelező)
+    3. image.save_png(path) exportálás
+    4. Godot import: nearest filter beállítás
+    5. TileSet terrain rules manuális setup (vagy GDScript tool)
+    6. AnimatedSprite2D: SpriteFrames resource hozzárendelés
+    7. Collision shape: manual adjust (ha GDScript tool nem csinálja)
+
+  4.7 Három generálási módszer (v2)
+  ──────────────────────────────────
+    Method A: Teljesen procedurális (egyszerű sprite-ok)
+      → 64×64-es vagy kisebb tile-ok, ikonok
+      → Minden pixel determinisztikus (seed-alapú random)
+      → Egyik leggyorsabb módszer, ~50 sprite/session
+
+    Method B: Moduláris összeépítés (karakter sprite-ok)
+      → Test részek külön draw függvényekben
+      → pl. _draw_head(), _draw_torso(), _draw_weapon()
+      → Animáció: részek offset-elve frame_idx alapján
+
+    Method C: Keretrajzolás + részletek (boss-ok)
+      → Először a forma (nagy fill_rect-ek)
+      → Utána részletek rétegesen (textúra, outline, glow)
+      → Phase változások: külön palette + overlay layer
+
+  4.8 Godot Import Pipeline (v2)
+  ───────────────────────────────
+    1. GDScript generator .gd fájl → generators/ mappa
+    2. batch_export_tool.gd futtatása
+    3. PNG-ek → assets/ alá exportálva
+    4. Godot auto-detects new .png fájlokat
+    5. Import settings: nearest, no compression, RGBA8
+    6. SpriteFrames .tres resource: GDScript-ből vagy kézzel Godot editorban
+    7. AnimatedSprite2D: SpriteFrames hozzárendelve
+
+================================================================================
+5. MASTER ASSET CHECKLIST (Production Tracking – v2)
+================================================================================
+
+  STATUS: □ = Not started | ◐ = In progress | ■ = Complete
+
+  ─── INFRASTRUCTURE ──────────────────────────────────────────────────────
+  □ base_pixel_art.gd – helper osztály (fill_rect, draw_outline, stb.)
+  □ batch_export_tool.gd – EditorScript
+  □ AssetCache.gd autoload – runtime texture cache
+
+  ─── PLAYER SPRITES ──────────────────────────────────────────────────────
+  □ assassin_generator.gd – 9 animáció × 4 irány, 64×96 px
+  □ tank_generator.gd – azonos struktúra
+  □ mage_generator.gd – azonos struktúra
+  │ Subtotal: 3 .gd fájl, ~438 frame
+
+  ─── ENEMY SPRITES ───────────────────────────────────────────────────────
+  □ starting_meadow_enemies.gd (5 enemy, 64×64–64×96 px)
+  □ cursed_forest_enemies.gd   (5 enemy)
+  □ dark_swamp_enemies.gd      (5 enemy)
+  □ ruins_enemies.gd           (5 enemy)
+  □ mountains_enemies.gd       (5 enemy)
+  □ frozen_wastes_enemies.gd   (5 enemy)
+  □ ashlands_enemies.gd        (5 enemy)
+  □ plague_lands_enemies.gd    (5 enemy)
+  □ rare_enemies.gd            (15 rare enemy, 96×128 px)
+  │ Subtotal: 9 .gd fájl, 40 base + 15 rare + 40 shader elite
+
+  ─── BOSS SPRITES ────────────────────────────────────────────────────────
+  □ tier1_bosses.gd – Plague Rat King, Shadow Stalker, Cursed Treant, Ash Warden
+  □ tier2_bosses.gd – Spider Matriarch, Frozen Sentinel, Volcanic Overlord, Necromancer King
+  □ tier3_bosses.gd – Swamp Hydra, Void Weaver, Ancient Dragon, Riftlord
+  □ tier4_bosses.gd – Ashen God, Void Emperor
+  │ Subtotal: 4 .gd fájl, 14 boss, ~3,288 frame
+
+  ─── NPC SPRITES ─────────────────────────────────────────────────────────
+  □ npc_generator.gd – ~20 NPC world sprite (64×96), ~6 portré (128×128)
+  │ Subtotal: 1 .gd fájl, ~26 sprite
+
+  ─── WORLD TILESETS ──────────────────────────────────────────────────────
+  □ world_tileset_generator.gd – 8 biome × ~40 tile = ~320 tile (64×64)
+  │ Subtotal: 1 .gd fájl, ~320 tile + ~50 animated frames
+
+  ─── DUNGEON TILESETS ────────────────────────────────────────────────────
+  □ dungeon_tileset_generator.gd – 7 theme × ~50 tile = ~350 tile (64×64)
+  │ Subtotal: 1 .gd fájl, ~350 tile
+
+  ─── DUNGEON PROPS ───────────────────────────────────────────────────────
+  □ dungeon_props.gd – ~80 prop sprite (változó méret)
+    Tartalmazza: chest (5 type), torch (3 type), furniture, traps,
+                 interactive, biome-specific deco (7 set)
+  │ Subtotal: 1 .gd fájl, ~80 sprite + animált state-ek
+
+  ─── WORLD PROPS ─────────────────────────────────────────────────────────
+  □ world_props.gd – ~100 prop sprite (változó méret)
+    Tartalmazza: trees, rocks, plants, buildings, crafting stations,
+                 resource nodes, waypoint, campfire
+  │ Subtotal: 1 .gd fájl, ~100 sprite
+
+  ─── ITEM ICONS ──────────────────────────────────────────────────────────
+  □ item_icon_gen.gd – 232 icon (64×64)
+    Weapon (50), Armor (60), Accessory (10),
+    Set (32), Legendary (30), Consumable (15), Crafting (30), Misc (5)
+  │ Subtotal: 1 .gd fájl, 232 ikon
+
+  ─── SKILL ICONS ─────────────────────────────────────────────────────────
+  □ skill_icon_gen.gd – 48 ikon (64×64)
+    Assassin (15), Tank (15), Mage (15), Ultimate (3)
+  │ Subtotal: 1 .gd fájl, 48 ikon
+
+  ─── GEM SPRITES ─────────────────────────────────────────────────────────
+  □ gem_icon_gen.gd – 51 gem ikon (64×64 inventory, 32×32 socket)
+    36 normál (6 type × 6 tier) + 15 legendary
+    + socket glow anim (32×32, 4f), combine anim (64×64, 8f)
+  │ Subtotal: 1 .gd fájl, 51 ikon + animációk
+
+  ─── HUD + CURRENCY ICONS ────────────────────────────────────────────────
+  □ hud_icon_gen.gd – ~26 ikon
+    Currency (3, animált), Stat ikonok (16), Status effect (8)
+  │ Subtotal: 1 .gd fájl
+
+  ─── COMBAT EFFECTS ──────────────────────────────────────────────────────
+  □ vfx_generator.gd – 45 skill VFX (változó méret)
+  □ combat_vfx_gen.gd – hit, crit, block, dodge, status, telegraph,
+                          enemy projectilek, damage font
+  │ Subtotal: 2 .gd fájl, ~80+ VFX sprite
+
+  ─── PARTICLE TEXTURES ───────────────────────────────────────────────────
+  □ particle_textures.gd – 20 particle textúra (8×8–32×32)
+  │ Subtotal: 1 .gd fájl
+
+  ─── UI ELEMENTS ─────────────────────────────────────────────────────────
+  □ ui_element_gen.gd – ~90 UI sprite
+    Inventory/Shop/Crafting panelek, slot keretek, HP/Mana/XP bar-ok,
+    skill bar, dialog doboz, tooltip, gombok, minimap keret
+  □ menu_art.gd – főmenü, loading screen, character select
+  │ Subtotal: 2 .gd fájl, ~105 elem
+
+  ─── MISC ICONS ──────────────────────────────────────────────────────────
+  □ misc_icons.gd – minimap (14), tutorial (8), achievement (70),
+                     controller Xbox+PS (30), font (1)
+  │ Subtotal: 1 .gd fájl, ~123 ikon
+
+  ─── SHADERS ─────────────────────────────────────────────────────────────
+  ■ palette_swap.gdshader      (meglévő)
+  ■ elite_aura.gdshader        (meglévő)
+  ■ rarity_border.gdshader     (meglévő)
+  ■ fog_of_war.gdshader        (meglévő)
+  ■ day_night.gdshader         (meglévő)
+  ■ water.gdshader             (meglévő)
+  ■ corruption.gdshader        (meglévő)
+  □ colorblind_remap.gdshader  (ÚJ – írni kell)
+  □ highlight.gdshader         (ÚJ – írni kell)
+  □ vignette.gdshader          (ÚJ – írni kell)
+  │ Subtotal: 7 meglévő + 3 új shader
+
+  ─── AUDIO (NEM GDScript generált) ──────────────────────────────────────
+  □ Music tracks: ~8 .ogg
+  □ Boss music: 13 .ogg
+  □ Biome ambient: 8 .ogg
+  □ SFX: ~80 .wav
+  □ Achievement SFX: 1 .wav
+  │ Subtotal: ~110 audio fájl (külső eszközzel/forrásból)
+
+  ─── FONTS ───────────────────────────────────────────────────────────────
+  □ main_font.tres (Unicode-képes, hu betűk: áéíóöőúüű)
+  □ title_font.tres
+  □ pixel_font.tres (BitmapFont, GDScript-ből generált damage numberekhez)
+  │ Subtotal: 3 font resource
+
+================================================================================
+END OF ASSET EXTRACTION REPORT  (v2)
+================================================================================
+Pipeline: Claude Opus 4.6 → GDScript Image API → PNG Export
+Tile méret: 64×64 (volt: 32×32)
+Generátor fájlok: ~32 .gd fájl
+Becsült produkciós idő: 80–140 óra (Claude + review + Godot test)
+
+Generálva a következő plan fájlok alapján:
+02_procedural_world_plan.txt, 03_boss_design_plan.txt,
+04_economy_system_plan.txt, 06_enemy_ai_plan.txt,
+07_dungeon_generation_plan.txt, 08_loot_system_plan.txt,
+09_gem_system_plan.txt, 10_godot_architecture_plan.txt,
+12_quest_story_plan.txt, 14_tutorial_onboarding_plan.txt,
+15_achievement_endgame_plan.txt, 16_game_data_balance_plan.txt,
+17_accessibility_localization_plan.txt, 18_polish_qa_plan.txt
+================================================================================

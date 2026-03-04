@@ -1,5 +1,5 @@
 ## SettingsUI - Beállítások menü
-## Hang, videó, kontrollok, gameplay beállítások
+## Hang, videó, kontrollok, gameplay, accessibility, nyelv beállítások
 class_name SettingsUI
 extends Control
 
@@ -11,6 +11,8 @@ var settings: Dictionary = {
 	"master_volume": 80.0,
 	"music_volume": 70.0,
 	"sfx_volume": 80.0,
+	"ambient_volume": 60.0,
+	"ui_volume": 90.0,
 	"fullscreen": false,
 	"vsync": true,
 	"show_damage_numbers": true,
@@ -20,13 +22,19 @@ var settings: Dictionary = {
 	"auto_loot": false,
 	"loot_filter_rarity": 0,  # Minimum rarity to show
 	"chat_enabled": true,
+	"show_tutorials": true,
 }
 
-# === UI eleme ===
+# === UI elemek ===
 var tab_container: TabContainer = null
 var close_button: Button = null
 var apply_button: Button = null
 var reset_button: Button = null
+
+# Új fülök referenciái
+var controls_tab: ControlsSettingsUI = null
+var accessibility_tab: AccessibilitySettingsUI = null
+var language_tab: LanguageSettingsUI = null
 
 # Settings save path
 const SETTINGS_PATH: String = "user://settings.cfg"
@@ -47,7 +55,7 @@ func _build_ui() -> void:
 	
 	# Cím
 	var title := Label.new()
-	title.text = "SETTINGS"
+	title.text = tr("SETTINGS_TITLE")
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.position = Vector2(0, 10)
 	title.size = Vector2(640, 30)
@@ -62,17 +70,20 @@ func _build_ui() -> void:
 	_build_audio_tab()
 	_build_video_tab()
 	_build_gameplay_tab()
+	_build_controls_tab()
+	_build_accessibility_tab()
+	_build_language_tab()
 	
 	# Gombok
 	apply_button = Button.new()
-	apply_button.text = "Apply"
+	apply_button.text = tr("MENU_APPLY")
 	apply_button.position = Vector2(430, 330)
 	apply_button.size = Vector2(80, 30)
 	apply_button.pressed.connect(_on_apply)
 	add_child(apply_button)
 	
 	reset_button = Button.new()
-	reset_button.text = "Reset"
+	reset_button.text = tr("MENU_RESET")
 	reset_button.position = Vector2(520, 330)
 	reset_button.size = Vector2(80, 30)
 	reset_button.pressed.connect(_on_reset)
@@ -88,37 +99,58 @@ func _build_ui() -> void:
 
 func _build_audio_tab() -> void:
 	var vbox := VBoxContainer.new()
-	vbox.name = "Audio"
+	vbox.name = tr("SETTINGS_AUDIO")
 	
-	_add_slider(vbox, "Master Volume", "master_volume", 0, 100)
-	_add_slider(vbox, "Music Volume", "music_volume", 0, 100)
-	_add_slider(vbox, "SFX Volume", "sfx_volume", 0, 100)
+	_add_slider(vbox, tr("SETTINGS_MASTER_VOLUME"), "master_volume", 0, 100)
+	_add_slider(vbox, tr("SETTINGS_MUSIC_VOLUME"), "music_volume", 0, 100)
+	_add_slider(vbox, tr("SETTINGS_SFX_VOLUME"), "sfx_volume", 0, 100)
+	_add_slider(vbox, tr("SETTINGS_AMBIENT_VOLUME"), "ambient_volume", 0, 100)
+	_add_slider(vbox, tr("SETTINGS_UI_VOLUME"), "ui_volume", 0, 100)
 	
 	tab_container.add_child(vbox)
 
 
 func _build_video_tab() -> void:
 	var vbox := VBoxContainer.new()
-	vbox.name = "Video"
+	vbox.name = tr("SETTINGS_VIDEO")
 	
-	_add_checkbox(vbox, "Fullscreen", "fullscreen")
-	_add_checkbox(vbox, "VSync", "vsync")
-	_add_checkbox(vbox, "Screen Shake", "screen_shake")
+	_add_checkbox(vbox, tr("SETTINGS_FULLSCREEN"), "fullscreen")
+	_add_checkbox(vbox, tr("SETTINGS_VSYNC"), "vsync")
+	_add_checkbox(vbox, tr("SETTINGS_SCREEN_SHAKE"), "screen_shake")
 	
 	tab_container.add_child(vbox)
 
 
 func _build_gameplay_tab() -> void:
 	var vbox := VBoxContainer.new()
-	vbox.name = "Gameplay"
+	vbox.name = tr("SETTINGS_GAMEPLAY")
 	
-	_add_checkbox(vbox, "Show Damage Numbers", "show_damage_numbers")
-	_add_checkbox(vbox, "Show Health Bars", "show_health_bars")
-	_add_checkbox(vbox, "Minimap", "minimap_enabled")
-	_add_checkbox(vbox, "Auto Loot", "auto_loot")
-	_add_checkbox(vbox, "Chat Enabled", "chat_enabled")
+	_add_checkbox(vbox, tr("SETTINGS_SHOW_DAMAGE_NUMBERS"), "show_damage_numbers")
+	_add_checkbox(vbox, tr("SETTINGS_SHOW_HEALTH_BARS"), "show_health_bars")
+	_add_checkbox(vbox, tr("SETTINGS_MINIMAP"), "minimap_enabled")
+	_add_checkbox(vbox, tr("SETTINGS_AUTO_LOOT"), "auto_loot")
+	_add_checkbox(vbox, tr("SETTINGS_CHAT_ENABLED"), "chat_enabled")
+	_add_checkbox(vbox, tr("SETTINGS_SHOW_TUTORIALS"), "show_tutorials")
 	
 	tab_container.add_child(vbox)
+
+
+func _build_controls_tab() -> void:
+	controls_tab = ControlsSettingsUI.new()
+	controls_tab.settings_changed.connect(func(): settings_changed.emit())
+	tab_container.add_child(controls_tab)
+
+
+func _build_accessibility_tab() -> void:
+	accessibility_tab = AccessibilitySettingsUI.new()
+	accessibility_tab.settings_changed.connect(func(): settings_changed.emit())
+	tab_container.add_child(accessibility_tab)
+
+
+func _build_language_tab() -> void:
+	language_tab = LanguageSettingsUI.new()
+	language_tab.settings_changed.connect(func(): settings_changed.emit())
+	tab_container.add_child(language_tab)
 
 
 func _add_slider(parent: Control, label_text: String, setting_key: String, min_val: float, max_val: float) -> void:
@@ -156,6 +188,8 @@ func _add_checkbox(parent: Control, label_text: String, setting_key: String) -> 
 func _on_apply() -> void:
 	_apply_settings()
 	_save_settings()
+	# Mentjük az accessibility és keybinding beállításokat is
+	AccessibilityManager.save_settings()
 	settings_changed.emit()
 
 
@@ -164,6 +198,8 @@ func _on_reset() -> void:
 		"master_volume": 80.0,
 		"music_volume": 70.0,
 		"sfx_volume": 80.0,
+		"ambient_volume": 60.0,
+		"ui_volume": 90.0,
 		"fullscreen": false,
 		"vsync": true,
 		"show_damage_numbers": true,
@@ -173,19 +209,36 @@ func _on_reset() -> void:
 		"auto_loot": false,
 		"loot_filter_rarity": 0,
 		"chat_enabled": true,
+		"show_tutorials": true,
 	}
 	_apply_settings()
-	# Rebuild UI to reflect changes
+	rebuild_ui()
+
+
+func rebuild_ui() -> void:
+	## Teljes UI újraépítés (nyelv váltás után szükséges)
 	for child in tab_container.get_children():
 		child.queue_free()
+	controls_tab = null
+	accessibility_tab = null
+	language_tab = null
+	# Várakozunk egy frame-et, hogy a queue_free lefusson
+	await get_tree().process_frame
 	_build_audio_tab()
 	_build_video_tab()
 	_build_gameplay_tab()
+	_build_controls_tab()
+	_build_accessibility_tab()
+	_build_language_tab()
 
 
 func _apply_settings() -> void:
-	# Audio
-	AudioServer.set_bus_volume_db(0, linear_to_db(settings["master_volume"] / 100.0))
+	# Audio - AudioManager-en keresztül
+	AudioManager.set_master_volume(settings["master_volume"] / 100.0)
+	AudioManager.set_music_volume(settings["music_volume"] / 100.0)
+	AudioManager.set_sfx_volume(settings["sfx_volume"] / 100.0)
+	AudioManager.set_ambient_volume(settings["ambient_volume"] / 100.0)
+	AudioManager.set_ui_volume(settings["ui_volume"] / 100.0)
 	
 	# Video
 	if settings["fullscreen"]:
@@ -196,6 +249,10 @@ func _apply_settings() -> void:
 	DisplayServer.window_set_vsync_mode(
 		DisplayServer.VSYNC_ENABLED if settings["vsync"] else DisplayServer.VSYNC_DISABLED
 	)
+	
+	# Tutorial rendszer
+	if has_node("/root/TutorialManager"):
+		TutorialManager.tutorials_enabled = settings.get("show_tutorials", true)
 
 
 func _save_settings() -> void:

@@ -134,7 +134,11 @@ func _open_service(service: String, npc_id: String, _player: Node, data: Diction
 		"marketplace":
 			EventBus.marketplace_opened.emit()
 		"quest":
-			EventBus.quest_dialogue_opened.emit(npc_id)
+			# QuestManager-en és DialogueManager-en keresztül
+			if has_node("/root/QuestManager") and has_node("/root/DialogueManager"):
+				QuestManager.handle_quest_npc_interaction(npc_id)
+			else:
+				EventBus.quest_dialogue_opened.emit(npc_id)
 
 
 func _get_greeting(npc_type: String) -> String:
@@ -175,3 +179,40 @@ func get_npcs_by_type(npc_type: String) -> Array[String]:
 		if npc_data_cache[npc_id].get("type", "") == npc_type:
 			result.append(npc_id)
 	return result
+
+
+## Quest jelölők frissítése az NPC-ken (!, ?)
+func update_quest_indicators() -> void:
+	if not has_node("/root/QuestManager"):
+		return
+	
+	for npc_id in active_npcs:
+		var npc_node: Node = active_npcs[npc_id]
+		if not is_instance_valid(npc_node):
+			continue
+		
+		var indicator: String = get_quest_indicator_for_npc(npc_id)
+		if npc_node.has_method("set_quest_indicator"):
+			npc_node.set_quest_indicator(indicator)
+
+
+## Quest indicator meghatározása egy NPC-hez
+func get_quest_indicator_for_npc(npc_id: String) -> String:
+	if not has_node("/root/QuestManager"):
+		return ""
+	
+	# Van leadható quest? -> "?"
+	for quest_id in QuestManager.active_quest_ids:
+		if QuestManager.quest_database.has(quest_id):
+			var quest: QuestData = QuestManager.quest_database[quest_id]
+			if quest.turn_in_npc_id == npc_id:
+				var state: int = QuestManager.quest_states.get(quest_id, 0)
+				if state == QuestManager.QuestState.COMPLETE:
+					return "?"
+	
+	# Van felvehető quest? -> "!"
+	var available := QuestManager.get_available_quests_for_npc(npc_id)
+	if not available.is_empty():
+		return "!"
+	
+	return ""

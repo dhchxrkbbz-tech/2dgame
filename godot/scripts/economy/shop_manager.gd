@@ -27,10 +27,10 @@ func _init_shops() -> void:
 	# === GENERAL STORE ===
 	var general := ShopData.create("general_store", "General Store", Enums.ShopType.GENERAL_STORE, "Merchant")
 	general.items = [
-		{"item_id": "health_potion_small", "price": 25, "stock": -1},
-		{"item_id": "health_potion_medium", "price": 75, "stock": -1},
-		{"item_id": "mana_potion_small", "price": 25, "stock": -1},
-		{"item_id": "mana_potion_medium", "price": 75, "stock": -1},
+		{"item_id": "potion_hp_small", "price": 25, "stock": -1},
+		{"item_id": "potion_hp_medium", "price": 75, "stock": -1},
+		{"item_id": "potion_mp_small", "price": 25, "stock": -1},
+		{"item_id": "potion_mp_medium", "price": 75, "stock": -1},
 		{"item_id": "basic_tool", "price": 30, "stock": -1},
 		{"item_id": "crystal_vial", "price": 15, "stock": 20},
 		{"item_id": "torch", "price": 5, "stock": -1},
@@ -42,13 +42,13 @@ func _init_shops() -> void:
 	# === BLACKSMITH ===
 	var blacksmith := ShopData.create("blacksmith", "Blacksmith", Enums.ShopType.BLACKSMITH, "Grumm the Smith")
 	blacksmith.items = [
-		{"item_id": "iron_sword", "price": 80, "stock": 5},
-		{"item_id": "iron_dagger", "price": 60, "stock": 5},
-		{"item_id": "iron_staff", "price": 90, "stock": 3},
-		{"item_id": "iron_chestplate", "price": 120, "stock": 3},
-		{"item_id": "iron_helm", "price": 70, "stock": 3},
-		{"item_id": "iron_boots", "price": 50, "stock": 5},
-		{"item_id": "leather_gloves", "price": 40, "stock": 5},
+		{"item_id": "sword_t1", "price": 80, "stock": 5},
+		{"item_id": "dagger_t1", "price": 60, "stock": 5},
+		{"item_id": "staff_t1", "price": 90, "stock": 3},
+		{"item_id": "chest_t1", "price": 120, "stock": 3},
+		{"item_id": "helm_t1", "price": 70, "stock": 3},
+		{"item_id": "boots_t1", "price": 50, "stock": 5},
+		{"item_id": "gloves_t1", "price": 40, "stock": 5},
 	]
 	blacksmith.npc_portrait_color = Color(0.6, 0.4, 0.3)
 	_shops["blacksmith"] = blacksmith
@@ -56,11 +56,11 @@ func _init_shops() -> void:
 	# === ALCHEMIST ===
 	var alchemist := ShopData.create("alchemist", "Alchemy Shop", Enums.ShopType.ALCHEMIST, "Zelda the Alchemist")
 	alchemist.items = [
-		{"item_id": "health_potion_small", "price": 20, "stock": -1},
-		{"item_id": "health_potion_medium", "price": 60, "stock": -1},
-		{"item_id": "health_potion_large", "price": 150, "stock": 10},
-		{"item_id": "mana_potion_small", "price": 20, "stock": -1},
-		{"item_id": "mana_potion_medium", "price": 60, "stock": -1},
+		{"item_id": "potion_hp_small", "price": 20, "stock": -1},
+		{"item_id": "potion_hp_medium", "price": 60, "stock": -1},
+		{"item_id": "potion_hp_large", "price": 150, "stock": 10},
+		{"item_id": "potion_mp_small", "price": 20, "stock": -1},
+		{"item_id": "potion_mp_medium", "price": 60, "stock": -1},
 		{"item_id": "poison_coat_basic", "price": 80, "stock": 10},
 		{"item_id": "damage_scroll", "price": 100, "stock": 5},
 		{"item_id": "defense_scroll", "price": 100, "stock": 5},
@@ -267,6 +267,31 @@ func _refresh_rotating_stock(shop: ShopData) -> void:
 		selected["stock"] = 1  # Rotating item-ek egyszer vásárolhatók
 		shop.items.append(selected)
 		pool.remove_at(idx)
+
+
+## NPC shop inventory refresh (24 óra game time)
+func refresh_shop_inventory(shop_id: String) -> void:
+	var shop: ShopData = _shops.get(shop_id)
+	if not shop:
+		return
+	
+	# Stock visszaállítás az eredeti értékekre
+	_init_shops()
+	EventBus.show_notification.emit("Shop inventory refreshed!", Enums.NotificationType.LEVEL_UP)
+
+
+## Időzített refresh (hívandó game time alapján)
+func check_daily_refresh(game_hours_elapsed: float) -> void:
+	if game_hours_elapsed >= 24.0:
+		for shop_id in _shops:
+			var shop: ShopData = _shops[shop_id]
+			if not shop.is_rotating:
+				# Limitált stock item-ek refreshelése
+				for i in shop.items.size():
+					var item: Dictionary = shop.items[i]
+					var original_stock: int = item.get("original_stock", item.get("stock", -1))
+					if original_stock > 0:
+						shop.items[i]["stock"] = original_stock
 
 
 ## Shop lekérdezés

@@ -1,0 +1,1387 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║       ASHENFALL – 19. VIZUÁLIS ASSET & ANIMÁCIÓ MASTER PLAN  (v2)          ║
+║                                                                              ║
+║     Minden sprite, animáció, tileset, ikon, UI elem és effekt plan          ║
+║     Az ÖSSZES korábbi terv (00–18) vizuális követelményeinek összesítése     ║
+║                                                                              ║
+║     PIPELINE: Claude Opus 4.6 → GDScript procedurális pixel art generálás   ║
+║     TILE MÉRET: 64×64 pixel (korábbi 32×32 helyett)                         ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Státusz: 0% – Jelenleg EGYETLEN vizuális asset sem létezik.
+  Minden megjelenítés placeholder_sprites.gd által generált színes négyzet.
+
+  Pipeline: Claude Opus 4.6 GDScript kódot generál → Godot Image API →
+            PNG export VAGY runtime texture cache
+
+  Becsült asset szám: ~850+ egyedi sprite/animáció/ikon
+  Becsült produkciós idő: 80–140 óra (Claude prompt + GDScript review + Godot test)
+
+  Hivatkozott plan fájlok: 00, 01, 02, 03, 04, 06, 07, 08, 09, 10, 12,
+                           14, 15, 16, 17, 18
+
+================================================================================
+  TARTALOMJEGYZÉK
+================================================================================
+
+  1.  Claude GDScript Asset Pipeline (eszközök, workflow, kódstruktúra)
+  2.  Paletta és stílus szabványok
+  3.  Player karakter sprite-ok (3 class, animációk)
+  4.  Enemy sprite-ok (40 alap + 40 elite + 15 rare)
+  5.  Boss sprite-ok (13 boss, 4 tier)
+  6.  NPC sprite-ok (~20 NPC)
+  7.  World tileset-ek (8 biome)
+  8.  Dungeon tileset-ek (7 téma)
+  9.  Világ dekoráció és prop sprite-ok
+  10. Dungeon prop sprite-ok
+  11. Item ikonok (~250+ ikon)
+  12. Skill ikonok (48 ikon)
+  13. Gem sprite-ok (51 normál + 15 legendary)
+  14. Currency és egyéb ikonok
+  15. Skill effekt animációk (45 skill VFX)
+  16. Status effekt és combat VFX
+  17. Particle textúrák
+  18. UI elemek és keretek
+  19. Menü, loading screen és egyéb UI art
+  20. Minimap ikonok
+  21. Tutorial és onboarding vizuálok
+  22. Achievement ikonok
+  23. Controller prompt ikonok
+  24. Shader-ek (meglévő 7 shader áttekintés)
+  25. Produkciós ütemterv (heti bontás)
+  26. Teljes asset lista összesítés
+  27. Minőségbiztosítási checklist
+
+================================================================================
+  1. CLAUDE GDSCRIPT ASSET PIPELINE
+================================================================================
+
+  1.1 Eszközök és technológia
+  ────────────────────────────
+
+    ┌──────────────────────┬──────────────────────────────────────────────────┐
+    │ Eszköz               │ Szerepe                                          │
+    ├──────────────────────┼──────────────────────────────────────────────────┤
+    │ Claude Opus 4.6      │ GDScript pixel art kód generálása (fő eszköz)   │
+    │ Godot Image API      │ Runtime/editor pixel rajzolás (set_pixel stb.)  │
+    │ Godot EditorScript   │ Batch PNG export editor módban                  │
+    │ Godot ImageTexture   │ Runtime texture cache (generált képekből)       │
+    │ Godot SpriteFrames   │ Animáció resource (GDScript-ből feltöltve)      │
+    │ PNG export           │ Végleges sprite fájlok (save_png())             │
+    └──────────────────────┴──────────────────────────────────────────────────┘
+
+  1.2 Alapelv: Mit csinál Claude?
+  ────────────────────────────────
+    Claude Opus 4.6 GDScript kódot ír, amely:
+      - Létrehoz egy Image objektumot (pl. 64×96 pixel)
+      - Pixel-by-pixel vagy draw_rect() hívásokkal megrajzolja a sprite-ot
+      - Minden animáció frame-et külön Image-ként generálja
+      - SpriteFrames resource-ba pakolja az animációkat
+      - Opcionálisan PNG-be exportálja (EditorScript futtatással)
+
+    Példa egy egyszerű sprite generáló függvényre:
+
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │  # assassin_generator.gd                                               │
+    │  static func generate_idle_frame(frame_idx: int) -> ImageTexture:     │
+    │      var img = Image.create(64, 96, false, Image.FORMAT_RGBA8)         │
+    │      img.fill(Color(0, 0, 0, 0))  # átlátszó háttér                   │
+    │                                                                         │
+    │      # Köpeny alap (sötétlila)                                         │
+    │      _fill_rect(img, 16, 20, 32, 60, Color(0.18, 0.08, 0.28))         │
+    │      # Fej (bőrszín)                                                   │
+    │      _fill_rect(img, 22, 4, 20, 18, Color(0.85, 0.70, 0.55))          │
+    │      # Kapucni (fekete)                                                 │
+    │      _fill_rect(img, 18, 2, 28, 16, Color(0.08, 0.04, 0.12))          │
+    │      # Outline (1px fekete)                                             │
+    │      _draw_outline(img, Color(0.0, 0.0, 0.0))                          │
+    │      # Frame-specifikus légzés offset                                  │
+    │      var breath_offset = [0, -1, -1, 0][frame_idx]                    │
+    │      img = _shift_image(img, 0, breath_offset)                        │
+    │                                                                         │
+    │      return ImageTexture.create_from_image(img)                        │
+    └─────────────────────────────────────────────────────────────────────────┘
+
+  1.3 GDScript generátor struktúra
+  ──────────────────────────────────
+    Egy asset típusonként egy .gd fájl, ezek mind a
+    res://generators/ mappában élnek:
+
+    generators/
+    ├── base_pixel_art.gd         # Közös helper függvények (_fill_rect,
+    │                             #  _draw_outline, _shift_image, stb.)
+    ├── characters/
+    │   ├── assassin_generator.gd
+    │   ├── tank_generator.gd
+    │   └── mage_generator.gd
+    ├── enemies/
+    │   ├── ashen_wastes_enemies.gd
+    │   ├── corrupted_forest_enemies.gd
+    │   └── ... (1 fájl / biome)
+    ├── bosses/
+    │   ├── tier1_bosses.gd
+    │   ├── tier2_bosses.gd
+    │   └── ...
+    ├── tilesets/
+    │   ├── world_tileset_generator.gd
+    │   └── dungeon_tileset_generator.gd
+    ├── icons/
+    │   ├── item_icon_generator.gd
+    │   ├── skill_icon_generator.gd
+    │   └── gem_icon_generator.gd
+    ├── effects/
+    │   └── vfx_generator.gd
+    ├── ui/
+    │   └── ui_element_generator.gd
+    └── export/
+        └── batch_export_tool.gd   # EditorScript: mindent PNG-be ment
+
+  1.4 Közös helper függvények (base_pixel_art.gd)
+  ─────────────────────────────────────────────────
+    Minden generator ezeket örökli / statikusan hívja:
+
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │  # base_pixel_art.gd                                                   │
+    │  class_name PixelArtBase                                                │
+    │                                                                         │
+    │  static func fill_rect(img: Image, x: int, y: int,                    │
+    │                         w: int, h: int, col: Color) -> void:           │
+    │      for px in range(x, x + w):                                        │
+    │          for py in range(y, y + h):                                    │
+    │              if px >= 0 and py >= 0 and px < img.get_width()          │
+    │                 and py < img.get_height():                             │
+    │                  img.set_pixel(px, py, col)                            │
+    │                                                                         │
+    │  static func draw_outline(img: Image, col: Color,                     │
+    │                            thickness: int = 1) -> void:               │
+    │      # Alpha edge detection + körvonal rajzolás                        │
+    │      ...                                                                │
+    │                                                                         │
+    │  static func draw_circle(img: Image, cx: int, cy: int,                │
+    │                           r: int, col: Color) -> void: ...             │
+    │                                                                         │
+    │  static func draw_line_px(img: Image, x0: int, y0: int,              │
+    │                            x1: int, y1: int, col: Color) -> void: ... │
+    │                                                                         │
+    │  static func apply_palette(img: Image,                                 │
+    │                             palette: Dictionary) -> Image: ...         │
+    │                                                                         │
+    │  static func shift_image(img: Image, dx: int, dy: int) -> Image: ...  │
+    │                                                                         │
+    │  static func flip_horizontal(img: Image) -> Image: ...                │
+    └─────────────────────────────────────────────────────────────────────────┘
+
+  1.5 SpriteFrames összecsomagolás
+  ──────────────────────────────────
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │  static func build_sprite_frames(                                      │
+    │          anim_data: Dictionary) -> SpriteFrames:                       │
+    │      # anim_data = { "idle": [tex0,tex1,tex2,tex3], fps: 5,           │
+    │      #               "walk": [tex0,...,tex5], fps: 10, ... }          │
+    │      var sf = SpriteFrames.new()                                        │
+    │      for anim_name in anim_data:                                       │
+    │          sf.add_animation(anim_name)                                   │
+    │          sf.set_animation_loop(anim_name, anim_data[anim_name].loop)  │
+    │          sf.set_animation_speed(anim_name, anim_data[anim_name].fps)  │
+    │          for tex in anim_data[anim_name].frames:                      │
+    │              sf.add_frame(anim_name, tex)                              │
+    │      return sf                                                          │
+    └─────────────────────────────────────────────────────────────────────────┘
+
+  1.6 Batch export workflow (EditorScript)
+  ─────────────────────────────────────────
+    1. Claude megírja az összes generator .gd fájlt
+    2. batch_export_tool.gd EditorScript futtatása (Tools → Execute Script)
+    3. Minden generator meghívódik, PNG-ek mentése:
+       assets/sprites/characters/assassin/idle_0.png
+       assets/sprites/characters/assassin/idle_1.png  stb.
+    4. SpriteFrames .tres resource-ok automatikus létrehozása
+    5. Godot re-import (automatikus, ProjectSettings-ben beállítva)
+    6. Sprite filter: Nearest (pixel art – kötelező!)
+
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │  # batch_export_tool.gd (EditorScript)                                 │
+    │  @tool                                                                  │
+    │  extends EditorScript                                                   │
+    │                                                                         │
+    │  func _run() -> void:                                                  │
+    │      print("=== ASHENFALL PIXEL ART EXPORT START ===")                │
+    │      AssassinGenerator.export_all("res://assets/sprites/characters/") │
+    │      TankGenerator.export_all("res://assets/sprites/characters/")     │
+    │      MageGenerator.export_all("res://assets/sprites/characters/")     │
+    │      WorldTilesetGenerator.export_all("res://assets/tilesets/world/") │
+    │      # ... stb. minden category                                        │
+    │      print("=== EXPORT COMPLETE ===")                                  │
+    └─────────────────────────────────────────────────────────────────────────┘
+
+  1.7 Claude prompt sablon asset generáláshoz
+  ────────────────────────────────────────────
+    Minden asset-hez Claude-nak adott prompt struktúrája:
+
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │  "Írj GDScript kódot, amely Godot 4 Image API-val pixel-by-pixel       │
+    │   megrajzolja az alábbi sprite-ot:                                      │
+    │                                                                         │
+    │   Sprite: [ASSET_NÉV]                                                  │
+    │   Méret: [SZÉLESSÉG]×[MAGASSÁG] pixel                                  │
+    │   Animáció: [ANIMÁCIÓ_NÉV], [FRAME_SZÁM] frame, [FPS] fps             │
+    │   Stílus: dark fantasy pixel art, fekete outline (1px),               │
+    │            top-down nézet, enyhe felülnézet                            │
+    │   Színek: [PALETTA_LEÍRÁS]                                              │
+    │   Testtartás/kinézet: [RÉSZLETES_LEÍRÁS]                               │
+    │                                                                         │
+    │   Követelmények:                                                        │
+    │   - Használd a PixelArtBase helper osztályt                            │
+    │   - Átlátszó háttér (FORMAT_RGBA8)                                     │
+    │   - Minden frame-t külön függvény generálja                            │
+    │   - Animáció könnyen bővíthető (frame_idx paraméter)                  │
+    │   - Kommenteld a főbb testrészek rajzolását"                           │
+    └─────────────────────────────────────────────────────────────────────────┘
+
+  1.8 Palette variáns rendszer (GDScript-alapú)
+  ───────────────────────────────────────────────
+    Az eredeti AI-alapú palette_swap shader megmarad, de a generátorok
+    Dictionary-alapú palettákat is támogatnak:
+
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │  const ELITE_PALETTE_MOD = {                                           │
+    │      Color(0.18, 0.08, 0.28): Color(0.08, 0.02, 0.18),  # sötétebb   │
+    │      Color(0.85, 0.70, 0.55): Color(0.95, 0.80, 0.65),  # világosabb │
+    │  }                                                                      │
+    │                                                                         │
+    │  static func generate_elite_variant(base_img: Image) -> Image:        │
+    │      return PixelArtBase.apply_palette(base_img, ELITE_PALETTE_MOD)   │
+    └─────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+  2. PALETTA ÉS STÍLUS SZABVÁNYOK
+================================================================================
+
+  2.1 Globális stílus szabályok
+  ──────────────────────────────
+    - Pixel art stílus, NEM smooth/anti-aliased
+    - Top-down nézet (enyhe felülnézet – Stardew Valley perspektíva)
+    - Sötét fantasy hangulat: tompított, desaturált színek
+    - Fekete outline (1px) minden sprite-on
+    - Maximum 16–32 szín per sprite (paletta korlát)
+    - Nearest-neighbor scaling (SOHA bilinear/trilinear!)
+    - Tile méret: 64×64 pixel
+
+  2.2 Biome paletta definíciók (GDScript Color konstansok)
+  ──────────────────────────────────────────────────────────
+    Minden biome-nak saját palettája Dictionary-ként tárolva:
+
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │  const PALETTES = {                                                    │
+    │    "ashen_wastes": {                                                   │
+    │      "ground":    Color(0.45, 0.42, 0.38),  # hamuszürke             │
+    │      "ground2":   Color(0.55, 0.50, 0.44),  # világosabb hamu        │
+    │      "accent":    Color(0.80, 0.40, 0.10),  # narancssárga izzás     │
+    │      "dark":      Color(0.18, 0.15, 0.12),  # mély sötét             │
+    │      "outline":   Color(0.05, 0.04, 0.03),  # fekete outline         │
+    │    },                                                                  │
+    │    "corrupted_forest": {                                               │
+    │      "ground":    Color(0.12, 0.22, 0.10),  # sötétzöld              │
+    │      "accent":    Color(0.50, 0.10, 0.60),  # lila                   │
+    │      "dark":      Color(0.06, 0.10, 0.05),  # mély sötét             │
+    │      "poison":    Color(0.25, 0.60, 0.10),  # méregzöld              │
+    │      "outline":   Color(0.02, 0.05, 0.02),                           │
+    │    },                                                                  │
+    │    "crystal_caverns": {                                                │
+    │      "crystal":   Color(0.30, 0.60, 0.90),  # kristálykék            │
+    │      "glow":      Color(0.70, 0.90, 1.00),  # cián izzás             │
+    │      "dark":      Color(0.05, 0.10, 0.20),                           │
+    │      "outline":   Color(0.02, 0.04, 0.08),                           │
+    │    },                                                                  │
+    │    "frozen_peaks": {                                                   │
+    │      "snow":      Color(0.90, 0.92, 0.95),                           │
+    │      "ice":       Color(0.60, 0.80, 0.95),                           │
+    │      "dark":      Color(0.10, 0.15, 0.25),                           │
+    │      "outline":   Color(0.04, 0.06, 0.10),                           │
+    │    },                                                                  │
+    │    "shadow_marsh": {                                                   │
+    │      "ground":    Color(0.15, 0.20, 0.08),  # mocsárzöld             │
+    │      "water":     Color(0.20, 0.28, 0.12),  # sötét álló víz        │
+    │      "accent":    Color(0.55, 0.50, 0.15),  # sárgás-barna          │
+    │      "outline":   Color(0.04, 0.06, 0.02),                           │
+    │    },                                                                  │
+    │    "volcanic_depths": {                                                │
+    │      "rock":      Color(0.15, 0.10, 0.08),  # obsidián              │
+    │      "lava":      Color(0.90, 0.35, 0.05),  # izzó láva             │
+    │      "glow":      Color(1.00, 0.60, 0.10),  # narancs izzás         │
+    │      "outline":   Color(0.05, 0.03, 0.02),                           │
+    │    },                                                                  │
+    │    "necrotic_ruins": {                                                 │
+    │      "bone":      Color(0.88, 0.84, 0.72),  # csontfehér            │
+    │      "stone":     Color(0.35, 0.30, 0.28),  # romos kő              │
+    │      "accent":    Color(0.40, 0.10, 0.50),  # nekrotikus lila       │
+    │      "outline":   Color(0.08, 0.06, 0.05),                           │
+    │    },                                                                  │
+    │    "void_realm": {                                                     │
+    │      "void":      Color(0.10, 0.05, 0.18),  # mélylila üresség      │
+    │      "energy":    Color(0.60, 0.20, 0.90),  # void energia          │
+    │      "glow":      Color(0.85, 0.50, 1.00),  # lila izzás            │
+    │      "outline":   Color(0.04, 0.02, 0.08),                           │
+    │    },                                                                  │
+    │  }                                                                     │
+    └─────────────────────────────────────────────────────────────────────────┘
+
+  2.3 Ritkaság szín kódok (item/loot)
+  ─────────────────────────────────────
+    const RARITY_COLORS = {
+      "normal":    Color(0.69, 0.69, 0.69),  # szürke
+      "magic":     Color(0.27, 0.53, 1.00),  # kék
+      "rare":      Color(1.00, 0.85, 0.00),  # arany/sárga
+      "epic":      Color(0.67, 0.27, 1.00),  # lila
+      "legendary": Color(1.00, 0.53, 0.00),  # narancs
+      "set":       Color(0.27, 0.80, 0.27),  # zöld
+    }
+
+  2.4 Karakter szín kódok (class)
+  ────────────────────────────────
+    Assassin:  sötétlila (#2E1248), fekete (#0A0810), bíbor (#6B1535)
+    Tank:      acélszürke (#5A6878), aranybarna (#C8922A), sötétkék (#1A2B4A)
+    Mage:      sötétkék (#0F1E5A), lila (#4A1280), fehér (#E8E8F0)
+
+================================================================================
+  3. PLAYER KARAKTER SPRITE-OK
+================================================================================
+
+  3.1 Specifikáció
+  ─────────────────
+    Sprite méret: 64×96 pixel (1 tile széles, 1.5 tile magas)
+    Irányok: 4 irány (N, E, S, W) + horizontális flip
+    Osztályok: 3 (Assassin, Tank, Mage)
+    Generator fájl: generators/characters/[class]_generator.gd
+
+  3.2 Animáció lista (MINDEN class-ra azonos struktúra)
+  ──────────────────────────────────────────────────────
+
+    ┌─────┬──────────────────┬────────┬──────────┬──────────┬─────────────┐
+    │ #   │ Animáció         │ Framek │ FPS      │ Loop?    │ Irányok     │
+    ├─────┼──────────────────┼────────┼──────────┼──────────┼─────────────┤
+    │  1  │ idle             │   4    │   5      │ igen     │ 4 irány     │
+    │  2  │ walk             │   6    │  10      │ igen     │ 4 irány     │
+    │  3  │ run              │   6    │  15      │ igen     │ 4 irány     │
+    │  4  │ attack_melee     │   5    │  12      │ nem      │ 4 irány     │
+    │  5  │ attack_ranged    │   5    │  12      │ nem      │ 4 irány     │
+    │  6  │ cast_spell       │   6    │  12      │ nem      │ 4 irány     │
+    │  7  │ hit              │   3    │  10      │ nem      │ 4 irány     │
+    │  8  │ death            │   6    │   8      │ nem      │ 1 irány (S) │
+    │  9  │ dodge_roll       │   4    │  13      │ nem      │ 4 irány     │
+    └─────┴──────────────────┴────────┴──────────┴──────────┴─────────────┘
+
+  3.3 GDScript generator struktúra per class
+  ────────────────────────────────────────────
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │  # assassin_generator.gd                                               │
+    │  class_name AssassinGenerator                                          │
+    │  extends PixelArtBase                                                  │
+    │                                                                         │
+    │  # Konstansok                                                          │
+    │  const W = 64; const H = 96                                            │
+    │  const CLOAK  = Color(0.18, 0.08, 0.28)  # sötétlila köpeny          │
+    │  const HOOD   = Color(0.08, 0.04, 0.12)  # fekete kapucni            │
+    │  const SKIN   = Color(0.85, 0.70, 0.55)  # bőrszín                  │
+    │  const BLADE  = Color(0.70, 0.72, 0.75)  # ezüst penge              │
+    │  const EDGE   = Color(0.0, 0.0, 0.0)     # fekete outline            │
+    │                                                                         │
+    │  # Egy irány, egy frame                                                │
+    │  static func idle_south(frame_idx: int) -> ImageTexture: ...          │
+    │  static func idle_north(frame_idx: int) -> ImageTexture: ...          │
+    │  static func idle_east(frame_idx: int) -> ImageTexture: ...           │
+    │  static func idle_west(frame_idx: int) -> ImageTexture: ...           │
+    │  static func walk_south(frame_idx: int) -> ImageTexture: ...          │
+    │  # ... stb. minden animáció × irány                                   │
+    │                                                                         │
+    │  # SpriteFrames összeállítás                                           │
+    │  static func build_sprite_frames() -> SpriteFrames: ...               │
+    │                                                                         │
+    │  # Batch PNG export                                                    │
+    │  static func export_all(path: String) -> void: ...                    │
+    └─────────────────────────────────────────────────────────────────────────┘
+
+  3.4 Osztály-specifikus megjelenés (Claude prompt leírások)
+  ────────────────────────────────────────────────────────────
+
+    ASSASSIN (64×96):
+      Claude prompt kulcsszavak:
+        - Kapucnis köpeny, sötétlila/fekete
+        - Két tőr/dagger a kezekben (ezüst pengék)
+        - Könnyű páncél, fürge testtartás, előrehajló
+        - Fej: kapucni alatt halvány arc, szűk szemek
+        - Lábak: fekete csizma, rugós pózban
+        - Idle: enyhe lengés, köpeny mozgás (4 frame)
+        - Walk: lopakodó lépések, alacsony testtartás
+        - Attack_melee: döfés, slash arc, vér particle
+        - Death: térdre esés, összecsukódás
+
+    TANK (64×96):
+      Claude prompt kulcsszavak:
+        - Nehéz acélpáncél, nagy négyszögletes pajzs
+        - Balta vagy buzogány jobb kézben
+        - Masszív testalkat, széles vállak
+        - Sisak: teljes arcfedő, szűk nyílások
+        - Idle: súlyos, lassú légzés, páncél csillanás 1 frameban
+        - Walk: nehéz lépések, páncél ütközés érzettel
+        - Attack: hatalmas lendület, lassú de erős mozgás
+
+    MAGE (64×96):
+      Claude prompt kulcsszavak:
+        - Hosszú sötétkék köpeny, rúnás szegély
+        - Hosszú bot/staff, kristályos felső véggel
+        - Vékony alkat, elegáns pózok
+        - Csuklyás sapka, csillagos mintával
+        - Cast_spell: bot előre nyújtás, energia gyűlés, izzó kézfej
+        - Idle: bot az egyik kezében, lassú rúna izzás
+
+  3.5 Frame számítás per class
+  ─────────────────────────────
+    8 animáció × 4 irány × átlag 5 frame = 160 frame/class
+    (death: 1 irány → korrekció: ~146 frame/class)
+    × 3 class = ~438 frame összesen
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN PLAYER: 3 class × ~146 frame = ~438 frame
+  GENERATOR FÁJLOK: assassin_generator.gd, tank_generator.gd, mage_generator.gd
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  4. ENEMY SPRITE-OK
+================================================================================
+
+  4.1 Alap enemy-k (40 típus, 8 biome × 5 enemy/biome)
+  ──────────────────────────────────────────────────────
+
+  Sprite méret: 64×96 pixel (normál enemy)
+  Kisebb enemy-k: 48×48 (swarmers, small creatures)
+  Nagyobb elite-ek: 80×80 (erős példányok)
+  Irányok: 4 + flip
+  Generator fájl: generators/enemies/[biome_name]_enemies.gd
+
+  Animáció lista per enemy:
+    ┌─────┬──────────────────┬────────┬──────────┬──────────┐
+    │ #   │ Animáció         │ Framek │ FPS      │ Loop?    │
+    ├─────┼──────────────────┼────────┼──────────┼──────────┤
+    │  1  │ idle             │   4    │   5      │ igen     │
+    │  2  │ walk             │   4    │   8      │ igen     │
+    │  3  │ attack           │   4    │  10      │ nem      │
+    │  4  │ hit              │   2    │  10      │ nem      │
+    │  5  │ death            │   4    │   7      │ nem      │
+    │  6  │ special (ha van) │   4    │   8      │ nem      │
+    └─────┴──────────────────┴────────┴──────────┴──────────┘
+
+  Frame szám per enemy: ~22 frame × 4 irány = ~88 frame
+  (special nem minden enemy-nek → átlag ~70 frame/enemy)
+
+  4.2 Teljes enemy lista biome-onként (GDScript draw leírással)
+  ─────────────────────────────────────────────────────────────
+
+  ASHEN WASTES (5 enemy):
+    1. Ash Zombie (64×96)
+       Szín: szürke test (#6B6560), hamufoltok (#8A8580), izzó szemek (#FF6600)
+       Draw: emberi alap, lassú lépések, lefelé lógó karok, hamucsomók a testen
+    2. Cinder Rat (48×48, kisebb!)
+       Szín: sötétnarancs (#8B3A00), fekete mancsok, izzó farok
+       Draw: négy lábú, rágcsáló forma, nagy hegyes fogak
+    3. Ember Archer (64×96)
+       Szín: narancsvörös páncél, fekete köpeny, tüzes nyílvessző
+       Draw: emberi, íjász tartás, egyik kéz emelt
+    4. Ash Witch (64×96)
+       Szín: sötétszürke robe, lila glif-ek, fehér haj
+       Draw: köpenyeg alak, kezek előre nyújtva varázsláshoz
+    5. Ash Golem (96×128, nagyobb!)
+       Szín: hamukő (#7A7570), repedések izzással (#FF6600)
+       Draw: masszív, kő textúra (nagy fill_rect blokkok), nehézkes
+
+  CORRUPTED FOREST (5 enemy):
+    6. Blighted Wolf (64×64)
+       Szín: sötétzöld (#1A3A10), lila szemek, fekete sörény
+       Draw: négylábú, farkas forma, púpozott hát
+    7. Thorn Crawler (64×64)
+       Szín: barna-zöld, tövisek mint kiálló fekete vonalak
+       Draw: rovarszerű, sok láb, lapos test
+    8. Fungal Spitter (64×96)
+       Szín: gomba barna (#6B4520), zöld foltok, sárga szemek
+       Draw: humanoid gomba, fejből kinövő kalapgomba
+    9. Druid Wraith (64×96)
+       Szín: áttetsző (alpha ~0.7) zöld, izzó rúnák
+       Draw: lebegő alak, köd-szerű alsó rész
+    10. Treant Guardian (96×128)
+        Szín: sötétbarna (#2A1A08), lila korrumpált foltok (#501060)
+        Draw: élő fa, karok = vastagított ágak, arc a törzsbe vésve
+
+  CRYSTAL CAVERNS (5 enemy):
+    11. Crystal Bat (48×48)
+        Szín: kék (#2060A0), áttetsző szárnyak, csillogó test
+        Draw: denevér forma, szárny = vékony átlátszó lap
+    12. Gem Golem (80×80)
+        Szín: különböző kristály szegmensek (kék, lila, fehér)
+        Draw: kocka-szerű blokkok kristály textúrával (csillogás 1 fehér pixel)
+    13. Shard Shooter (64×96)
+        Szín: kristálykék páncél, vékony alkat
+        Draw: humanoid, kezek = kristálypuska forma
+    14. Crystal Mage (64×96)
+        Szín: kristályos robe, kék izzás, kristály bot
+        Draw: köpenyes, bot kezében, rúna fények
+    15. Prism Construct (96×128)
+        Szín: fehér/szivárványos (fénytörés = több szín pixel-enként)
+        Draw: geometrikus forma, prizma keresztmetszetek
+
+  FROZEN PEAKS (5 enemy):
+    16. Ice Wolf (64×64)
+        Szín: fehér (#E8EEF5), jégkék szemek (#60A0D0)
+        Draw: farkas forma, jégkristályok a bundán (apró fehér kiugrások)
+    17. Frost Giant (96×128)
+        Szín: fehér-kék (#C0D8F0), jégpáncél elemek
+        Draw: óriási emberi forma, vastag karok, jégszilánk fegyver
+    18. Snow Archer (64×96)
+        Szín: fehér köpeny, ezüst íj, jéghegy nyíl
+        Draw: emberi, íjász tartás hóköpennyel
+    19. Frost Shaman (64×96)
+        Szín: jégkék robe (#1040A0), hó-fehér haj
+        Draw: köpenyes, blizzard gömb a kezek között
+    20. Avalanche Elemental (96×128)
+        Szín: szürke-fehér kő+hó keverék
+        Draw: kaotikus kődarabok + hóblokkok gyűjteménye, gömbölyített forma
+
+  SHADOW MARSH (5 enemy):
+    21. Bog Lurker (64×96)
+        Szín: mocsárzöld (#1A3010), iszap textúra, sárga szemek
+        Draw: humanoid, mocsárban guggolás, iszap csöpög
+    22. Marsh Horror (80×80)
+        Szín: sárgás-zöld (#4A5A10), tentaculumok (#2A3A08)
+        Draw: kerek test, 6 tentaculum, sok szem
+    23. Will-o-Wisp (32×32, pici!)
+        Szín: szín-váltó (frame-enként más: kék→lila→fehér→zöld)
+        Draw: egyszerű izzó gömb, halvány fény körül
+    24. Swamp Hag (64×96)
+        Szín: sötétzöld robe, ősz haj, görbe orr, mérges buborékok
+        Draw: köpenyes, görnyedt alak, bot/bot helyett karom
+    25. Hydra (96×128)
+        Szín: zöld-barna (#3A5010), több fej (#2A3A08)
+        Draw: fő törzs + 3 kígyó-nyak fej (minden fejnek külön draw)
+        SPECIÁLIS: fejenként külön AnimatedSprite2D, szinkronizált
+
+  VOLCANIC DEPTHS (5 enemy):
+    26. Magma Slime (48×48)
+        Szín: narancs-vörös (#C84010), izzó belső (#FF8030)
+        Draw: amorf gömb, olvadó szélekkel (nem egyenes outline)
+    27. Fire Imp (48×64)
+        Szín: piros (#B82010), sárga szemek, kis szárnyak
+        Draw: kis démon forma, hegyes farok, ujjakból tűznyelvek
+    28. Lava Bomber (64×96)
+        Szín: sötétvörös páncél, tüzes gömb a kézben
+        Draw: erős alkat, fegyver = izzó kő-gömb
+    29. Flame Priest (64×96)
+        Szín: tűz-robe (#A02010), arany szegély, tüzes rúnák
+        Draw: köpenyes varázsló, kezekből tűznyelvek
+    30. Obsidian Dragon (128×128)
+        Szín: fekete (#100808), izzó repedések (#FF4010)
+        Draw: sárkány forma, szárnyak terítve, top-down szárny-kiterjedés
+        SPECIÁLIS: repülési frame-ek más sprite set (szárny lengés)
+
+  NECROTIC RUINS (5 enemy):
+    31. Skeleton Warrior (64×96)
+        Szín: csontfehér (#D8D0B8), rozsdás fegyver (#885530)
+        Draw: csontváz forma (explict csont szegmensek), pajzs+kard
+    32. Bone Archer (64×96)
+        Szín: csontfehér, sötét köpeny részletek
+        Draw: csontváz íjász, nyíl húzás frame-ek
+    33. Lich Apprentice (64×96)
+        Szín: sötétlila robe (#300850), lila glowing szemek
+        Draw: köpenyes, lebegő csontkezek, nekrotikus aura
+    34. Death Knight (64×96)
+        Szín: fekete páncél (#080808), piros izzás (#C00020)
+        Draw: teljes páncél, rozsdás, piros szemek a sisak alatt
+    35. Bone Colossus (128×128)
+        Szín: sárgás csont (#C8B888), sötétzöld bomlás (#204010)
+        Draw: hatalmas csontváz, gerinc látható, összetett csont-páncél
+
+  VOID REALM (5 enemy):
+    36. Void Stalker (64×96)
+        Szín: mélylila (#180830), átlátszó (alpha 0.85), izzó szemek (#A020F0)
+        Draw: humanoid de torzult, void-energia köré vonva
+    37. Phase Shifter (64×96)
+        Szín: kékes-lila (#202060), frame-enként változó alpha (fázisol)
+        Draw: geometrikus, szögletes forma, átlátszó-opák váltakozás
+    38. Void Ray (64×64)
+        Szín: energia forma, lila-fehér (#C060FF, #F0D0FF)
+        Draw: sugár-szerű, elongált forma, nincs klasszikus test
+    39. Reality Warper (64×96)
+        Szín: torzult szürke-lila, frame-enként kis random pixel noise
+        Draw: humanoid de distorted, teste "törik" a frame-ek közt
+    40. Void Titan (128×128)
+        Szín: mélylila + fekete (#100018), void energia foltok (#8030C0)
+        Draw: masszív humanoid, void kristályok a testből kiemelkedve
+
+  4.3 Elite variánsok (GDScript palette swap)
+  ─────────────────────────────────────────────
+    Minden alap enemy-nek van elite variánsa.
+    NEM kell új draw kód – GDScript palette módosítással + shader:
+
+    ┌────────────────────────────────────────────────────────────────────┐
+    │ ELITE VIZUÁLIS MÓDOSÍTÁS (GDScript + shader kombó):              │
+    │                                                                    │
+    │ 1. generate_elite_variant() → palette sötétítés                  │
+    │ 2. elite_aura.gdshader → izzó aura a sprite körül               │
+    │ 3. Scale: ×1.2 (set_scale)                                       │
+    │ 4. Affix vizuális overlay sprite (külön generált 32×32):         │
+    │    - Shielded: kék burok overlay (draw_circle alpha)             │
+    │    - Vampiric: piros eye glow overlay                             │
+    │    - Blazing: tűz particle textúra (fire_particle.png)           │
+    │    - Frozen: jég kristály overlay (draw_rect ice shards)         │
+    │    - Berserker: vörös pulsating glow (shader)                    │
+    │    - Teleporter: lila particle trail                              │
+    └────────────────────────────────────────────────────────────────────┘
+
+    Elite overlay sprite-ok (GDScript-tel generálva, 64×64):
+      - 7 affix overlay (shielded burok, vampiric glow, stb.)
+      - 7 affix 16×16 ikon (HP bar felett jelzés)
+      ÖSSZESEN: 14 extra sprite, mind GDScript-ből generálva
+
+  4.4 Rare/Named enemy-k (15 db)
+  ────────────────────────────────
+    Méret: 96×128 pixel (nagyobb mint normál)
+    Generator: külön függvény per rare enemy
+    Frame: ~88 frame/rare enemy × 4 irány
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN ENEMY:
+    40 alap enemy generator függvény (~70 frame/enemy)
+    15 rare enemy generator (~88 frame/each)
+    14 elite overlay sprite
+    Generator fájlok: 8 (biome-onként 1 .gd)
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  5. BOSS SPRITE-OK
+================================================================================
+
+  5.1 Általános boss specifikáció
+  ────────────────────────────────
+    Boss-ok NAGYOBBAK mint normál enemy-k.
+    Generator fájl: generators/bosses/tier[N]_bosses.gd
+
+    Boss animáció lista:
+    ┌─────┬──────────────────┬────────┬──────────┬──────────┐
+    │ #   │ Animáció         │ Framek │ FPS      │ Loop?    │
+    ├─────┼──────────────────┼────────┼──────────┼──────────┤
+    │  1  │ idle             │   4    │   4      │ igen     │
+    │  2  │ walk             │   4    │   6      │ igen     │
+    │  3  │ attack_1         │   6    │  10      │ nem      │
+    │  4  │ attack_2         │   6    │   8      │ nem      │
+    │  5  │ special_attack   │   8    │  10      │ nem      │
+    │  6  │ hit              │   3    │  10      │ nem      │
+    │  7  │ death            │   8    │   7      │ nem      │
+    │  8  │ phase_transition │   6    │   8      │ nem      │
+    │  9  │ intro/spawn      │   6    │   8      │ nem      │
+    └─────┴──────────────────┴────────┴──────────┴──────────┘
+
+  5.2 Mind a 13 boss részletesen
+  ────────────────────────────────
+
+  ═══ TIER 1: MINI BOSS-OK (4 db) ═══
+
+  BOSS 1: Plague Rat King [Corrupted Forest, Lv 10-14]
+    Méret: 96×128 pixel
+    Irányok: 4
+    Phase 2: zöld tónus erősítés a palette-ben + méregbuborékok
+    GDScript draw:
+      - Óriási patkány forma (kerek test, nagy fej)
+      - Korona: sárga négyszögek fej tetején
+      - Méreg foltok: zöld fill_rect körök a testen
+      - Farok: draw_line_px spirálban
+      - Fogak: fehér kis téglalapok
+
+  BOSS 2: Shadow Stalker [Shadow Marsh, Lv 28-32]
+    Méret: 96×128 pixel
+    Phase 2: alpha csökkentés (áttetsző), Phase 3: aura shader
+    GDScript draw:
+      - Sötét humanoid, határozatlan körvonalak
+      - Kezek = shadow tendrils (vékony draw_line_px ívek)
+      - Fénylő szemek: 2×2 pixel fehér + izzás shader
+      - Phase 2 frame-ek: random alpha 0.5–0.8 pixel-enként
+
+  BOSS 3: Cursed Treant [Corrupted Forest, Lv 12-14]
+    Méret: 128×128 pixel
+    Phase 2: gyökerek kiemelkednek (extra sprite réteg)
+    GDScript draw:
+      - Fa-törzs form: barna nagy blokkok (#3A2010)
+      - Lila csomók: körkörös draw_circle (#601080, r=8)
+      - Ágak: draw_line_px-ek az oldalakon
+      - Arc a törzsben: bemélyedő fill_rect szemek
+      - Rohadó levelek: apró zöld-barna foltok a tetején
+
+  BOSS 4: Ash Warden [Ashen Wastes, Lv 5-8]
+    Méret: 96×96 pixel (kisebb – 1. boss)
+    Phase 2: tűznyomok jelennek meg
+    GDScript draw:
+      - Hamu-páncélos harcos, páncél = szürke négyszög szegmensek
+      - Izzó szemek: 2×2 narancs pixel (#FF6600)
+      - Fegyver: buzogány jobb kézben (fill_rect fejjel)
+      - Hamu réteg: szürke-fehér pixels a felszínen
+
+  ═══ TIER 2: DUNGEON BOSS-OK (4 db) ═══
+
+  BOSS 5: Spider Matriarch [Crystal Caverns, Lv 16-20]
+    Méret: 128×128 pixel
+    Phase 3: tojások jelennek meg (extra overlay sprite-ok)
+    GDScript draw:
+      - Óriási pók, 8 láb (draw_line_px-ek csillag alakban)
+      - Kristályos test: kék fill_rect-ek fénypont pixelekkel
+      - Szemek: 6×2 pixel izzó kék pont
+      - Háló mintázat a testen: draw_line_px rács
+
+  BOSS 6: Frozen Sentinel [Frozen Peaks, Lv 22-26]
+    Méret: 128×128 pixel
+    Phase 2: jégpáncél crack mintázat, Phase 3: rage red glow
+    GDScript draw:
+      - Golem: nagy négyszögletes tömb-forma
+      - Jégkristály szív: cián draw_circle a mellközépen
+      - Jég rétegek: fehér-kék draw_rect átfedők
+      - Crack-ok: fekete draw_line_px-ek a felszínen
+
+  BOSS 7: Volcanic Overlord [Volcanic Depths, Lv 34-38]
+    Méret: 192×192 pixel
+    Phase: 4 fázis láva-gradiens változással
+    GDScript draw:
+      - Obsidián szikla lény: fekete nagy tömbök
+      - Láva repedések: narancs-piros draw_line_px-ek a testen
+      - Hő-torzítás: néhány pixel véletlenszerű eltolása
+
+  BOSS 8: Necromancer King [Necrotic Ruins, Lv 40-44]
+    Méret: 128×128 pixel
+    Phase 4 transition: lich transform (palette teljesen megváltozik)
+    GDScript draw:
+      - Csontkorona: sárga négyszögek a fej tetején
+      - Robe: lila (#400860) köpeny forma
+      - Csontkezek: fehér vékony ujjak
+      - Lila energia: draw_circle (#8020C0) a kezek közt
+
+  ═══ TIER 2.5 + TIER 3: WORLD BOSS-OK ═══
+
+  BOSS 9: Swamp Hydra [Shadow Marsh, Lv 26-30]
+    Méret: 192×192 pixel
+    SPECIÁLIS: 3 fej = 3 külön AnimatedSprite2D gyerek node
+    GDScript draw:
+      - Főtest: ovális zöld-barna tömb
+      - Nyakak: kígyó-vonalak draw_line_px-szel
+      - Fejek: kör + fogak (draw_line_px fehér csúcsok)
+
+  BOSS 10: Void Weaver [Void Realm, Lv 48-50]
+    Méret: 256×256 pixel
+    GDScript draw:
+      - Pókszerű void lény, lila-fekete
+      - Portál effekt középen (draw_circle izzás layers)
+      - Tentaculumok: vékony draw_line_px-ek ívesen
+
+  BOSS 11: Ancient Dragon [Volcanic/Frozen border, Lv 45-48]
+    Méret: 384×384 pixel (LEGNAGYOBB boss)
+    GDScript draw:
+      - Hatalmas sárkány, szárnyak terítve (top-down)
+      - Tűz+jég dualitás: test fele narancs, fele kék
+      - Pikkelyek: kis ívek draw_line_px-szel egymás után
+
+  BOSS 12: Riftlord [Random biome, Lv 50]
+    Méret: 256×256 pixel
+    SPECIÁLIS: biome-adaptív szín overlay shader
+    GDScript draw:
+      - Kaotikus energia lény
+      - Frame-enként különböző biome szín dominál
+
+  ═══ TIER 4: RAID BOSS-OK (2 db) ═══
+
+  BOSS 13A: The Ashen God [Lv 50+]
+    Méret: 256×256 pixel
+    GDScript draw:
+      - Isteni lény, hamu és tűz kombinációja
+      - Kolosszális emberi forma izzó rúnákkal
+
+  BOSS 13B: The Void Emperor [Lv 50+, NM5]
+    Méret: 384×384 pixel (VÉGSŐ BOSS)
+    SPECIÁLIS: mirror klón sprite-ok (3 class × 20 frame)
+    GDScript draw:
+      - A Void megtestesülése, kozmikus horror
+      - Test = void energia és töredező valóság pixel noise
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN BOSS:
+    14 boss (13 + Void Emperor)
+    Generator fájlok: generators/bosses/tier1..4_bosses.gd
+    Teljes becsült frame: ~3,288 frame
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  6. NPC SPRITE-OK
+================================================================================
+
+  6.1 NPC specifikáció
+  ─────────────────────
+    Méret: 64×96 pixel (mint a player)
+    Irányok: 1–4 (fix pozíciójú NPC-k: 1 irány elég)
+    Animációk: idle (4 frame), talk (4 frame)
+    Generator: generators/npcs/npc_generator.gd
+
+  6.2 NPC lista (draw leírással)
+  ─────────────────────────────────
+
+    1. Weapon Shop NPC: vas kötény (szürke), kalapács jobb kézben
+    2. Armor Shop NPC: bőrös kötény (barna), mértékszalag
+    3. General Shop NPC: kereskedő ruha (barna-bézs), polcok háttérben
+    4. Potion Shop NPC: alkimista köpeny (lila-zöld), lombik
+    5. Magic Shop NPC: misztikus köpeny (sötétkék), rúnás asztal
+    6. Jeweler NPC: finom ruha (bíbor), nagyítóüveg kezében
+    7. Blacksmith NPC: nagy kötény (sötétbarna), üllő háttérben
+    8. Enchanter NPC: izzó kékeslila kezek, rúnás kör a talajon
+    9. Quest Giver ×4: 4 különböző NPC, eltérő ruha
+    10. Guard NPC: páncél (acélszürke) + lándzsa
+    11. Scholar NPC: bő ruha, könyv kezében
+    12. Traveler NPC: kalapot, hátizsák
+    13. Fisherman NPC: halász ruha, horgász bot
+    14. Innkeeper NPC: fogadós kötény, sör-korsó
+    15. Mysterious Figure: teljes kapucni, titokzatos
+    16. Waypoint Guardian: izzó alak, portál közelében
+    17. Profession Trainer ×4: bányász/herbalistä/favágó/halász
+    18. Marketplace Auctioneer: elegáns ruha, kalapács
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN NPC: ~20 sprite, ~320 frame
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  7. WORLD TILESET-EK (8 biome)
+================================================================================
+
+  7.1 Specifikáció
+  ─────────────────
+    Tile méret: 64×64 pixel
+    Tileset típus: Godot TileMap (autotile / terrain)
+    Minden biome: ~47 tile
+    Generator: generators/tilesets/world_tileset_generator.gd
+
+  7.2 GDScript tile generálás módszer
+  ─────────────────────────────────────
+    Minden tile egy 64×64 Image, pl.:
+
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │  static func gen_ashen_ground_tile(variant: int) -> Image:            │
+    │      var img = Image.create(64, 64, false, Image.FORMAT_RGBA8)        │
+    │      var pal = PALETTES["ashen_wastes"]                               │
+    │      # Alap kitöltés                                                   │
+    │      img.fill(pal["ground"])                                           │
+    │      # Véletlenszerű textúra variáció (seed alapján)                  │
+    │      var rng = RandomNumberGenerator.new()                             │
+    │      rng.seed = variant * 12345                                        │
+    │      for i in range(40):  # textúra foltok                           │
+    │          var tx = rng.randi_range(2, 60)                              │
+    │          var ty = rng.randi_range(2, 60)                              │
+    │          var ts = rng.randi_range(2, 6)                               │
+    │          fill_rect(img, tx, ty, ts, ts,                               │
+    │              pal["ground2"].lerp(pal["ground"],                       │
+    │              rng.randf()))                                             │
+    │      return img                                                        │
+    └─────────────────────────────────────────────────────────────────────────┘
+
+  7.3 Tile tartalom per biome (~47 tile × 8 biome = 376 tile)
+    (Tartalom azonos a korábbi tervvel, méret: 64×64)
+
+    Minden biome-ban:
+      - Talaj alap (4 variáns)
+      - Talaj szegély (16 autotile blob)
+      - Fal/szikla (4 + 16 autotile)
+      - Víz/folyadék (4 frame animált)
+      - Átmeneti tile-ok (4 irány × 2 = 8)
+      - Biome-specifikus extra tile-ok
+
+  ─────────────────────────────────────────────────────────────
+  ÖSSZESEN: ~432 tile (64×64 mindegyik)
+  ─────────────────────────────────────────────────────────────
+
+================================================================================
+  8. DUNGEON TILESET-EK (7 téma)
+================================================================================
+
+  Tile méret: 64×64 pixel
+  Generator: generators/tilesets/dungeon_tileset_generator.gd
+  7 dungeon téma (Witch Hollow, Crystal Depths, Frozen Tomb,
+                   Obsidian Forge, Bone Catacombs, Void Nexus,
+                   Shadow Labyrinth)
+
+  Per dungeon téma (~46 tile):
+    - Padló (8 variáns)
+    - Fal (16 autotile blob)
+    - Ajtó keret (6 state)
+    - Lépcső (2 irány)
+    - Speciális tile-ok (csapda, nyomólap, stb. – 6)
+    - Dekoratív tile-ok (8)
+
+  GDScript draw módszer (dungeon fal példa):
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │  static func gen_witch_hollow_wall(edge_mask: int) -> Image:          │
+    │      # edge_mask: 47-tile blob bitmask alapján                        │
+    │      var img = Image.create(64, 64, false, Image.FORMAT_RGBA8)        │
+    │      img.fill(Color(0.08, 0.06, 0.04))  # sötét folt                 │
+    │      # Kő textúra                                                      │
+    │      _draw_stone_texture(img, Color(0.18, 0.14, 0.10))               │
+    │      # Mohafoltok                                                      │
+    │      _draw_moss_patches(img, Color(0.10, 0.22, 0.06))                │
+    │      # Outline él a biome felé                                         │
+    │      _draw_edge_outline(img, edge_mask)                               │
+    │      return img                                                        │
+    └─────────────────────────────────────────────────────────────────────────┘
+
+  ÖSSZESEN: 46 × 7 = 322 tile (64×64 mindegyik)
+
+================================================================================
+  9–10. PROP SPRITE-OK (VILÁG + DUNGEON)
+================================================================================
+
+  Méret: 32×32 – 128×128 pixel (arányosan duplázva a korábbi 16×16 – 64×64-ről)
+  Animált prop-ok: 3–6 frame loop
+  Generator: generators/props/world_props.gd, dungeon_props.gd
+
+  9. Világ prop-ok (~83 sprite):
+    - Biome-onkénti növény/szikla/dekor sprite-ok
+    - Animált: fáklya, tábortűz, víz, tűzoszlop (6 frame)
+    - Méret: fa = 64×128, szikla = 64×64, virág = 32×32
+
+  10. Dungeon prop-ok (~55 sprite):
+    - Ládák (4 ritkaság × 2 state = 8 sprite)
+    - Csapdák (tüske, tűz, nyíl – animált 4–6 frame)
+    - Fáklya (fali, animált 4 frame)
+    - Ajtók (nyitott/zárt/zárolt × 2 irány = 6)
+    - Portál (animált 6 frame)
+    - Mimic (zárt + átalakulás 6 frame)
+
+    GDScript chest példa:
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │  static func gen_wooden_chest(open: bool) -> Image:                   │
+    │      var img = Image.create(64, 64, false, Image.FORMAT_RGBA8)        │
+    │      # Alap doboz                                                      │
+    │      fill_rect(img, 8, 20, 48, 36, Color(0.55, 0.35, 0.15))  # fa   │
+    │      fill_rect(img, 8, 20, 48,  8, Color(0.45, 0.28, 0.10))  # tető │
+    │      # Vasalás                                                         │
+    │      fill_rect(img, 8, 20, 48, 2, Color(0.40, 0.38, 0.35))           │
+    │      fill_rect(img, 8, 52, 48, 2, Color(0.40, 0.38, 0.35))           │
+    │      # Zár                                                             │
+    │      fill_rect(img, 28, 35, 8, 8, Color(0.75, 0.65, 0.20))  # arany │
+    │      if open:                                                          │
+    │          # Tető nyitva (transzformálva)                               │
+    │          fill_rect(img, 8, 8, 48, 16, Color(0.45, 0.28, 0.10))      │
+    │      draw_outline(img, Color(0.0, 0.0, 0.0))                         │
+    │      return img                                                        │
+    └─────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+  11. ITEM IKONOK (~232 ikon)
+================================================================================
+
+  Méret: 64×64 pixel (inventory grid-ben)
+  Háttér: átlátszó
+  Generator: generators/icons/item_icon_generator.gd
+
+  11.1 Fegyver ikonok (50): 5 fegyvertípus × 10 tier
+    T1 (rozsdás fa anyag) → T5 (mithril/kék) → T10 (ragyogó legendary)
+    Draw: felismerhető szilhouett, tier szerint részletesebb
+
+  11.2 Páncél ikonok (60): 6 slot × 10 tier
+    Helmet, Chest, Gloves, Boots, Shoulders, Belt
+
+  11.3 Kiegészítő ikonok (10): Amulet (5), Ring (5)
+
+  11.4 Set item ikonok (32): 8 set × 4 darab
+    Zöld tónus, set szimbólum a sarokban
+
+  11.5 Legendary item ikonok (30): egyedi, narancs izzás overlay
+
+  11.6 Consumable ikonok (15): piros/kék fiola, tekercs, étel
+
+  11.7 Crafting material ikonok (30): érc, fű, fa, hal, essencia
+
+  11.8 Egyéb (5): kulcs, waypoint token, profession tool
+
+  GDScript sword ikon példa (T5 Mithril):
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │  static func gen_sword_t5() -> Image:                                 │
+    │      var img = Image.create(64, 64, false, Image.FORMAT_RGBA8)        │
+    │      # Penge (mithril ezüst-kék)                                      │
+    │      fill_rect(img, 30, 6, 6, 40, Color(0.65, 0.75, 0.90))           │
+    │      fill_rect(img, 28, 6, 10, 4, Color(0.75, 0.85, 1.00))  # hegy  │
+    │      # Gárd (kereszt)                                                  │
+    │      fill_rect(img, 20, 44, 26, 4, Color(0.50, 0.50, 0.55))          │
+    │      # Markolat                                                        │
+    │      fill_rect(img, 30, 48, 6, 10, Color(0.35, 0.22, 0.12))          │
+    │      # Rúna izzás (kék overlay)                                       │
+    │      for py in range(8, 42):                                           │
+    │          img.set_pixel(29, py, Color(0.40, 0.60, 1.00, 0.5))         │
+    │      draw_outline(img, Color(0, 0, 0))                                │
+    │      return img                                                        │
+    └─────────────────────────────────────────────────────────────────────────┘
+
+  ÖSSZESEN ITEM IKON: 232 ikon (64×64)
+
+================================================================================
+  12. SKILL IKONOK (48 ikon)
+================================================================================
+
+  Méret: 64×64 pixel
+  Generator: generators/icons/skill_icon_generator.gd
+
+  Stílus: arany keret, class-színű háttér, egyedi elem-szimbólum középen
+
+  48 skill ikon (9 branch × 5 + 3 ultimate):
+    Assassin Shadow, Poison, Blood (5-5-5)
+    Tank Guardian, Warbringer, Paladin (5-5-5)
+    Mage Arcane, Frost, Holy (5-5-5)
+    + 3 Ultimate charge indicator (üres/töltés/kész)
+
+  GDScript icon példa (Shadow Step):
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │  static func gen_shadow_step_icon() -> Image:                         │
+    │      var img = Image.create(64, 64, false, Image.FORMAT_RGBA8)        │
+    │      # Sötét háttér                                                    │
+    │      img.fill(Color(0.06, 0.04, 0.10))                                │
+    │      # Arany keret                                                     │
+    │      _draw_frame(img, Color(0.85, 0.70, 0.10), 2)                    │
+    │      # Árnyék alak (félátlátszó humanoid)                             │
+    │      fill_rect(img, 24, 12, 18, 28, Color(0.20, 0.10, 0.35, 0.7))   │
+    │      # Mozgás vonalak                                                  │
+    │      for i in range(3):                                               │
+    │          draw_line_px(img, 8+i*6, 20+i*4, 22, 20+i*4,               │
+    │              Color(0.60, 0.20, 0.80, 0.5))                           │
+    │      draw_outline(img, Color(0, 0, 0))                                │
+    │      return img                                                        │
+    └─────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+  13. GEM SPRITE-OK (51 normál + 15 legendary)
+================================================================================
+
+  Méret: 64×64 pixel (inventory), 32×32 (socket display)
+  Generator: generators/icons/gem_icon_generator.gd
+
+  6 gem típus × 6 tier = 36 normál gem ikon
+  + 15 legendary gem (egyedi kinézet)
+
+  Tier vizuális progresszió (GDScript-ben):
+    Chipped: matt, kis, 32×32-es körbe csomagolva 64×64-ben
+    Flawed: kicsit fényesebb, 38×38
+    Normal: közepes, 44×44, egy fehér fénypont
+    Flawless: fényes, 50×50, több csillanás pixel
+    Perfect: ragyogó, 54×54, star-burst pattern
+    Radiant: intenzív, 58×58, izzó aura layer, 2-3 frame shimmer
+
+  Socket glow animáció: 4 frame pulsing (GDScript alpha loop)
+  Gem combine animáció: 8 frame (3 kis gem → flash → 1 nagy gem)
+
+================================================================================
+  14. CURRENCY ÉS EGYÉB HUD IKONOK (~26 ikon)
+================================================================================
+
+  Méret: 64×64 (inventory), 32×32 (HUD)
+  Generator: generators/icons/hud_icon_generator.gd
+
+  Currency (3 db, 4 frame animált forgás/pulzálás):
+    - Gold (arany érme) – sárga-narancs draw_circle
+    - Dark Essence (sötét kristály) – lila animált izzás
+    - Aetherium Shard (éteri szilánk) – fehér-kék izzás
+
+  HUD stat ikonok (32×32, 16 db): HP, Mana, XP, Armor, Dmg, Speed, Crit...
+  Status effect ikonok (32×32, 8 db): Burning, Frozen, Poisoned, Stunned...
+
+================================================================================
+  15. SKILL EFFEKT ANIMÁCIÓK (45 skill VFX)
+================================================================================
+
+  Generator: generators/effects/vfx_generator.gd
+  Méret: skill típustól függő (32×32 projectile → 256×256 mega AoE)
+
+  Minden 45 skill-nek GDScript VFX kód:
+    ASSASSIN SHADOW (5 skill): árnyék dissolve, füst, slash arc, clone, darken
+    ASSASSIN POISON (5 skill): zöld trail, köd, buborékok, terjedés, vihar
+    ASSASSIN BLOOD (5 skill): piros ív, aura, flare, vér körök, transform
+    TANK GUARDIAN (5 skill): pajzs spark, hanghullám, shockwave, kő, dóm
+    TANK WARBRINGER (5 skill): hanghullám, repedések, lánc, energia, földrengés
+    TANK PALADIN (5 skill): arany burok, fénysugár, kör, izzó fegyver, oszlop
+    MAGE ARCANE (5 skill): lila golyó, nagy gömb, spirál, portál, vortex
+    MAGE FROST (5 skill): jég projektil, felhő, jég spike-ok, kristály burok, terjedés
+    MAGE HOLY (5 skill): fehér-arany sugár, ugró gömb, arany burok, burst, oszlop
+
+  VFX GDScript példa (Arcane Bolt – projectile):
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │  static func gen_arcane_bolt(frame_idx: int) -> Image:                │
+    │      var img = Image.create(32, 32, false, Image.FORMAT_RGBA8)        │
+    │      img.fill(Color(0, 0, 0, 0))                                      │
+    │      # Izzó gömb alap                                                  │
+    │      var pulse = sin(frame_idx * PI / 2.0) * 0.2  # pulsálás        │
+    │      draw_circle(img, 16, 16, int(8 + pulse*4),                      │
+    │          Color(0.60, 0.20, 0.90))                                     │
+    │      # Belső fehér mag                                                 │
+    │      draw_circle(img, 16, 16, 3, Color(0.95, 0.80, 1.00))            │
+    │      # Particle szikrák                                               │
+    │      var rng = RandomNumberGenerator.new()                             │
+    │      rng.seed = frame_idx * 777                                        │
+    │      for i in range(6):                                               │
+    │          var angle = rng.randf() * TAU                                │
+    │          var dist = rng.randf_range(9, 13)                            │
+    │          var sx = int(16 + cos(angle) * dist)                        │
+    │          var sy = int(16 + sin(angle) * dist)                        │
+    │          img.set_pixel(sx, sy, Color(0.80, 0.40, 1.00))              │
+    │      return img                                                        │
+    └─────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+  16–17. COMBAT VFX + PARTICLE TEXTÚRÁK
+================================================================================
+
+  Combat VFX (generators/effects/combat_vfx_generator.gd):
+    - Melee/ranged hit spark (32×32, 3 frame)
+    - Crit flash (64×64, 4 frame, sárga robbanás)
+    - Block spark (32×32, 3 frame)
+    - Dodge trail (64×32, 3 frame)
+    - Boss telegraph (kör/vonal/téglalap, 4 méret, piros pulse)
+    - Status overlay-ek (burning, frozen, stunned csillagok, stb.)
+    - Damage bitmap font (pixel art számjegyek, 8 szín)
+
+  Particle textúrák (20 db, 8×8 – 32×32):
+    generators/effects/particle_textures.gd
+    fire, ice, poison, blood, spark, holy, arcane, shadow,
+    dust, leaf, snowflake, ash, rain, void, gold glint,
+    fog puff, smoke puff, bubble, energy ring, generic
+
+================================================================================
+  18–19. UI ELEMEK ÉS MENÜ ART
+================================================================================
+
+  Generator: generators/ui/ui_element_generator.gd
+  Méret: NinePatchRect source-ok, gombok, panelek
+
+  UI elemek (~90 sprite):
+    Inventory/Equipment panel (NinePatch)
+    Inventory slot (72×72, 4 state)
+    HP/Mana/XP bar (320×32, 240×24, 640×16)
+    Skill bar (640×96, 5 slot + ultimate)
+    Minimap keret (320×320)
+    Dialog doboz (1280×300 NinePatch)
+    Tooltip panel (NinePatch)
+    Gombok (NinePatch, 3 state: normal/hover/pressed)
+    Skill tree háttér (2560×1440)
+    Achievement banner (640×128)
+    Loading screen art (1280×720, 5 variáns)
+    Main menu háttér (1280×720)
+    Character select: 3 class portré (256×384)
+
+  NinePatch source sprite-ok GDScript-tel:
+    panel_dark.png, button_normal/hover/pressed.png,
+    tooltip_bg.png, bar_bg.png, frame_rarity × 5.png
+
+================================================================================
+  20–23. MINIMAP / TUTORIAL / ACHIEVEMENT / CONTROLLER
+================================================================================
+
+  Minimap ikonok (14 db, 16×16): player, enemy, boss, NPC, shop, dungeon...
+  Tutorial assets (8 db): popup keret, nyíl, kéz kurzor, first-time badge
+  Achievement ikonok (~70, 64×64): locked/unlocked state, 5 kategória
+  Controller ikonok (30 db, 32×32): Xbox 15 + PlayStation 15
+
+  Mind GDScript-ből generálva, generators/ui/misc_icons.gd
+
+================================================================================
+  24. SHADER-EK (meglévő 7 shader – változatlan)
+================================================================================
+
+  ┌─────┬──────────────────────┬─────────────────────────────────────────────┐
+  │ #   │ Shader               │ Funkció                                     │
+  ├─────┼──────────────────────┼─────────────────────────────────────────────┤
+  │  1  │ corruption.gdshader  │ Biome corruption overlay                    │
+  │  2  │ day_night.gdshader   │ Nap/éjszaka ciklus szín moduláció          │
+  │  3  │ elite_aura.gdshader  │ Elite enemy izzó aura                      │
+  │  4  │ fog_of_war.gdshader  │ Dungeon fog of war                         │
+  │  5  │ palette_swap.gdshader│ Enemy/item szín variánsok                   │
+  │  6  │ rarity_border.gdshader│ Item keret szín ritkaság szerint           │
+  │  7  │ water.gdshader       │ Víz animáció                               │
+  └─────┴──────────────────────┴─────────────────────────────────────────────┘
+
+  Új shader-ek (szükséges):
+    - colorblind_remap.gdshader
+    - highlight.gdshader (tutorial kiemelés)
+    - vignette.gdshader (halál overlay)
+
+================================================================================
+  25. PRODUKCIÓS ÜTEMTERV (heti bontás)
+================================================================================
+
+  Feltételezés: Claude Opus 4.6 generálja a GDScript kódot, fejlesztő review + test
+  Heti kapacitás: ~8–12 óra
+  Teljes becsült idő: 80–140 óra → 10–16 hét
+
+  ┌──────────┬──────────────────────────────────────────────────────────────┐
+  │ Hét      │ Feladatok                                                    │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 1   │ PIPELINE SETUP                                               │
+  │          │ - base_pixel_art.gd megírása (helper függvények)            │
+  │          │ - batch_export_tool.gd megírása                             │
+  │          │ - Palette konstansok véglegesítése                           │
+  │          │ - 1 test: AssassinGenerator idle_south() → validálás        │
+  │          │ Deliverable: működő pipeline, 1 validált sprite             │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 2–3 │ PLAYER SPRITE-OK                                             │
+  │          │ - Claude: assassin_generator.gd (9 animáció × 4 irány)     │
+  │          │ - Claude: tank_generator.gd, mage_generator.gd             │
+  │          │ - Godot teszt: AnimatedSprite2D, sebesség ellenőrzés       │
+  │          │ Deliverable: 3 teljes player sprite sheet                   │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 4–5 │ ELSŐ 2 BIOME ENEMY + TILESET                               │
+  │          │ - Claude: ashen_wastes_enemies.gd, corrupted_forest_enemies │
+  │          │ - Claude: world_tileset_generator.gd (első 2 biome)        │
+  │          │ - Claude: world_props.gd (első 18 prop)                    │
+  │          │ Deliverable: 2 biome vizuálisan kész                       │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 6   │ SKILL IKONOK + VFX                                          │
+  │          │ - Claude: skill_icon_generator.gd (48 ikon)                │
+  │          │ - Claude: vfx_generator.gd (Assassin 15 VFX)               │
+  │          │ - Claude: hud_icon_generator.gd                             │
+  │          │ Deliverable: skill tree vizuálisan működik                  │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 7   │ ITEM IKONOK (1. batch)                                       │
+  │          │ - Claude: item_icon_generator.gd (50 fegyver + 60 páncél)  │
+  │          │ - Claude: consumable + kiegészítő (25 ikon)                │
+  │          │ Deliverable: loot vizuálisan működik                        │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 8   │ GEM + CURRENCY + COMBAT VFX                                 │
+  │          │ - Claude: gem_icon_generator.gd (51 gem)                   │
+  │          │ - Claude: combat_vfx_generator.gd                          │
+  │          │ - Claude: particle_textures.gd (20 textúra)                │
+  │          │ Deliverable: gem rendszer kész                              │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 9–10│ BIOME TILESET + ENEMY BATCH (3–7 biome)                     │
+  │          │ - Claude: maradék 6 biome tileset + enemy generátor        │
+  │          │ - Claude: world_props.gd maradék props                     │
+  │          │ Deliverable: 8/8 biome vizuálisan kész                     │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 11  │ DUNGEON TILESET + PROP-OK                                   │
+  │          │ - Claude: dungeon_tileset_generator.gd (7 téma)            │
+  │          │ - Claude: dungeon_props.gd (55 prop, animációkkal)         │
+  │          │ Deliverable: dungeon rendszer kész                          │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 12–13│ BOSS SPRITE-OK                                              │
+  │          │ - Claude: tier1_bosses.gd (4 mini boss)                    │
+  │          │ - Claude: tier2_bosses.gd (4 dungeon boss)                 │
+  │          │ - Claude: tier3_4_bosses.gd (world + raid boss-ok)         │
+  │          │ Deliverable: minden boss vizuálisan kész                   │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 14  │ NPC + RARE ENEMY + MARADÉK VFX                              │
+  │          │ - Claude: npc_generator.gd (~20 NPC)                       │
+  │          │ - Claude: rare_enemies.gd (15 rare enemy)                  │
+  │          │ - Claude: Tank + Mage VFX (30 VFX)                         │
+  │          │ Deliverable: NPC + rare enemy kész                         │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 15  │ UI + ITEM BATCH 2 + ACHIEVEMENT                             │
+  │          │ - Claude: ui_element_generator.gd (~90 UI elem)            │
+  │          │ - Claude: set + legendary item ikonok (62 ikon)            │
+  │          │ - Claude: achievement + misc_icons.gd                      │
+  │          │ Deliverable: UI + teljes item lista kész                   │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ HÉT 16  │ FINAL PASS                                                   │
+  │          │ - Teljes batch_export futtatás                              │
+  │          │ - In-game screenshot minden biome-ban                      │
+  │          │ - Hibás/hiányzó sprite-ok javítása                         │
+  │          │ - Godot TileSet terrain rules setup                        │
+  │          │ - Végleges PNG export + re-import ellenőrzés               │
+  │          │ Deliverable: VIZUÁLIS PRODUKCIÓ KÉSZ                      │
+  └──────────┴──────────────────────────────────────────────────────────────┘
+
+================================================================================
+  26. TELJES ASSET LISTA ÖSSZESÍTÉS
+================================================================================
+
+  ┌──────────────────────────────────────────┬──────────┬───────────────────┐
+  │ Kategória                                │ Darabszám│ Generator fájl    │
+  ├──────────────────────────────────────────┼──────────┼───────────────────┤
+  │ Player sprite-ok (3 class)               │     3    │ characters/*.gd   │
+  │ Enemy sprite-ok (40 alap)                │    40    │ enemies/*.gd      │
+  │ Rare enemy sprite-ok (15)                │    15    │ enemies/*.gd      │
+  │ Elite overlay sprite-ok (14)             │    14    │ enemies/*.gd      │
+  │ Boss sprite-ok (14)                      │    14    │ bosses/*.gd       │
+  │ NPC sprite-ok (~20)                      │   ~20    │ npcs/npc_gen.gd   │
+  │ World tileset tile-ok (~432)             │  ~432    │ tilesets/world.gd │
+  │ Dungeon tileset tile-ok (~322)           │  ~322    │ tilesets/dungeon  │
+  │ World prop sprite-ok (~83)               │   ~83    │ props/world.gd    │
+  │ Dungeon prop sprite-ok (~55)             │   ~55    │ props/dungeon.gd  │
+  │ Item ikonok (232)                        │   232    │ icons/item.gd     │
+  │ Skill ikonok (48)                        │    48    │ icons/skill.gd    │
+  │ Gem ikonok (51)                          │    51    │ icons/gem.gd      │
+  │ Currency + HUD ikonok (~26)              │   ~26    │ icons/hud.gd      │
+  │ Skill VFX animációk (~225 sprite elem)   │  ~225    │ effects/vfx.gd    │
+  │ Combat/Status VFX (~26)                  │   ~26    │ effects/combat.gd │
+  │ Particle textúrák (20)                   │    20    │ effects/particle  │
+  │ UI elemek (~90)                          │   ~90    │ ui/ui_elements.gd │
+  │ Menü/Loading art (~15)                   │   ~15    │ ui/menu_art.gd    │
+  │ NPC portrék (~20)                        │   ~20    │ npcs/npc_gen.gd   │
+  │ Minimap ikonok (14)                      │    14    │ ui/misc_icons.gd  │
+  │ Tutorial assets (~8)                     │    ~8    │ ui/misc_icons.gd  │
+  │ Achievement ikonok (~70)                 │   ~70    │ ui/misc_icons.gd  │
+  │ Controller prompt ikonok (30)            │    30    │ ui/misc_icons.gd  │
+  │ Bitmap font (pixel art számok)           │     1    │ ui/font_gen.gd    │
+  ├──────────────────────────────────────────┼──────────┼───────────────────┤
+  │ ÖSSZESEN                                 │ ~1,854   │ ~20 generator .gd │
+  │                                          │ sprite   │ fájl összesen     │
+  └──────────────────────────────────────────┴──────────┴───────────────────┘
+
+  MEGJEGYZÉSEK:
+    - Minden asset 64×64 tile méretarányban (korábbi 32×32 helyett)
+    - GDScript generátorok: Claude Opus 4.6 írja, fejlesztő review-ja
+    - Runtime cache: AssetCache autoload tárolja a generált texturákat
+    - Export: EditorScript batch tool → PNG fájlok res://assets/ alá
+    - Módosítás: generator .gd fájlban kód változtatás → újra-export
+
+================================================================================
+  27. MINŐSÉGBIZTOSÍTÁSI CHECKLIST
+================================================================================
+
+  GDSCRIPT KÓDMINŐSÉG:
+    □ Minden generator fájl @tool annotációval (editor-safe)
+    □ Minden generáló függvény static (nem kell instance)
+    □ Helper függvények PixelArtBase osztályból örökölnek
+    □ Palette konstansok centralizálva (nem hard-coded per függvény)
+    □ Frame szám paraméter mindig frame_idx: int
+    □ Export függvény minden generatorban: export_all(path: String)
+    □ Minden Image.FORMAT_RGBA8 (átlátszó háttér)
+
+  VIZUÁLIS MINŐSÉG:
+    □ Fekete outline konzisztens (1px, draw_outline hívás)
+    □ Nearest-neighbor filter Godot-ban (Project Settings)
+    □ Tile-ok seamless edge-ek (szélső pixel egyezik)
+    □ Animáció frame-ek konzisztens méretűek (W és H konstans)
+    □ Árnyékolás iránya konzisztens (jobbról felülről)
+    □ Karakter arányok: fej ~20px, test ~50px (64×96 sprite-on)
+    □ Outline nem double-pixel sehol (draw_outline ellenőrzés)
+
+  ANIMÁCIÓ MINŐSÉG:
+    □ Idle: finom légzés (1-2px shift a frame_idx alapján)
+    □ Walk: lábak/kerekek egyértelmű mozgás
+    □ Attack: lendület frame (anticipation), ütés, recovery
+    □ Death: dramatikus, egyértelmű
+    □ Animáció FPS Godot-ban helyesen beállítva
+
+  IN-GAME TESZT:
+    □ 2× skálán jól néz ki minden sprite
+    □ Sprite Z-ordering helyes
+    □ UI olvasható 1280×720-on
+    □ Item ikonok felismerhetők 64×64-ben
+    □ Ritkaság színek egyértelműek (colorblind módban is)
+
+  BATCH EXPORT:
+    □ batch_export_tool.gd sikeresen fut hibák nélkül
+    □ Minden PNG fájl a helyes mappába kerül
+    □ SpriteFrames .tres resource-ok létrejönnek
+    □ Godot import: nearest filter, no compression
+    □ TextureAtlas generálva (optimalizáció)
+
+================================================================================
+FÁJL VÉGE – 19_visual_art_master_plan_v2.txt
+(Claude Opus 4.6 GDScript Pipeline | 64×64 tile méret)
+================================================================================

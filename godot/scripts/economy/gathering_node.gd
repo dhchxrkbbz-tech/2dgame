@@ -177,16 +177,54 @@ func _grant_profession_xp() -> void:
 		economy.profession_manager.add_xp(profession_type, xp)
 
 
-## Tool tier szorzók (TODO: a player aktuális tool-ja alapján)
+## Tool tier szorzók - a player aktuális tool-ja alapján
 func _get_tool_speed_multiplier() -> float:
-	# Placeholder: alap tool
-	var tier := Enums.ToolTier.BASIC
+	var tier := _get_player_tool_tier()
 	return Constants.TOOL_TIER_MULTIPLIERS[tier]["speed"]
 
 
 func _get_tool_yield_multiplier() -> float:
-	var tier := Enums.ToolTier.BASIC
-	return Constants.TOOL_TIER_MULTIPLIERS[tier]["yield"]
+	var tier := _get_player_tool_tier()
+	var base_mult: float = Constants.TOOL_TIER_MULTIPLIERS[tier]["yield"]
+	# Mastery bonus: profession szint alapján extra yield
+	var mastery_bonus := _get_mastery_yield_bonus()
+	return base_mult + mastery_bonus
+
+
+## Player aktuális tool tier-jének lekérdezése
+func _get_player_tool_tier() -> int:
+	var economy = get_node_or_null("/root/EconomyManager")
+	if not economy or not economy.inventory_manager:
+		return Enums.ToolTier.BASIC
+	var inv_mgr: InventoryManager = economy.inventory_manager
+	# Tool slot keresése az equipment-ben
+	var tool_item = inv_mgr.equipment.get("tool", null)
+	if not tool_item or not tool_item.base_item:
+		return Enums.ToolTier.BASIC
+	# Tool tier meghatározása az item_id alapján
+	var tool_id: String = tool_item.base_item.item_id
+	if tool_id.contains("mythril") or tool_id.contains("enchanted"):
+		return Enums.ToolTier.MASTERWORK
+	elif tool_id.contains("steel"):
+		return Enums.ToolTier.STEEL
+	elif tool_id.contains("iron"):
+		return Enums.ToolTier.IRON
+	else:
+		return Enums.ToolTier.BASIC
+
+
+## Profession mastery yield bonus
+func _get_mastery_yield_bonus() -> float:
+	var economy = get_node_or_null("/root/EconomyManager")
+	if not economy or not economy.profession_manager:
+		return 0.0
+	var prof_mgr: ProfessionManager = economy.profession_manager
+	var profession_type := ProfessionManager.get_profession_for_node(node_type)
+	if profession_type < 0:
+		return 0.0
+	var level: int = prof_mgr.get_level(profession_type)
+	# Minden 5 szint +10% yield bonus
+	return (level / 5) * 0.1
 
 
 ## Gathering állapot lekérdezések
@@ -258,11 +296,22 @@ func _update_depleted_visual(depleted: bool) -> void:
 		_sprite.modulate = Color(0.3, 0.3, 0.3, 0.5) if depleted else Color.WHITE
 
 
-func _on_body_entered(_body: Node2D) -> void:
-	# Interaction jelzés (TODO: "E" ikon megjelenítés)
-	pass
+func _on_body_entered(body: Node2D) -> void:
+	# Interaction jelzés: "E" ikon megjelenítés
+	if body.is_in_group("player") and not _is_depleted:
+		if not has_node("InteractHint"):
+			var hint := Label.new()
+			hint.name = "InteractHint"
+			hint.text = "[E] Gather"
+			hint.add_theme_font_size_override("font_size", 8)
+			hint.add_theme_color_override("font_color", Color(1.0, 1.0, 0.7))
+			hint.position = Vector2(-20, -30)
+			add_child(hint)
 
 
-func _on_body_exited(_body: Node2D) -> void:
-	if _body == _gatherer:
+func _on_body_exited(body: Node2D) -> void:
+	if body == _gatherer:
 		cancel_gathering()
+	# Interaction hint eltávolítás
+	if body.is_in_group("player") and has_node("InteractHint"):
+		get_node("InteractHint").queue_free()

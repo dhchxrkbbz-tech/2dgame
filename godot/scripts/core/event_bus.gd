@@ -131,6 +131,31 @@ signal multiplayer_player_left(peer_id: int)
 signal multiplayer_session_ended()
 signal chat_message_received(sender_name: String, message: String)
 
+# === Quest events ===
+signal quest_accepted(quest_id: String)
+signal quest_completed(quest_id: String)
+signal quest_progress_updated(quest_id: String, objective_idx: int, current: int, target: int)
+signal quest_turned_in(quest_id: String)
+signal quest_abandoned(quest_id: String)
+signal quest_failed(quest_id: String)
+signal quest_available(quest_id: String)
+signal quest_tracking_changed(quest_id: String)
+signal quest_dialogue_opened(npc_id: String)
+
+# === Dialogue events ===
+signal dialogue_started(npc_id: String)
+signal dialogue_ended(npc_id: String)
+signal dialogue_line_shown(dialogue_id: String, line_idx: int)
+
+# === NPC service events (ha még nem létezik) ===
+signal npc_interaction_requested(npc_id: String, player: Node)
+signal crafting_opened(profession: String)
+signal repair_requested()
+signal enhance_opened()
+signal enchanting_opened()
+signal stash_opened()
+signal marketplace_opened()
+
 # === UI events ===
 signal show_notification(text: String, type: Enums.NotificationType)
 signal tooltip_requested(data: Dictionary)
@@ -142,3 +167,48 @@ signal hud_update_requested()
 # === XP events ===
 signal xp_gained(player, amount: int)
 signal xp_bar_updated(current_xp: int, max_xp: int)
+
+# === Achievement events ===
+signal achievement_unlocked(achievement_id: String, achievement_data: Dictionary)
+signal achievement_progress_updated(achievement_id: String, current: int, target: int)
+
+# === World Event events ===
+signal world_event_announced(event_type: int, event_data: Dictionary)
+signal world_event_started(event_type: int, event_data: Dictionary)
+signal world_event_ended(event_type: int, rewards: Dictionary)
+signal world_event_progress(event_type: int, progress: float)
+
+# === Endgame events ===
+signal nightmare_tier_changed(new_tier: int)
+signal paragon_level_gained(new_paragon_level: int)
+signal paragon_point_spent(stat_name: String, total_points: int)
+
+# === Fast Travel events ===
+signal waypoint_discovered(waypoint_id: String, waypoint_name: String)
+signal fast_travel_started(destination_id: String)
+signal fast_travel_completed(destination_id: String)
+signal fast_travel_cancelled()
+
+# === Stats events ===
+signal stat_updated(stat_name: String, new_value)
+
+# === Audio events ===
+signal play_sfx(sfx_name: String)
+signal play_music(music_name: String)
+signal stop_music()
+
+# === Save/Load events ===
+signal save_requested(slot: int)
+signal load_requested(slot: int)
+signal autosave_completed()
+signal save_completed(slot: int)
+signal load_completed(slot: int)
+
+# === Accessibility & Localization events ===
+signal language_changed(locale: String)
+signal colorblind_mode_changed(mode: int)
+signal text_size_changed(scale: float)
+signal accessibility_settings_changed()
+signal input_device_changed(is_gamepad: bool)
+signal sound_caption_requested(caption_key: String, direction: Vector2)
+signal subtitle_requested(speaker: String, text: String, duration: float)

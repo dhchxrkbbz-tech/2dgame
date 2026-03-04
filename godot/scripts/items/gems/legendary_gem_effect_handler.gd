@@ -190,7 +190,24 @@ func _handle_shadows(entry: Dictionary) -> void:
 	entry.active = true
 	entry.effect_timer = params.get("invisibility_duration", 2.0)
 	_start_cooldown(entry)
-	# TODO: Player invisibility aktiválás
+	# Player invisibility aktiválás
+	if _owner:
+		# Vizuális: félig átlátszó
+		if _owner.has_node("Sprite2D"):
+			var sprite: Sprite2D = _owner.get_node("Sprite2D")
+			var tween := _owner.create_tween()
+			tween.tween_property(sprite, "modulate:a", 0.15, 0.2)
+			tween.tween_interval(entry.effect_timer - 0.4)
+			tween.tween_property(sprite, "modulate:a", 1.0, 0.2)
+		# Collision: ellenségek nem látják
+		if _owner.has_method("set_stealth"):
+			_owner.set_stealth(true)
+			var stealth_timer := _owner.get_tree().create_timer(entry.effect_timer)
+			stealth_timer.timeout.connect(func(): 
+				if is_instance_valid(_owner) and _owner.has_method("set_stealth"):
+					_owner.set_stealth(false)
+			)
+		EventBus.show_notification.emit("Shadow Cloak activated!", Enums.NotificationType.LEVEL_UP)
 
 
 ## Gem of Chaos: 10% chance random elemental burst
@@ -199,7 +216,28 @@ func _handle_chaos(entry: Dictionary, target: Node) -> void:
 	if randf() >= params.get("proc_chance", 0.10):
 		return
 	_start_cooldown(entry)
-	# TODO: Elemental burst effekt spawning a target pozíciójánál
+	# Elemental burst effekt spawning a target pozíciójánál
+	if not target or not is_instance_valid(target):
+		return
+	var elements := [Enums.DamageType.FIRE, Enums.DamageType.ICE, Enums.DamageType.LIGHTNING, Enums.DamageType.POISON]
+	var chosen_element: Enums.DamageType = elements[randi() % elements.size()]
+	var burst_damage: float = params.get("burst_damage", 50.0)
+	# AoE-ként hat a target körüli ellenségekre
+	var aoe_radius: float = params.get("aoe_radius", 64.0)
+	var enemies := target.get_tree().get_nodes_in_group("enemies")
+	for enemy in enemies:
+		if not is_instance_valid(enemy):
+			continue
+		if enemy.global_position.distance_to(target.global_position) <= aoe_radius:
+			if enemy.has_method("take_damage"):
+				enemy.take_damage(burst_damage, chosen_element)
+	# Vizuális feedback - AOE effekt
+	var aoe_scene := preload("res://scenes/effects/aoe_effect.tscn")
+	if aoe_scene:
+		var aoe := aoe_scene.instantiate()
+		aoe.global_position = target.global_position
+		target.get_tree().current_scene.add_child(aoe)
+	EventBus.show_notification.emit("Chaos Burst!", Enums.NotificationType.LEVEL_UP)
 
 
 ## Gem of the Storm: 20% chain lightning
@@ -208,17 +246,59 @@ func _handle_storm(entry: Dictionary, target: Node) -> void:
 	if randf() >= params.get("proc_chance", 0.20):
 		return
 	_start_cooldown(entry)
-	# TODO: Chain lightning effekt spawning
+	# Chain lightning effekt: ugrik a közelben lévő ellenségekre
+	if not target or not is_instance_valid(target):
+		return
+	var chain_count: int = params.get("chain_count", 3)
+	var chain_range: float = params.get("chain_range", 96.0)
+	var chain_damage: float = params.get("chain_damage", 30.0)
+	var damage_decay: float = params.get("damage_decay", 0.8)  # Minden ugrásnál 80%-ra csökken
+	var hit_targets: Array[Node] = [target]
+	var current_target: Node = target
+	var current_damage: float = chain_damage
+	# Első target sebzés
+	if current_target.has_method("take_damage"):
+		current_target.take_damage(current_damage, Enums.DamageType.LIGHTNING)
+	# Chain-ek
+	for i in range(chain_count):
+		current_damage *= damage_decay
+		var enemies := current_target.get_tree().get_nodes_in_group("enemies")
+		var closest_enemy: Node = null
+		var closest_dist: float = chain_range
+		for enemy in enemies:
+			if not is_instance_valid(enemy) or enemy in hit_targets:
+				continue
+			var dist := enemy.global_position.distance_to(current_target.global_position)
+			if dist < closest_dist:
+				closest_dist = dist
+				closest_enemy = enemy
+		if not closest_enemy:
+			break
+		hit_targets.append(closest_enemy)
+		if closest_enemy.has_method("take_damage"):
+			closest_enemy.take_damage(current_damage, Enums.DamageType.LIGHTNING)
+		# Vizuális: projectile a két target között
+		var proj_scene := preload("res://scenes/effects/projectile.tscn")
+		if proj_scene and is_instance_valid(current_target):
+			var proj := proj_scene.instantiate()
+			proj.global_position = current_target.global_position
+			current_target.get_tree().current_scene.add_child(proj)
+		current_target = closest_enemy
 
 
 ## Gem of the Leech: crit → heal 5% max HP
 func _handle_leech(entry: Dictionary) -> void:
 	var params: Dictionary = entry.data.effect_params
 	var heal_percent: float = params.get("heal_percent", 0.05)
-	# TODO: Player max HP lekérdezés és heal alkalmazás
-	if _owner and _owner.has_method("heal"):
-		var max_hp: float = _owner.get("max_hp") if _owner.get("max_hp") else 100.0
-		_owner.call("heal", max_hp * heal_percent)
+	# Player max HP lekérdezés és heal alkalmazás
+	if _owner and is_instance_valid(_owner):
+		var max_hp: float = 100.0
+		if "max_hp" in _owner:
+			max_hp = float(_owner.max_hp)
+		var heal_amount := int(max_hp * heal_percent)
+		if _owner.has_method("heal"):
+			_owner.heal(heal_amount)
+		_start_cooldown(entry)
 
 
 ## Gem of Resurrection: revive on death
@@ -226,7 +306,42 @@ func _handle_resurrection(entry: Dictionary) -> void:
 	var params: Dictionary = entry.data.effect_params
 	var revive_hp: float = params.get("revive_hp_percent", 0.3)
 	_start_cooldown(entry)
-	# TODO: Player revive mechanika
+	# Player revive mechanika - megakadályozza a halált
+	if _owner and is_instance_valid(_owner):
+		# HP visszaállítás a revive százalékra
+		var max_hp: float = 100.0
+		if "max_hp" in _owner:
+			max_hp = float(_owner.max_hp)
+		var revive_amount := int(max_hp * revive_hp)
+		
+		# Állapot reset
+		if "is_alive" in _owner:
+			_owner.is_alive = true
+		if "can_act" in _owner:
+			_owner.can_act = true
+		if "current_hp" in _owner:
+			_owner.current_hp = revive_amount
+		
+		# Rövid sérthetetlenség (3s)
+		if "is_invincible" in _owner:
+			_owner.is_invincible = true
+			var invuln_timer := _owner.get_tree().create_timer(3.0)
+			invuln_timer.timeout.connect(func():
+				if is_instance_valid(_owner) and "is_invincible" in _owner:
+					_owner.is_invincible = false
+			)
+		
+		# Vizuális: golden flash
+		if _owner.has_node("Sprite2D"):
+			var sprite: Sprite2D = _owner.get_node("Sprite2D")
+			sprite.modulate = Color.WHITE
+			sprite.scale = Vector2.ONE
+			var tween := _owner.create_tween()
+			tween.tween_property(sprite, "modulate", Color(1.0, 0.85, 0.0), 0.3)
+			tween.tween_property(sprite, "modulate", Color.WHITE, 0.5)
+		
+		EventBus.hud_update_requested.emit()
+		EventBus.show_notification.emit("Resurrection Gem activated! Revived with %d%% HP!" % int(revive_hp * 100), Enums.NotificationType.LEVEL_UP)
 
 
 # ══════════════════════════════════════════════

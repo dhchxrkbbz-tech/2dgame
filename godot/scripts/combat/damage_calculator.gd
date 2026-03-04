@@ -10,7 +10,8 @@ static func calculate_damage(
 	damage_type: Enums.DamageType = Enums.DamageType.PHYSICAL,
 	crit_chance: float = 0.0,
 	crit_multiplier: float = 1.5,
-	bonus_multiplier: float = 1.0
+	bonus_multiplier: float = 1.0,
+	elemental_resistance: float = 0.0
 ) -> Dictionary:
 	var is_crit: bool = randf() < crit_chance
 	var raw_damage: float = base_damage * bonus_multiplier
@@ -26,11 +27,18 @@ static func calculate_damage(
 		var armor_reduction: float = target_armor * Constants.ARMOR_EFFECTIVENESS
 		final_damage = maxf(raw_damage - armor_reduction, Constants.MIN_DAMAGE)
 	
+	# Elemental resistance alkalmazása (nem fizikai és nem true damage esetén)
+	if damage_type != Enums.DamageType.PHYSICAL and damage_type != Enums.DamageType.TRUE_DAMAGE:
+		if elemental_resistance > 0.0:
+			var resist_mult: float = 1.0 - clampf(elemental_resistance / 100.0, 0.0, 0.75)
+			final_damage *= resist_mult
+	
 	return {
 		"damage": int(final_damage),
 		"is_crit": is_crit,
 		"damage_type": damage_type,
 		"raw_damage": int(raw_damage),
+		"resisted": int(raw_damage - final_damage) if elemental_resistance > 0.0 else 0,
 	}
 
 

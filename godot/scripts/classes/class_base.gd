@@ -37,6 +37,30 @@ func get_passive_bonus() -> Dictionary:
 	return {}
 
 
+## Összes branch passive bonus összegyűjtése (Plan 21 §5.2)
+func get_all_branch_passives() -> Dictionary:
+	var total_bonuses: Dictionary = {}
+	for branch in branches:
+		var points: int = 0
+		if skill_manager:
+			points = skill_manager.get_branch_points(branch)
+		if points > 0:
+			var bonuses: Dictionary = get_branch_bonus(branch, points)
+			for key in bonuses:
+				total_bonuses[key] = total_bonuses.get(key, 0.0) + bonuses[key]
+	return total_bonuses
+
+
+## Branch-specifikus bonus (override a subclass-okban)
+func get_branch_bonus(_branch: Enums.SkillBranch, _allocated_points: int) -> Dictionary:
+	# Fallback: constants-ból olvas
+	var passives: Dictionary = Constants.BRANCH_PASSIVES.get(_branch, {})
+	var result: Dictionary = {}
+	for key in passives:
+		result[key] = passives[key] * _allocated_points
+	return result
+
+
 ## Osztály-specifikus stat módosítók
 func get_stat_modifiers() -> Dictionary:
 	return base_stats.duplicate()

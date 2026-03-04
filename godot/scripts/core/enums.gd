@@ -103,10 +103,12 @@ enum EffectType {
 # === Item rarity ===
 enum Rarity {
 	COMMON,
-	UNCOMMON,
+	MAGIC,       # Plan 21: MAGIC (volt UNCOMMON)
 	RARE,
 	EPIC,
-	LEGENDARY
+	LEGENDARY,
+	SET,         # Plan 21: Set item rarity
+	UNIQUE       # Plan 21: Unique item rarity
 }
 
 # === Equipment slot-ok ===
@@ -320,6 +322,44 @@ enum DoorState {
 	CLOSED,
 	LOCKED,
 	SEALED
+}
+
+# === Achievement kategóriák ===
+enum AchievementCategory {
+	COMBAT,
+	EXPLORATION,
+	LOOT_ECONOMY,
+	PROGRESSION,
+	SOCIAL,
+	STORY
+}
+
+# === World Event típusok ===
+enum WorldEventType {
+	CORRUPTION_SURGE,
+	INVASION,
+	WORLD_BOSS_SPAWN,
+	TREASURE_HUNT,
+	GATHERING_BLESSING,
+	BLOOD_MOON
+}
+
+# === Nightmare szintek ===
+enum NightmareTier {
+	NORMAL = 0,
+	NIGHTMARE_1 = 1,
+	NIGHTMARE_2 = 2,
+	NIGHTMARE_3 = 3,
+	NIGHTMARE_4 = 4,
+	NIGHTMARE_5 = 5
+}
+
+# === Nehézségi szintek ===
+enum DifficultyLevel {
+	NORMAL,
+	HARD,
+	NIGHTMARE,
+	TORMENT
 }
 
 # === Puzzle types ===

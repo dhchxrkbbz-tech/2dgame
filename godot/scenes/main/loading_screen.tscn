@@ -1,7 +1,10 @@
-[gd_scene format=3 uid="uid://loading_screen_scene"]
+[gd_scene load_steps=2 format=3 uid="uid://loading_screen_scene"]
+
+[ext_resource type="Script" path="res://scripts/tutorial/loading_screen_tips.gd" id="1_tips"]
 
 [node name="LoadingScreen" type="CanvasLayer"]
 layer = 100
+script = ExtResource("1_tips")
 
 [node name="Background" type="ColorRect" parent="."]
 anchors_preset = 15

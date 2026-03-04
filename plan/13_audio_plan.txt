@@ -1,0 +1,359 @@
+================================================================================
+  ASHENFALL – 13. AUDIO ÉS ZENE RENDSZER – TELJES IMPLEMENTÁCIÓS TERV
+================================================================================
+
+  Motor: Godot 4.x (GDScript)
+  Státusz: HIÁNYZÓ TARTALOM – AudioManager kód kész, tartalom 0%
+  Prioritás: HIGH (nélküle a játék "néma", élmény drasztikusan romlik)
+
+  Jelenlegi állapot:
+    ✓ AudioManager autoload kész (music crossfade, SFX pool, spatial audio)
+    ✗ EGYETLEN audio fájl sincs a projektben
+    ✗ Nincs zene (0 track)
+    ✗ Nincs SFX (0 hangeffekt)
+    ✗ Nincs UI hang (kattintás, menü, stb.)
+    ✗ Nincs ambient sound (biome háttér)
+
+================================================================================
+  TARTALOMJEGYZÉK
+================================================================================
+
+  1. Rendszer áttekintés
+  2. Zene track lista (6-8 track)
+  3. SFX kategóriák és lista (~80 SFX)
+  4. Ambient / biome hangok
+  5. UI hangok
+  6. Zene szerzés stratégia
+  7. SFX szerzés stratégia
+  8. AudioManager integráció terv
+  9. Biome → Zene mapping
+  10. Dinamikus zene rendszer
+  11. Godot implementáció
+  12. Kapcsolódó rendszerek
+
+================================================================================
+  1. RENDSZER ÁTTEKINTÉS
+================================================================================
+
+  A hangzás a játékélmény 30-40%-a. Az Ashenfall dark fantasy hangulata
+  nagymértékben függ a zenétől és hangeffektektől.
+
+  Cél: sötét, atmoszférikus zene + éles, impaktérzetes SFX
+
+  Formátumok:
+    Zene: .ogg (Ogg Vorbis) – kis fájlméret, jó minőség, loop support
+    SFX: .wav – gyors betöltés, nincs dekódolási késés
+    Ambient: .ogg – háttérben folyamatosan loopol
+
+  Hangerő csatornák (az AudioManager már támogatja):
+    Master Volume: 0-100%
+    Music Volume: 0-100%
+    SFX Volume: 0-100%
+    Ambient Volume: 0-100% (hozzáadandó)
+
+================================================================================
+  2. ZENE TRACK LISTA
+================================================================================
+
+  ┌────┬──────────────────────┬──────────┬──────────────────────────────────┐
+  │ #  │ Track neve           │ Hossz    │ Használat                        │
+  ├────┼──────────────────────┼──────────┼──────────────────────────────────┤
+  │ 1  │ Main Menu Theme      │ 2-3 perc │ Főmenü, karakter választás       │
+  │    │                      │ (loop)   │ Hangulat: melankolikus, vonós    │
+  ├────┼──────────────────────┼──────────┼──────────────────────────────────┤
+  │ 2  │ Peaceful Exploration │ 3-4 perc │ Starting Meadow, biztonságos     │
+  │    │                      │ (loop)   │ területek. Hangulat: nyugodt,    │
+  │    │                      │          │ akusztikus gitár / fuvola        │
+  ├────┼──────────────────────┼──────────┼──────────────────────────────────┤
+  │ 3  │ Dark Exploration     │ 3-4 perc │ Cursed Forest, Dark Swamp,       │
+  │    │                      │ (loop)   │ Ruins. Hangulat: fenyegető,      │
+  │    │                      │          │ mély húrok, halk kórus           │
+  ├────┼──────────────────────┼──────────┼──────────────────────────────────┤
+  │ 4  │ Hostile Lands        │ 3-4 perc │ Mountains, Frozen Wastes,        │
+  │    │                      │ (loop)   │ Ashlands, Plague Lands.          │
+  │    │                      │          │ Hangulat: intenzív, epikus       │
+  ├────┼──────────────────────┼──────────┼──────────────────────────────────┤
+  │ 5  │ Combat Theme         │ 2-3 perc │ Bármely világbeli harc közben.   │
+  │    │                      │ (loop)   │ Crossfade az exploration zenéből.│
+  │    │                      │          │ Hangulat: gyors, dob-dominált    │
+  ├────┼──────────────────────┼──────────┼──────────────────────────────────┤
+  │ 6  │ Dungeon Theme        │ 3-4 perc │ Dungeon belseje (nem combat).    │
+  │    │                      │ (loop)   │ Hangulat: klausztrofóbikus,      │
+  │    │                      │          │ reverb, halk zörejek             │
+  ├────┼──────────────────────┼──────────┼──────────────────────────────────┤
+  │ 7  │ Boss Battle          │ 3-4 perc │ Minden boss fight (T1-T4).       │
+  │    │                      │ (loop)   │ Hangulat: epikus, kórus,         │
+  │    │                      │          │ intenzív dob + vonós             │
+  ├────┼──────────────────────┼──────────┼──────────────────────────────────┤
+  │ 8  │ Victory Fanfare      │ 15-30sec │ Boss kill, dungeon clear,        │
+  │    │                      │ (no loop)│ quest complete. Rövid, diadal    │
+  └────┴──────────────────────┴──────────┴──────────────────────────────────┘
+
+  Opcionális bővítés (post-launch):
+    - Raid Boss mega-theme (epikusabb boss zene)
+    - Town / safe zone theme (NPC-k környékén)
+    - Night variant (sötétebb verzió az exploration zenékből)
+
+================================================================================
+  3. SFX KATEGÓRIÁK ÉS LISTA (~80 SFX)
+================================================================================
+
+  3.1 Combat SFX (25-30 db)
+  ──────────────────
+
+    Melee:
+      sword_swing.wav          – kard suhintás
+      sword_hit_flesh.wav      – kard becsapódás
+      dagger_stab.wav          – tőr szúrás
+      mace_hit.wav             – buzogány ütés
+      axe_chop.wav             – fejsze vágás
+      shield_block.wav         – pajzs blokk
+      shield_bash.wav          – pajzs ütés
+      fist_punch.wav           – ökölcsapás
+
+    Ranged:
+      arrow_shoot.wav          – nyíl kilövés
+      arrow_hit.wav            – nyíl becsapódás
+      spell_cast_generic.wav   – varázslat indítás
+      fireball_launch.wav      – tűzgolyó indítás
+      fireball_impact.wav      – tűzgolyó becsapódás
+      ice_shard.wav            – jég lövedék
+      poison_spit.wav          – méreg köpés
+
+    Impact:
+      hit_player.wav           – játékos sebződés
+      hit_enemy.wav            – ellenség sebződés
+      critical_hit.wav         – kritikus találat (extra hangsúly)
+      dodge_whoosh.wav         – kitérés suhogás
+      death_generic.wav        – halál hang (enemy)
+      player_death.wav         – játékos halál
+
+    Special:
+      aoe_explosion.wav        – AoE robbanás
+      heal_spell.wav           – gyógyítás
+      buff_apply.wav           – buff aktiválás
+      debuff_apply.wav         – debuff rárakás
+      level_up.wav             – szintlépés (fontos, juicy!)
+
+  3.2 Skill SFX (15-20 db)
+  ──────────────────
+
+    Assassin:
+      shadow_step.wav          – teleport suhogás
+      smoke_bomb.wav           – füst robbanás
+      poison_apply.wav         – mérgezés shhhh
+      blood_slash.wav          – véres vágás
+
+    Tank:
+      taunt_shout.wav          – harci kiáltás
+      ground_slam.wav          – föld ütés (súlyos)
+      chain_pull.wav           – lánc húzás
+      fortify.wav              – védelmi buff bemondás
+
+    Mage:
+      arcane_blast.wav         – arcane robbanás
+      frost_nova.wav           – jég robbanás
+      holy_light.wav           – gyógyító fény
+      teleport.wav             – teleportálás
+
+  3.3 UI SFX (10-15 db)
+  ──────────────────
+
+      button_click.wav         – gomb kattintás
+      button_hover.wav         – gomb fölé állás
+      inventory_open.wav       – inventory nyitás
+      inventory_close.wav      – inventory bezárás
+      item_pickup.wav          – item felvétel
+      item_equip.wav           – item felszerelés
+      item_drop.wav            – item ledobás
+      gold_pickup.wav          – arany felvétel (csörrenés)
+      quest_accept.wav         – quest elfogadás
+      quest_complete.wav       – quest befejezés (fanfare)
+      notification.wav         – értesítés hang
+      error_buzz.wav           – hiba / nem megengedett
+      skill_unlock.wav         – skill pont befektetés
+
+  3.4 Ambient / Environment SFX (10-15 db)
+  ──────────────────
+
+      wind_light.wav           – enyhe szél (Meadow)
+      wind_howling.wav         – üvöltő szél (Mountains, Frozen)
+      rain_loop.wav            – eső háttér
+      thunder.wav              – mennydörgés (Storm weather)
+      fire_crackle.wav         – tűz pattogás (Ashlands, torch)
+      water_drip.wav           – víz csepegés (Swamp, Dungeon)
+      swamp_bubbles.wav        – mocsári buborék / bugyogás
+      crow_caw.wav             – holló károgás (Ruins, Plague)
+      crickets.wav             – tücsök (Meadow éjszaka)
+      dungeon_ambience.wav     – dungeon háttérzaj (reverb)
+      boss_intro_rumble.wav    – boss megjelenése (mély rumble)
+
+  3.5 Egyéb SFX (5-10 db)
+  ──────────────────
+
+      chest_open.wav           – láda nyitás
+      door_open.wav            – ajtó nyitás
+      door_locked.wav          – zárt ajtó próbálás
+      portal_activate.wav      – portál aktiválás
+      trap_trigger.wav         – csapda aktiválódás
+      gathering_chop.wav       – fa vágás
+      gathering_mine.wav       – bányászás
+      gathering_pick.wav       – herb szedés
+      gem_socket.wav           – gem behelyezés
+      craft_anvil.wav          – kovácsolás
+
+================================================================================
+  4. BIOME → ZENE MAPPING
+================================================================================
+
+  ┌──────────────────────┬───────────────────────────┬──────────────────────┐
+  │ Biome                │ Exploration zene          │ Ambient háttér       │
+  ├──────────────────────┼───────────────────────────┼──────────────────────┤
+  │ Starting Meadow      │ Peaceful Exploration      │ crickets, wind_light │
+  │ Cursed Forest        │ Dark Exploration          │ crow_caw, wind_light │
+  │ Dark Swamp           │ Dark Exploration          │ swamp_bubbles, water │
+  │ Ruins                │ Dark Exploration          │ crow_caw, wind_howl  │
+  │ Mountains            │ Hostile Lands             │ wind_howling         │
+  │ Frozen Wastes        │ Hostile Lands             │ wind_howling         │
+  │ Ashlands             │ Hostile Lands             │ fire_crackle         │
+  │ Plague Lands         │ Hostile Lands             │ crow_caw, wind_howl  │
+  │ Dungeon (bármely)    │ Dungeon Theme             │ dungeon_ambience     │
+  │ Boss fight           │ Boss Battle               │ (nincs ambient)      │
+  │ Combat (world)       │ Combat Theme              │ (marad a biome amb.) │
+  └──────────────────────┴───────────────────────────┴──────────────────────┘
+
+================================================================================
+  5. DINAMIKUS ZENE RENDSZER
+================================================================================
+
+  5.1 Zene váltás trigger-ek
+  ──────────────────
+
+    Exploration → Combat: ha CombatManager.is_in_combat == true
+    Combat → Exploration: ha CombatManager.peace_timer lejárt (5s)
+    Exploration → Boss: boss fight trigger
+    Bármely → Victory: boss kill / dungeon clear
+    Bármely → Menu: ESC → pause menü
+
+  5.2 Crossfade beállítások
+  ──────────────────
+
+    Exploration ↔ Combat: 1.5s crossfade
+    Bármely → Boss: 0.5s fade out → boss intro rumble → 1s fade in
+    Bármely → Victory: instant stop → victory fanfare
+    Victory → Exploration: 2s crossfade (victory fanfare vége után)
+
+================================================================================
+  6. ZENE SZERZÉS STRATÉGIA
+================================================================================
+
+  Opciók (prioritás sorrendben):
+
+  1. AI generált zene (Suno AI, Udio, Stable Audio)
+     - Olcsó / ingyenes
+     - Prompt-alapú: "dark fantasy orchestral loop, 120bpm, minor key"
+     - Post-process szükséges (loop pont, fade, normalizálás)
+     - Licensz: ellenőrizni a felhasználási jogokat!
+
+  2. Royalty-free zene library
+     - OpenGameArt.org (ingyenes, CC licensz)
+     - Incompetech (Kevin MacLeod, CC BY)
+     - FreeMusicArchive
+     - Pixabay Music (licensz ingyenes)
+
+  3. Asset Store vásárlás
+     - itch.io music packs ($5-$30)
+     - Unity Asset Store → .ogg konvertálás
+     - Humble Bundle (alkalmi game dev bundle)
+
+  4. Saját készítés (ha van zenei tudás)
+     - LMMS (ingyenes DAW)
+     - FL Studio
+     - Garageband
+
+  Ajánlott: AI generálás + royalty-free mix
+  Becsült idő: 1-2 hét az összes zenéhez
+
+================================================================================
+  7. SFX SZERZÉS STRATÉGIA
+================================================================================
+
+  Opciók:
+
+  1. Ingyenes SFX library-k
+     - Freesound.org (CC licensz, hatalmas adatbázis)
+     - OpenGameArt.org (game-specifikus)
+     - Kenney.nl (game asset pack-ek, CC0)
+     - Sonniss GDC Bundle (éves ingyenes pack)
+
+  2. SFX generálás
+     - sfxr / jsfxr (retro 8-bit SFX generátor – pixel art stílushoz jó!)
+     - ChipTone (böngészős, ingyenes)
+     - Bfxr (továbbfejlesztett sfxr)
+
+  3. Asset Store
+     - itch.io SFX packs
+     - Bundled pack-ek
+
+  Ajánlott: jsfxr generált retro SFX (pixel art stílushoz illik)
+  + Freesound ambient hangok
+  Becsült idő: 1 hét az összes SFX-hez
+
+================================================================================
+  8. GODOT IMPLEMENTÁCIÓ
+================================================================================
+
+  Szükséges könyvtár struktúra:
+
+  assets/audio/
+    ├── music/
+    │   ├── menu_theme.ogg
+    │   ├── peaceful_exploration.ogg
+    │   ├── dark_exploration.ogg
+    │   ├── hostile_lands.ogg
+    │   ├── combat_theme.ogg
+    │   ├── dungeon_theme.ogg
+    │   ├── boss_battle.ogg
+    │   └── victory_fanfare.ogg
+    ├── sfx/
+    │   ├── combat/
+    │   │   ├── sword_swing.wav
+    │   │   ├── sword_hit_flesh.wav
+    │   │   └── ... (25-30 fájl)
+    │   ├── skills/
+    │   │   ├── shadow_step.wav
+    │   │   └── ... (15-20 fájl)
+    │   ├── ui/
+    │   │   ├── button_click.wav
+    │   │   └── ... (10-15 fájl)
+    │   └── environment/
+    │       ├── wind_light.wav
+    │       └── ... (10-15 fájl)
+    └── ambient/
+        ├── meadow_ambient.ogg
+        ├── forest_ambient.ogg
+        ├── swamp_ambient.ogg
+        ├── dungeon_ambient.ogg
+        └── ... (biome-onként)
+
+  Módosítandó meglévő fájlok:
+    - audio_manager.gd: ambient csatorna hozzáadás, biome mapping
+    - environment_manager.gd: biome → music trigger
+    - combat_manager.gd: combat/peace music trigger
+    - boss_base.gd: boss music trigger
+
+  Összesen: ~80 audio fájl létrehozása / beszerzése szükséges
+
+================================================================================
+  IMPLEMENTÁCIÓS BECSLÉS
+================================================================================
+
+  Zene szerzés + szerkesztés: 1-2 hét
+  SFX szerzés + szerkesztés: 1 hét
+  Kód integráció: 2-3 nap
+  Tesztelés + hangolás: 2-3 nap
+  ÖSSZESEN: ~2-3 hét
+
+================================================================================
+  VÉGE – 13_audio_plan.txt
+================================================================================

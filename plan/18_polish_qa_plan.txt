@@ -1,0 +1,725 @@
+================================================================================
+ASHENFALL – 18. POLISH, QA & KNOWN ISSUES PLAN
+================================================================================
+Státusz: A projekt "skeleton framework" állapotban van. Minden fő rendszer
+kódja létezik, de számos TODO, hiányzó implementáció és integrációs probléma
+van. Ez a dokumentum összegyűjti az összes ismert hiányosságot és a QA tervet.
+================================================================================
+
+1. ÁTTEKINTÉS
+================================================================================
+
+A projekt jelenlegi állapota:
+  - 155 GDScript fájl – architektúra kész
+  - 38 .tscn scene – struktúra kész
+  - 7 shader – működőképes
+  - 2 JSON adat fájl (gem data) – csak ennyi adat létezik
+  - 0 vizuális asset (minden placeholder színes négyzet)
+  - 0 audio fájl
+  - ~25 explicit TODO komment a kódban
+  - Számos implicit hiányosság (üres függvények, stub implementációk)
+
+Ez a terv 4 fő részre oszlik:
+  A) Ismert TODO-k a kódból (explicit)
+  B) Hiányzó implementációk (implicit)
+  C) Integrációs hiányosságok (rendszerek közötti rések)
+  D) QA és tesztelési terv
+
+================================================================================
+
+2. ISMERT TODO-K A KÓDBÓL (EXPLICIT)
+================================================================================
+
+Az alábbi TODO kommentek vannak a kódbázisban, fájlonként csoportosítva:
+
+2.1 Player rendszer:
+─────────────────────
+
+  player.gd:
+    □ TODO: Death animation és respawn logika
+      - Jelenlegi: HP 0-ra csökken, semmi nem történik
+      - Szükséges: Halál animáció, respawn pont, XP/Gold veszteség
+      - Kapcsolódik: Plan 12 (story), Plan 15 (difficulty)
+      - Implementáció:
+        1. _on_death() → disable input, play death anim
+        2. Respawn timer (5s default, Story mode: 2s)
+        3. Respawn location: legutóbbi checkpoint/waypoint
+        4. Penalties: Normal: 5% gold loss, Hard: 10% gold + 5% XP
+
+    □ TODO: Add item to inventory integration
+      - Jelenlegi: pickup detektálás van, de inventory_manager.gd-be
+        nem hívódik
+      - Szükséges: dropped_item.gd → inventory_manager.add_item()
+      - Kapcsolódik: loot_manager.gd, inventory_manager.gd
+
+    □ TODO: Add gold to wallet integration
+      - Jelenlegi: gold pickup van, de currency_manager.gd nem hívódik
+      - Szükséges: enemy_base.gd drop_loot() → currency_manager.add_gold()
+
+2.2 Combat rendszer:
+─────────────────────
+
+  damage_calculator.gd:
+    □ TODO: Elemental resistance calculation
+      - Jelenlegi: alap damage formula kész, de elemental resist nincs
+      - Szükséges: target.get_resistance(element) figyelembevétele
+      - Képlet: final_dmg = base_dmg × (1 - resist% / 100)
+
+  status_effect.gd:
+    □ TODO: Consumable effects (potion buffs)
+      - Jelenlegi: StatusEffect class kész, de potion-ök nem
+        hoznak létre StatusEffect-et
+      - Szükséges: potion.use() → status_effect_manager.apply()
+
+  health_component.gd:
+    □ TODO: Shield/barrier HP system
+      - Jelenlegi: Csak alap HP van
+      - Szükséges: shield_hp mező, ami előbb fogyjon
+      - Kapcsolódik: Mage Mana Shield, Tank Shield Wall
+
+2.3 AI rendszer:
+─────────────────
+
+  enemy_base.gd:
+    □ TODO: Proper loot drop on death
+      - Jelenlegi: loot_dropper hivatkozás van de nem hívódik
+      - Szükséges: _on_death() → loot_dropper.drop()
+
+    □ TODO: Death particle effect
+      - Jelenlegi: queue_free() azonnal, nincs vizuális feedback
+      - Szükséges: halál animáció/particle → delayed queue_free()
+
+  pack_ai.gd:
+    □ TODO: Pack scatter when leader dies
+      - Jelenlegi: pack AI működik, de leader halálakor nincs reakció
+      - Szükséges: leader_ref → on death → pack morale check
+
+2.4 Economy rendszer:
+──────────────────────
+
+  crafting_manager.gd:
+    □ TODO: Material verification before craft
+      - Jelenlegi: craft_item() létezik de nem ellenőrzi az anyagokat
+      - Szükséges: has_materials() check → subtract → create
+
+  marketplace_manager.gd:
+    □ TODO: Actual trade execution (buy/sell)
+      - Jelenlegi: listing létrehozás kész, vásárlás flow nincs
+      - Szükséges: buy_listing() → currency check → transfer item
+
+  upgrade_manager.gd:
+    □ TODO: Enhancement failure consequences
+      - Jelenlegi: upgrade() mindig sikeres
+      - Szükséges: Plan 04 szerinti failure rate + downgrade risk
+
+  shop_manager.gd:
+    □ TODO: NPC shop inventory refresh
+      - Jelenlegi: statikus shop
+      - Szükséges: időzített refresh (24 óra game time)
+
+2.5 Item/Loot rendszer:
+────────────────────────
+
+  item_generator.gd:
+    □ TODO: Legendary unique power assignment
+      - Jelenlegi: legendary rarity rolling kész, de unique power
+        nincs hozzáadva
+      - Szükséges: legendary_data.gd-ből power lookup + apply
+
+  set_item_data.gd:
+    □ TODO: Set bonus activation check
+      - Jelenlegi: SetItemData resource definiálva, de a tényleges
+        set bonus activation nincs implementálva
+      - Szükséges: equipment_change → check_set_bonuses()
+
+  loot_filter.gd:
+    □ TODO: Filter save/load  
+      - Jelenlegi: filter UI és logika kész, de nem persistál
+      - Szükséges: SaveManager integrálás a filter beállításokhoz
+
+2.6 Gem rendszer:
+──────────────────
+
+  legendary_gem_effect_handler.gd:
+    □ TODO: Implement gem effects:
+      - Láthatatlanság gem: "INVISIBLE" effekt implementálás
+      - Chain Lightning gem: villám lánc logika
+      - Revive gem: halál esetén auto-revive
+      - Összesen ~10 legendary gem effect hiányzik
+
+  gem_combiner.gd:
+    □ TODO: Combine failure animation
+      - Jelenlegi: combine instant, nincs vizuális feedback
+      - Szükséges: combine animáció + success/fail feedback
+
+2.7 Multiplayer rendszer:
+──────────────────────────
+
+  sync_manager.gd:
+    □ TODO: Inventory sync between players
+      - Jelenlegi: pozíció/combat sync kész, inventory nincs
+      - Szükséges: trade window inventory validation
+
+  trade_window.gd (UI):
+    □ TODO: Trade execution (item swap)
+      - Jelenlegi: UI layout kész, tényleges csere logika nincs
+      - Szükséges: both_accepted → swap items → sync
+
+  anti_cheat.gd:
+    □ TODO: Server-side validation
+      - Jelenlegi: alap ellenőrzések, de speed hack/damage hack
+        detection hiányos
+      - Szükséges: server authority pattern, rate limiting
+
+2.8 World rendszer:
+────────────────────
+
+  save_manager.gd:
+    □ TODO: Autosave before quit
+      - Jelenlegi: manuális save működik, auto nincs
+      - Szükséges: _notification(NOTIFICATION_WM_CLOSE_REQUEST)
+
+  environment_manager.gd:
+    □ TODO: Weather effect on gameplay
+      - Jelenlegi: vizuális weather van, de gameplay impact nincs
+      - Szükséges: Rain → -10% fire damage, Snow → -15% speed
+
+================================================================================
+
+3. HIÁNYZÓ IMPLEMENTÁCIÓK (IMPLICIT)
+================================================================================
+
+3.1 Teljesen hiányzó rendszerek (más plan-ekben részletezve):
+──────────────────────────────────────────────────────────────
+
+  □ Quest rendszer (Plan 12) – KRITIKUS
+    - quest_manager.gd – autoload
+    - quest_data.gd – resource
+    - quest_tracker.gd – aktív quest kezelés
+    - ~160 quest definíció
+    → Jelenlegi: quest_log_ui.gd létezik, de mögötte nincs rendszer
+
+  □ Story/Narrative rendszer (Plan 12) – FONTOS
+    - NPC párbeszéd tartalom
+    - Cutscene rendszer (egyszerű: párbeszéd + kamera mozgás)
+    - Lore collectible-ek
+    → Jelenlegi: dialogue_box.tscn van, npc_dialogue_ui.gd van, de
+      tartalom nincs
+
+  □ Audio tartalom (Plan 13) – FONTOS
+    - 0 hangfájl a projektben
+    - AudioManager váz kész, de nincs mit lejátszani
+    → Szükséges: ~8 zene + ~80 SFX
+
+  □ Tutorial rendszer (Plan 14) – FONTOS
+    - First-time popupok
+    - Highlight rendszer
+    - Tutorial skip opció
+
+  □ Achievement rendszer (Plan 15) – KÖZEPES
+    - achievement_manager.gd – autoload
+    - ~70 achievement definíció
+    - UI a megjelenítéshez
+
+  □ Endgame rendszer (Plan 15) – KÖZEPES
+    - Nightmare dungeon tiers
+    - Paragon rendszer
+    - World events
+
+  □ Waypoint/Fast Travel rendszer (Plan 15) – KÖZEPES
+    - Fast travel UI
+    - Waypoint node-ok a világban
+    - Unlock logika
+
+3.2 Hiányzó boss implementációk (7/13):
+────────────────────────────────────────
+
+  Implementált (6): 
+    ✅ Plague Rat King, Shadow Stalker, Cursed Treant
+    ✅ Frozen Sentinel, Necromancer King, Spider Matriarch
+
+  Hiányzó (7):
+    □ Ash Warden (T1, Ashen Wastes) – Plan 16 stat-ok
+    □ Swamp Hydra (T1, Shadow Marsh) – Plan 16 stat-ok
+    □ Volcanic Overlord (T2, Volcanic Depths) – Plan 16 stat-ok
+    □ Void Weaver (T3, Void Realm) – Plan 16 stat-ok
+    □ Ancient Dragon (T3, Volcanic/Frozen) – Plan 16 stat-ok
+    □ Riftlord (T3, random spawn) – Plan 16 stat-ok
+    □ The Ashen God (T4, raid) – Plan 16 stat-ok
+    → "The Void Emperor" (T4 raid) a story végső boss
+
+  Implementációs sorrend:
+    1. Ash Warden (legegyszerűbb, starting zone)
+    2. Swamp Hydra (egyedi multi-head mechanika)
+    3. Volcanic Overlord (platform destruction)
+    4. Void Weaver (komplex fázisok)
+    5. Ancient Dragon (fly phases)
+    6. Riftlord (dynamic biome mechanics)
+    7. The Ashen God + Void Emperor (raid, utolsó)
+
+3.3 Placeholder art → valódi asset csere:
+───────────────────────────────────────────
+
+  A placeholder_sprites.gd jelenleg MINDENT generál:
+  
+  Cserélendő sprite kategóriák:
+    □ Player sprites (3 osztály × idle/walk/attack/dodge/death = ~15 anim set)
+    □ Enemy sprites (40 típus × idle/walk/attack/death = ~160 anim set)
+    □ Boss sprites (13 boss × idle/walk/attack/special/death = ~65 anim set)
+    □ NPC sprites (~20 NPC × idle/talk = ~40 anim set)
+    □ Item ikonok (~250 egyedi ikon: fegyverek, páncélok, gem-ek, anyagok)
+    □ Skill ikonok (45 skill + 3 ultimate = 48 ikon)
+    □ UI elemek (gombok, keretek, háttér, panel-ek = ~50 asset)
+    □ Tileset-ek (8 biome × ground/walls/props = ~24 tileset)
+    □ Environment props (fák, sziklák, házak per biome = ~100 prop)
+    □ Effect sprites (tűz, jég, méreg, robbanás = ~30 effect)
+    □ Particle texturák (~20 particle)
+
+  Becsült asset szám: ~800+ egyedi sprite/animáció
+
+  Pipeline (Plan 00 alapján):
+    Stable Diffusion XL → LoRA fine-tune → Aseprite pixel art
+    Sprite méret: 32×32 (karakter/enemy), 16×16 (ikon), 16×16 tile
+
+3.4 Üres/stub függvények a kódban:
+───────────────────────────────────
+
+  Az alábbi függvények léteznek de üresek vagy minimális implementációval:
+
+  □ player.gd: use_consumable() – üres
+  □ player.gd: apply_equipment_stats() – alap, set bonus nélkül
+  □ skill_manager.gd: activate_skill() – base implementáció, 45 skill specifikus effekt hiányzik
+  □ ultimate_manager.gd: activate_ultimate() – 3 ultimate, effektek részlegesek
+  □ boss_base.gd: enter_phase() – alap, specifikus boss phase logic a child-okban
+  □ npc_system.gd: interact() – dialógus trigger, de quest check nincs
+  □ dungeon_manager.gd: generate_loot_for_room() – stub
+  □ weather_system.gd: apply_weather_gameplay_effects() – üres
+  □ gathering_node.gd: calculate_yield() – konstans érték
+  □ profession_manager.gd: check_mastery_bonus() – stub
+
+================================================================================
+
+4. INTEGRÁCIÓS HIÁNYOSSÁGOK (RENDSZEREK KÖZÖTTI RÉSEK)
+================================================================================
+
+4.1 Player ↔ Inventory:
+─────────────────────────
+  Probléma: Item pickup → inventory add nem kötött össze
+  Fix: dropped_item.gd pickup signal → inventory_manager.add_item()
+  Érintett fájlok: dropped_item.gd, inventory_manager.gd, player.gd
+
+4.2 Combat ↔ Economy:
+───────────────────────
+  Probléma: Enemy kill → gold drop → player pickup → currency add nem teljes
+  Fix: enemy_base._on_death() → drop gold → dropped_item pickup →
+       currency_manager.add_currency()
+  Érintett: enemy_base.gd, currency_manager.gd, dropped_item.gd
+
+4.3 Skill ↔ Combat:
+─────────────────────
+  Probléma: Skill activation → damage dealing részbeni
+  Fix: Minden 45 skill_data-nak kell _execute() implementáció
+  Érintett: skill_manager.gd, combat_manager.gd, damage_calculator.gd
+
+4.4 Loot ↔ Equipment:
+───────────────────────
+  Probléma: Set item felszerelés → set bonus activation nincs
+  Fix: equipment változás → check equipped set pieces → apply bonuses
+  Érintett: inventory_manager.gd, set_item_data.gd, player.gd
+
+4.5 Dungeon ↔ Loot:
+─────────────────────
+  Probléma: Dungeon completion → reward generation részleges
+  Fix: dungeon_manager complete signal → loot_manager.generate_rewards()
+  Érintett: dungeon_manager.gd, loot_manager.gd, loot_spawner.gd
+
+4.6 World ↔ Quest:
+────────────────────
+  Probléma: Quest rendszer egyáltalán nem létezik
+  Fix: Teljes quest rendszer implementálás (Plan 12)
+  Érintett: Új quest_manager.gd + kapcsolódó fájlok
+
+4.7 Multiplayer ↔ Economy:
+───────────────────────────
+  Probléma: Trade window UI kész, tényleges csere nincs
+  Fix: trade handshake → validate both sides → swap items → sync
+  Érintett: trade_window.gd, sync_manager.gd, inventory_manager.gd
+
+4.8 Save ↔ Minden:
+────────────────────
+  Probléma: SaveManager alap struktúra van, de nem minden rendszer
+            regisztrálta magát save/load-ra
+  Fix: Minden manager-nek kell get_save_data() és load_save_data()
+  Érintett rendszerek:
+    □ inventory_manager – KELL
+    □ currency_manager – KELL
+    □ quest_manager – KELL (ha létezik)
+    □ achievement_manager – KELL (ha létezik)
+    □ profession_manager – KELL
+    □ skill_tree – KELL
+    □ player stats – KELL
+    □ world state (explored chunks, waypoints) – KELL
+    □ dungeon progress – KELL
+    □ settings/preferences – KELL
+    □ loot_filter – KELL
+
+4.9 EventBus signal hiányosságok:
+──────────────────────────────────
+  event_bus.gd ~70 signalt definiál, de nem mindegyik van bekötve.
+  
+  Bekötetlen signal-ok (ellenőrizendő):
+    □ signal quest_completed – nincs quest rendszer
+    □ signal achievement_unlocked – nincs achievement rendszer
+    □ signal waypoint_discovered – nincs waypoint rendszer
+    □ signal world_event_started – nincs event rendszer
+    □ signal trade_completed – nincs trade implementáció
+    □ signal dungeon_completed – részleges kötés
+
+================================================================================
+
+5. QA TESZTELÉSI TERV
+================================================================================
+
+5.1 Smoke Test (alapvető működés – 30 perc):
+──────────────────────────────────────────────
+
+  □ Játék elindul, main menu megjelenik
+  □ Karakter kiválasztás (3 osztály)
+  □ Játékba lépés, player megjelenik
+  □ 8 irányú mozgás működik
+  □ Kamera követi a játékost
+  □ Alap támadás működik (bal klikk)
+  □ HUD megjelenik (HP, mana, XP)
+  □ Inventory nyitás/zárás (Tab)
+  □ Map nyitás/zárás (M)
+  □ Settings menü működik
+  □ ESC → pause menü
+  □ Kilépés a játékból
+
+5.2 Combat Test (harci rendszer – 1 óra):
+──────────────────────────────────────────
+
+  □ Ellenség spawnolja magát a biome-ban
+  □ Ellenség aggro-zik megadott távolságon belül
+  □ Damage numberek megjelennek
+  □ Ellenség HP bar látható
+  □ Ellenség halála → loot drop
+  □ Loot felvehető
+  □ XP gain → level up
+  □ Level up → stat pontok + skill pont
+  □ Skill tree megnyitás (T)
+  □ Skill unlock és használat
+  □ 5 skill slot mindegyike működik (1-5)
+  □ Ultimate feltöltődés és aktiválás (Q)
+  □ Dodge működik (Space)
+  □ Status effect megjelenés (tűz, jég, méreg)
+  □ Elite enemy: affix-ek működnek
+  □ Különböző enemy típusok (melee/ranged/caster)
+
+5.3 World Test (világ generálás – 1 óra):
+──────────────────────────────────────────
+
+  □ Procedurális világ generálódik
+  □ 8 biome felismerhető és különböző
+  □ Chunk loading/unloading smooth
+  □ Biome transition nem hirtelen
+  □ NPC-k megjelennek POI-kon
+  □ Dungeon bejárat megtalálható
+  □ Day/night ciklus látható
+  □ Weather rendszer működik
+  □ Minimap korrekt
+  □ Utak összekötik a POI-kat
+
+5.4 Dungeon Test (dungeon rendszer – 1 óra):
+──────────────────────────────────────────────
+
+  □ Dungeon generálódik (BSP)
+  □ Szobák navigálhatók
+  □ Ajtók nyílnak/záródnak
+  □ Fog of war működik
+  □ Combat szobák: wave spawner
+  □ Treasure szobák: chest-ek
+  □ Puzzle szobák: megoldható
+  □ Trap szobák: csapdák aktívak
+  □ Boss szoba: boss fight
+  □ Boss loot drop
+  □ Dungeon minimap
+  □ Dungeon elhagyási lehetőség
+
+5.5 Economy Test (gazdaság – 45 perc):
+───────────────────────────────────────
+
+  □ Gold szerzés enemy kill-ből
+  □ NPC shop: vásárlás/eladás
+  □ Crafting station: recept megnézés
+  □ Crafting: anyag felhasználás + készítés
+  □ Upgrade: +1 → +10 rendszer
+  □ Gathering: bányászás/herbalizmus
+  □ Profession XP gain
+  □ Currency display helyes
+  □ Marketplace listing (ha multiplayer)
+
+5.6 Multiplayer Test (hálózat – 2 óra):
+─────────────────────────────────────────
+
+  □ Host game létrehozás
+  □ Client csatlakozás
+  □ Lobby rendszer
+  □ Együtt-mozgás (látják egymást)
+  □ Combat sync (damage, HP)
+  □ Enemy sync (mindkét oldalon ugyanott)
+  □ Loot sync (fair distribution)
+  □ Chat működik
+  □ Disconnect → reconnect
+  □ 4 játékos egyidejűleg
+  □ Boss fight 2-4 játékossal
+  □ Trade window megnyitás
+  □ Latency: <100ms lokálisan elfogadható
+  □ Network stats overlay pontos
+
+5.7 Save/Load Test (mentés – 30 perc):
+───────────────────────────────────────
+
+  □ Manuális mentés
+  □ Manuális betöltés → állapot helyes
+  □ Karakter stats megmaradnak
+  □ Inventory megmarad
+  □ Gold megmarad
+  □ Skill tree állapot megmarad
+  □ World exploration state megmarad
+  □ Quest progress megmarad (ha van)
+  □ Autosave trigger (ha implementálva)
+  □ Corrupted save kezelés (error esetén)
+
+5.8 Performance Test (teljesítmény – 1 óra):
+──────────────────────────────────────────────
+
+  □ FPS: ≥60 FPS átlagos scene-ben
+  □ FPS: ≥30 FPS 50+ enemy-vel
+  □ FPS: ≥30 FPS boss fight + effects
+  □ Chunk loading: nincs frame drop
+  □ Dungeon generation: <3s
+  □ World generation: <5s
+  □ Memory: <500MB RAM használat
+  □ Nincs memory leak 30 perc után
+  □ Multiplayer: 4 player smooth
+  □ Particle FPS impact elfogadható
+
+================================================================================
+
+6. PERFORMANCE OPTIMALIZÁCIÓS CHECKLIST
+================================================================================
+
+6.1 Rendering:
+───────────────
+  □ VisibilityNotifier2D minden enemy-n és prop-on
+  □ Off-screen entity-k nem renderelődnek
+  □ Particle pool rendszer (újrahasználat, nem queue_free)
+  □ LOD rendszer távoli objektumoknak (ha szükséges)
+  □ Shader complexity audit
+  □ Light2D korlátozott hatótáv
+
+6.2 Physics:
+─────────────
+  □ Collision layer/mask optimalizálás (ne legyen felesleges check)
+  □ Inaktív entity-k physics kikapcsolás
+  □ Area2D monitoring kikapcsolás ha nem kell
+  □ Raycast limit ellenőrzés
+
+6.3 Logic:
+───────────
+  □ _process vs _physics_process helyes használat
+  □ AI tick rate: távoli enemy-k ritkábban frissülnek
+  □ Object pooling (projectile-ek, damage numberek, dropped item-ek)
+  □ Array méret optimalizálás (nem unbounded growth)
+  □ Signal disconnect leak ellenőrzés
+
+6.4 Memory:
+────────────
+  □ Resource preload vs load audit
+  □ Chunk unload: resource felszabadítás
+  □ Texture atlas használat sprite-okhoz
+  □ Nem szükséges node-ok queue_free()-lése
+
+6.5 Network:
+─────────────
+  □ Bandwidth: <10KB/s per player cél
+  □ Packet batching (ne küldjön minden frame-ben)
+  □ Delta compression enemy position sync-hez
+  □ Relevancy filter: távoli entity-k nem sync-elődnek
+
+================================================================================
+
+7. KNOWN ISSUES ÉS WORKAROUND-OK
+================================================================================
+
+7.1 Jelenlegi ismert problémák:
+────────────────────────────────
+
+  CRITICAL:
+    - Nincs halál/respawn → Game over nem létezik
+    - Item pickup nem adódik az inventory-hoz
+    - Gold pickup nem adódik a pénztárcához
+    - Set bonus-ok nem aktiválódnak
+    - Legendary power-ek nem működnek
+    - Quest rendszer nem létezik → progresszió nincs
+
+  HIGH:
+    - Dungeon loot spawn nem teljes
+    - Trade window csere nem hajtódik végre
+    - Multiplayer inventory sync hiányzik
+    - Potion/consumable effect hiányzik
+    - Crafting material check hiányzik
+    - Upgrade failure consequence hiányzik
+    - Weather gameplay effect hiányzik
+    - ~10 legendary gem effect nem implementált
+
+  MEDIUM:
+    - Pack AI leader death reakció hiányzik
+    - Gem combine nincs vizuális feedback
+    - Loot filter nem persistál
+    - Shop inventory nem refreshel
+    - 7 boss nincs implementálva
+    - Gathering yield konstans (nem professzió szint szerinti)
+    - Anti-cheat server validation hiányos
+
+  LOW:
+    - Autosave hiányzik
+    - Weather effect visual-only
+    - NPC interaction quest check hiányzik
+    - Skill mastery bonus stub
+
+7.2 Technikai debt:
+────────────────────
+
+  □ Egyes scriptek túl hosszúak (refactor szükséges):
+    - constants.gd (267 sor) – OK
+    - enums.gd (344 sor) – OK
+    - event_bus.gd (145 sor, ~70 signal) – monitoring kell
+    - player.gd – felelősségek szétválasztása component-ekbe
+
+  □ Néhány circular dependency risk:
+    - LootManager ↔ ItemGenerator ↔ AffixPool
+    - CombatManager ↔ DamageCalculator ↔ StatusEffectManager
+
+  □ Error handling:
+    - Sok helyen nincs null check
+    - Resource load failure nem kezelt
+    - Network timeout nem minden esetben kezelt
+
+================================================================================
+
+8. RELEASE CHECKLIST
+================================================================================
+
+8.1 Alpha (belső teszt – feature complete):
+────────────────────────────────────────────
+  □ Minden TODO fix-elve (Section 2)
+  □ Minden integráció bekötve (Section 4)
+  □ 45 skill data fájl kész és tesztelve
+  □ 100 base item data kész
+  □ Affix rendszer működő adatokkal
+  □ 8 set item implementálva
+  □ 30 legendary item implementálva
+  □ 40 enemy type data kész
+  □ 6 meglévő boss stat-olva és tesztelve
+  □ Quest rendszer alapjai (10 main quest)
+  □ Save/Load teljes
+  □ Smoke test pass
+
+8.2 Beta (publikus teszt – content complete):
+──────────────────────────────────────────────
+  □ Mind 13 boss implementálva
+  □ 160 quest kész
+  □ Audio: legalább placeholder hangok
+  □ Placeholder art → végleges art (legalább player + első biome)
+  □ Tutorial implementálva
+  □ Achievement rendszer működik
+  □ Multiplayer stabilitás (4 player, 1 óra)
+  □ Balance pass: XP, gold, damage, defense
+  □ Controller support alapjai
+  □ Lokalizáció: HU + EN teljes
+  □ Performance test pass (≥30 FPS min)
+
+8.3 Release Candidate:
+───────────────────────
+  □ Minden vizuális asset kész (800+)
+  □ Minden audio kész (~90 fájl)
+  □ Endgame content kész (nightmare, paragon)
+  □ Accessibility funkciók
+  □ Streamer Mode (spoiler prevention)
+  □ Full QA test pass (Section 5 mind)
+  □ Performance optimalizáció kész
+  □ 0 CRITICAL issue
+  □ 0 HIGH issue
+  □ <5 MEDIUM issue (ismert, workaround-dal)
+
+8.4 Post-launch terv:
+──────────────────────
+  □ Bugfix patch-ek (első héten naponta)
+  □ Balance patch-ek (havonta)
+  □ Content update-ek (negyedévente):
+    - Új biome
+    - Új boss
+    - Új set/legendary-k
+    - Új quest-ek
+    - Seasonal events
+
+================================================================================
+
+9. FEJLESZTÉSI PRIORITÁS – JAVASOLT SORREND
+================================================================================
+
+A teljes projekt befejezéséhez javasolt fejlesztési sorrend:
+
+FÁZIS 1: Core loop fix (2-3 hét)
+  1. Death/Respawn implementálás
+  2. Item pickup → inventory integráció
+  3. Gold pickup → currency integráció
+  4. Enemy death → loot drop integráció
+  5. Potion/consumable effects
+  6. 45 SkillData .tres fájlok létrehozása
+  7. 50 Base ItemData (T1-T5) létrehozása
+  8. Affix pool adatok kitöltése
+  9. XP görbe implementálás
+  10. Alap enemy data per biome
+
+FÁZIS 2: Secondary systems (2-3 hét)
+  11. Set bonus activation
+  12. Legendary power implementáció
+  13. Crafting material check + execution
+  14. Quest rendszer alapjai (QuestManager)
+  15. 10 main quest implementálás
+  16. Trade execution (multiplayer)
+  17. Upgrade failure system
+  18. Save rendszer teljes integráció
+  19. T6-T10 item data
+  20. Set + Legendary item data
+
+FÁZIS 3: Content (3-4 hét)
+  21. 7 hiányzó boss implementálás
+  22. 150 további quest
+  23. NPC párbeszédek (story)
+  24. Tutorial rendszer
+  25. Achievement rendszer
+  26. Audio fájlok integrálás
+  27. Endgame rendszer (nightmare)
+  28. Loot table konfigurálás
+  29. Crafting receptek
+  30. Gathering adatok
+
+FÁZIS 4: Polish (2-3 hét)
+  31. Art asset-ek cseréje (placeholder → végleges)
+  32. Controller support
+  33. Accessibility funkciók
+  34. Lokalizáció (HU + EN)
+  35. Performance optimalizáció
+  36. Balance tuning
+  37. Bug fixing
+  38. QA teljes tesztelés
+
+Becsült teljes idő: ~10-13 hét (1 fejlesztő, full-time)
+
+================================================================================
+FÁJL VÉGE
+================================================================================
