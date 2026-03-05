@@ -1,0 +1,15 @@
+{
+  "dependencies": {
+    "com.unity.2d.animation": "10.1.3",
+    "com.unity.2d.tilemap": "1.0.0",
+    "com.unity.2d.tilemap.extras": "4.0.2",
+    "com.unity.audio.mixer": "1.0.0",
+    "com.unity.cinemachine": "3.1.1",
+    "com.unity.inputsystem": "1.11.2",
+    "com.unity.localization": "1.5.3",
+    "com.unity.nuget.newtonsoft-json": "3.2.1",
+    "com.unity.render-pipelines.universal": "17.0.3",
+    "com.unity.textmeshpro": "3.2.0-pre.10",
+    "com.unity.ugui": "2.0.0"
+  }
+}

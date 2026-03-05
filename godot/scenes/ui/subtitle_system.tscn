@@ -1,7 +1,0 @@
-[gd_scene load_steps=2 format=3 uid="uid://subtitle_system_scene"]
-
-[ext_resource type="Script" path="res://scripts/ui/subtitle_system.gd" id="1_subtitle"]
-
-[node name="SubtitleSystem" type="CanvasLayer"]
-layer = 90
-script = ExtResource("1_subtitle")

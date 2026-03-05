@@ -1,0 +1,156 @@
+[
+	{
+		"dialogue_id": "main_01_start",
+		"speaker_name": "???",
+		"portrait_id": "player",
+		"lines": [
+			{
+				"text": "Where... am I? My head is spinning. I can see a village in the distance through the mist.",
+				"responses": []
+			},
+			{
+				"text": "I need to find someone who can tell me what's going on. The Village Elder might know.",
+				"responses": []
+			}
+		]
+	},
+	{
+		"dialogue_id": "main_01_complete",
+		"speaker_name": "Village Elder",
+		"portrait_id": "village_elder",
+		"lines": [
+			{
+				"text": "Ah, a stranger! You appeared in a flash of light, they say. You are a Riftwalker... I thought your kind was just a legend.",
+				"responses": []
+			},
+			{
+				"text": "The land is dying, stranger. The Ashenfall — a rain of dark ash — began months ago. Corruption spreads from the east, twisting everything it touches.",
+				"responses": []
+			},
+			{
+				"text": "But you... you seem unaffected. Perhaps you are the one the old prophecies spoke of.",
+				"responses": [
+					{"text": "What can I do to help?", "action": "continue", "next_dialogue_id": "", "action_param": "", "condition": ""},
+					{"text": "I don't remember anything...", "action": "continue", "next_dialogue_id": "", "action_param": "", "condition": ""}
+				]
+			},
+			{
+				"text": "For now, prove yourself. The meadow is plagued by creatures grown bold from the corruption. Show me you can fight, and I will tell you more.",
+				"responses": []
+			}
+		]
+	},
+	{
+		"dialogue_id": "main_02_start",
+		"speaker_name": "Village Elder",
+		"portrait_id": "village_elder",
+		"lines": [
+			{
+				"text": "The creatures nearby grow more aggressive each day — Meadow Slimes and Rabid Wolves plague our farmers.",
+				"responses": []
+			},
+			{
+				"text": "Clear them out and prove you have the strength of a true Riftwalker.",
+				"responses": [
+					{"text": "I'll handle it.", "action": "accept_quest", "next_dialogue_id": "", "action_param": "main_02_first_steps", "condition": ""},
+					{"text": "Not right now.", "action": "decline", "next_dialogue_id": "", "action_param": "", "condition": ""}
+				]
+			}
+		]
+	},
+	{
+		"dialogue_id": "main_02_complete",
+		"speaker_name": "Village Elder",
+		"portrait_id": "village_elder",
+		"lines": [
+			{
+				"text": "You've done well, Riftwalker. The village is safer thanks to you.",
+				"responses": []
+			},
+			{
+				"text": "Take this sword — it has served me well in my younger days. You'll need it for what comes next.",
+				"responses": []
+			},
+			{
+				"text": "There's something darker stirring at the edge of the Cursed Forest to the east. I've heard reports of strange purple energy...",
+				"responses": [
+					{"text": "I'll investigate.", "action": "turn_in", "next_dialogue_id": "", "action_param": "main_02_first_steps", "condition": ""}
+				]
+			}
+		]
+	},
+	{
+		"dialogue_id": "main_03_start",
+		"speaker_name": "Village Elder",
+		"portrait_id": "village_elder",
+		"lines": [
+			{
+				"text": "The reports are troubling. Dark energy seeps from the forest edge, corrupting everything it touches.",
+				"responses": []
+			},
+			{
+				"text": "I need you to go there, collect samples, and deal with the corrupted beasts. Then seek out the Hermit Witch — she lives deep in the Cursed Forest and may know more.",
+				"responses": [
+					{"text": "I'm on my way.", "action": "accept_quest", "next_dialogue_id": "", "action_param": "main_03_corruption_spreads", "condition": ""},
+					{"text": "I need to prepare first.", "action": "decline", "next_dialogue_id": "", "action_param": "", "condition": ""}
+				]
+			}
+		]
+	},
+	{
+		"dialogue_id": "main_03_complete",
+		"speaker_name": "Hermit Witch",
+		"portrait_id": "hermit_witch",
+		"lines": [
+			{
+				"text": "So the village fool finally sent someone competent. Let me see those samples...",
+				"responses": []
+			},
+			{
+				"text": "Just as I feared. This corruption comes from deep within the earth — from the Void Weaver's prison. The seals are breaking.",
+				"responses": []
+			},
+			{
+				"text": "You must venture deeper. The source of this corruption must be found and destroyed. But that is a tale for another time...",
+				"responses": [
+					{"text": "I understand.", "action": "turn_in", "next_dialogue_id": "", "action_param": "main_03_corruption_spreads", "condition": ""}
+				]
+			}
+		]
+	},
+	{
+		"dialogue_id": "main_04_start",
+		"speaker_name": "Hermit Witch",
+		"portrait_id": "hermit_witch",
+		"lines": [
+			{
+				"text": "If you truly wish to fight this corruption, you'll need my help. But first, I need Dark Roots to brew a protective ward.",
+				"responses": []
+			},
+			{
+				"text": "The spiders have overrun the forest paths. Clear them and bring me the roots. Then we'll talk about what lies beneath.",
+				"responses": [
+					{"text": "Consider it done.", "action": "accept_quest", "next_dialogue_id": "", "action_param": "main_04_witchs_hollow", "condition": ""},
+					{"text": "I'll return later.", "action": "decline", "next_dialogue_id": "", "action_param": "", "condition": ""}
+				]
+			}
+		]
+	},
+	{
+		"dialogue_id": "main_04_complete",
+		"speaker_name": "Hermit Witch",
+		"portrait_id": "hermit_witch",
+		"lines": [
+			{
+				"text": "Good, good. With these roots, I can brew a ward that will protect you from the worst of the corruption's influence.",
+				"responses": []
+			},
+			{
+				"text": "Listen well, Riftwalker. There is an ancient temple in the Dark Swamp — the Drowned Temple. I believe the first source of corruption lies there.",
+				"responses": [
+					{"text": "I'll find it.", "action": "turn_in", "next_dialogue_id": "", "action_param": "main_04_witchs_hollow", "condition": ""}
+				]
+			}
+		]
+	}
+]

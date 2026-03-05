@@ -1,0 +1,306 @@
+[
+	{
+		"quest_id": "daily_kill_enemies",
+		"quest_name": "Creature Slayer",
+		"description": "Defeat enemies across the land.",
+		"quest_type": 5,
+		"biome": 0,
+		"recommended_level": 1,
+		"prerequisites": [],
+		"giver_npc_id": "bounty_board",
+		"turn_in_npc_id": "bounty_board",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": true,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 0,
+				"target_id": "",
+				"target_count": 20,
+				"description": "Defeat 20 enemies",
+				"is_optional": false,
+				"location_hint": "Anywhere in the world"
+			}
+		],
+		"rewards": {
+			"xp": 100,
+			"gold": 80,
+			"dark_essence": 8,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "daily_dungeon_clear",
+		"quest_name": "Dungeon Delver",
+		"description": "Complete a dungeon run.",
+		"quest_type": 5,
+		"biome": 0,
+		"recommended_level": 5,
+		"prerequisites": [],
+		"giver_npc_id": "bounty_board",
+		"turn_in_npc_id": "bounty_board",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": true,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 6,
+				"target_id": "any",
+				"target_count": 1,
+				"description": "Complete a dungeon",
+				"is_optional": false,
+				"location_hint": "Any dungeon entrance"
+			}
+		],
+		"rewards": {
+			"xp": 150,
+			"gold": 120,
+			"dark_essence": 10,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "daily_gather_resources",
+		"quest_name": "Resource Collector",
+		"description": "Gather resources from the wild.",
+		"quest_type": 5,
+		"biome": 0,
+		"recommended_level": 1,
+		"prerequisites": [],
+		"giver_npc_id": "bounty_board",
+		"turn_in_npc_id": "bounty_board",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": true,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 3,
+				"target_id": "",
+				"target_count": 10,
+				"description": "Gather 10 resources (any type)",
+				"is_optional": false,
+				"location_hint": "Gathering nodes in the world"
+			}
+		],
+		"rewards": {
+			"xp": 80,
+			"gold": 60,
+			"dark_essence": 5,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "daily_boss_slayer",
+		"quest_name": "Boss Slayer",
+		"description": "Defeat a boss enemy.",
+		"quest_type": 5,
+		"biome": 0,
+		"recommended_level": 10,
+		"prerequisites": [],
+		"giver_npc_id": "bounty_board",
+		"turn_in_npc_id": "bounty_board",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": true,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 1,
+				"target_id": "",
+				"target_count": 1,
+				"description": "Defeat a boss",
+				"is_optional": false,
+				"location_hint": "Find a dungeon or world boss"
+			}
+		],
+		"rewards": {
+			"xp": 200,
+			"gold": 150,
+			"dark_essence": 15,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "daily_craft_items",
+		"quest_name": "Crafting Practice",
+		"description": "Practice your crafting skills.",
+		"quest_type": 5,
+		"biome": 0,
+		"recommended_level": 5,
+		"prerequisites": [],
+		"giver_npc_id": "bounty_board",
+		"turn_in_npc_id": "bounty_board",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": true,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 8,
+				"target_id": "",
+				"target_count": 3,
+				"description": "Craft 3 items",
+				"is_optional": false,
+				"location_hint": "Any crafting station"
+			}
+		],
+		"rewards": {
+			"xp": 80,
+			"gold": 50,
+			"dark_essence": 5,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "daily_kill_elites",
+		"quest_name": "Elite Hunter",
+		"description": "Find and defeat elite enemies.",
+		"quest_type": 5,
+		"biome": 0,
+		"recommended_level": 10,
+		"prerequisites": [],
+		"giver_npc_id": "bounty_board",
+		"turn_in_npc_id": "bounty_board",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": true,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 0,
+				"target_id": "elite",
+				"target_count": 3,
+				"description": "Defeat 3 Elite enemies",
+				"is_optional": false,
+				"location_hint": "Roaming the world"
+			}
+		],
+		"rewards": {
+			"xp": 180,
+			"gold": 100,
+			"dark_essence": 12,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "daily_explore_areas",
+		"quest_name": "Wanderer",
+		"description": "Explore new areas of the world.",
+		"quest_type": 5,
+		"biome": 0,
+		"recommended_level": 1,
+		"prerequisites": [],
+		"giver_npc_id": "bounty_board",
+		"turn_in_npc_id": "bounty_board",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": true,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 9,
+				"target_id": "",
+				"target_count": 5,
+				"description": "Explore 5 new areas",
+				"is_optional": false,
+				"location_hint": "Undiscovered areas on the map"
+			}
+		],
+		"rewards": {
+			"xp": 100,
+			"gold": 60,
+			"dark_essence": 5,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "daily_use_skills",
+		"quest_name": "Skill Practice",
+		"description": "Use your combat skills in battle.",
+		"quest_type": 5,
+		"biome": 0,
+		"recommended_level": 3,
+		"prerequisites": [],
+		"giver_npc_id": "bounty_board",
+		"turn_in_npc_id": "bounty_board",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": true,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 12,
+				"target_id": "",
+				"target_count": 20,
+				"description": "Use skills 20 times",
+				"is_optional": false,
+				"location_hint": "In combat"
+			}
+		],
+		"rewards": {
+			"xp": 80,
+			"gold": 50,
+			"dark_essence": 5,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	}
+]

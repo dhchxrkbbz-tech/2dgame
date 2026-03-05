@@ -1,0 +1,962 @@
+[
+	{
+		"quest_id": "main_01_awakening",
+		"quest_name": "Awakening",
+		"description": "You wake up in the meadow near a small village. Find the Village Elder to learn what happened.",
+		"quest_type": 0,
+		"biome": 0,
+		"recommended_level": 1,
+		"prerequisites": [],
+		"giver_npc_id": "",
+		"turn_in_npc_id": "village_elder",
+		"dialogue_start": "main_01_start",
+		"dialogue_complete": "main_01_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_02_first_steps",
+		"objectives": [
+			{
+				"type": 4,
+				"target_id": "village_square",
+				"target_count": 1,
+				"description": "Reach the village",
+				"is_optional": false,
+				"location_hint": "Follow the path north"
+			},
+			{
+				"type": 5,
+				"target_id": "village_elder",
+				"target_count": 1,
+				"description": "Talk to the Village Elder",
+				"is_optional": false,
+				"location_hint": "Village center"
+			}
+		],
+		"rewards": {
+			"xp": 50,
+			"gold": 30,
+			"dark_essence": 0,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "main_02_first_steps",
+		"quest_name": "First Steps",
+		"description": "The Elder says the land is corrupted. Prove your worth by defeating the creatures threatening the village.",
+		"quest_type": 0,
+		"biome": 0,
+		"recommended_level": 2,
+		"prerequisites": ["main_01_awakening"],
+		"giver_npc_id": "village_elder",
+		"turn_in_npc_id": "village_elder",
+		"dialogue_start": "main_02_start",
+		"dialogue_complete": "main_02_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_03_corruption_spreads",
+		"objectives": [
+			{
+				"type": 0,
+				"target_id": "meadow_slime",
+				"target_count": 5,
+				"description": "Kill 5 Meadow Slimes",
+				"is_optional": false,
+				"location_hint": "Southeast meadow"
+			},
+			{
+				"type": 0,
+				"target_id": "rabid_wolf",
+				"target_count": 3,
+				"description": "Kill 3 Rabid Wolves",
+				"is_optional": false,
+				"location_hint": "Near the forest edge"
+			},
+			{
+				"type": 0,
+				"target_id": "",
+				"target_count": 15,
+				"description": "Defeat 15 enemies (any type)",
+				"is_optional": true,
+				"location_hint": ""
+			}
+		],
+		"rewards": {
+			"xp": 100,
+			"gold": 50,
+			"dark_essence": 0,
+			"relic_fragments": 0,
+			"items": ["common_sword_01"],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "main_03_corruption_spreads",
+		"quest_name": "The Corruption Spreads",
+		"description": "Dark energy seeps from the forest edge. Investigate the source and report your findings.",
+		"quest_type": 0,
+		"biome": 0,
+		"recommended_level": 5,
+		"prerequisites": ["main_02_first_steps"],
+		"giver_npc_id": "village_elder",
+		"turn_in_npc_id": "hermit_witch",
+		"dialogue_start": "main_03_start",
+		"dialogue_complete": "main_03_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_04_witchs_hollow",
+		"objectives": [
+			{
+				"type": 4,
+				"target_id": "corruption_site_01",
+				"target_count": 1,
+				"description": "Investigate the corruption at the forest edge",
+				"is_optional": false,
+				"location_hint": "Eastern border of the meadow"
+			},
+			{
+				"type": 0,
+				"target_id": "corrupted_wolf",
+				"target_count": 5,
+				"description": "Kill 5 Corrupted Wolves",
+				"is_optional": false,
+				"location_hint": "Around the corruption site"
+			},
+			{
+				"type": 2,
+				"target_id": "corruption_sample",
+				"target_count": 3,
+				"description": "Collect 3 Corruption Samples",
+				"is_optional": false,
+				"location_hint": "Dropped by corrupted creatures"
+			}
+		],
+		"rewards": {
+			"xp": 200,
+			"gold": 100,
+			"dark_essence": 5,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": ["uncommon_sword_01", "uncommon_staff_01", "uncommon_dagger_01"],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": "cursed_forest"
+		}
+	},
+	{
+		"quest_id": "main_04_witchs_hollow",
+		"quest_name": "Witch's Hollow",
+		"description": "Find the Hermit Witch deep in the Cursed Forest. She may know the source of the corruption.",
+		"quest_type": 0,
+		"biome": 1,
+		"recommended_level": 8,
+		"prerequisites": ["main_03_corruption_spreads"],
+		"giver_npc_id": "hermit_witch",
+		"turn_in_npc_id": "hermit_witch",
+		"dialogue_start": "main_04_start",
+		"dialogue_complete": "main_04_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_05_drowned_temple",
+		"objectives": [
+			{
+				"type": 4,
+				"target_id": "witch_hut",
+				"target_count": 1,
+				"description": "Find the Witch's Hollow",
+				"is_optional": false,
+				"location_hint": "Deep within the Cursed Forest"
+			},
+			{
+				"type": 2,
+				"target_id": "dark_root",
+				"target_count": 5,
+				"description": "Collect 5 Dark Roots for the Witch",
+				"is_optional": false,
+				"location_hint": "Found near corrupted trees"
+			},
+			{
+				"type": 0,
+				"target_id": "forest_spider",
+				"target_count": 10,
+				"description": "Clear 10 Forest Spiders blocking the path",
+				"is_optional": false,
+				"location_hint": "Along the forest paths"
+			}
+		],
+		"rewards": {
+			"xp": 250,
+			"gold": 120,
+			"dark_essence": 8,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 1,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "main_05_drowned_temple",
+		"quest_name": "The Drowned Temple",
+		"description": "The Witch speaks of an ancient temple in the Dark Swamp that holds answers about the corruption.",
+		"quest_type": 0,
+		"biome": 2,
+		"recommended_level": 12,
+		"prerequisites": ["main_04_witchs_hollow"],
+		"giver_npc_id": "hermit_witch",
+		"turn_in_npc_id": "swamp_dweller",
+		"dialogue_start": "main_05_start",
+		"dialogue_complete": "main_05_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_06_corruption_source_1",
+		"objectives": [
+			{
+				"type": 4,
+				"target_id": "drowned_temple_entrance",
+				"target_count": 1,
+				"description": "Find the Drowned Temple entrance",
+				"is_optional": false,
+				"location_hint": "Northwest of Dark Swamp"
+			},
+			{
+				"type": 6,
+				"target_id": "drowned_temple",
+				"target_count": 1,
+				"description": "Explore the Drowned Temple dungeon",
+				"is_optional": false,
+				"location_hint": "Enter the temple"
+			},
+			{
+				"type": 5,
+				"target_id": "swamp_dweller",
+				"target_count": 1,
+				"description": "Report to the Swamp Dweller",
+				"is_optional": false,
+				"location_hint": "Near the swamp settlement"
+			}
+		],
+		"rewards": {
+			"xp": 350,
+			"gold": 200,
+			"dark_essence": 10,
+			"relic_fragments": 0,
+			"items": ["rare_amulet_01"],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": "dark_swamp"
+		}
+	},
+	{
+		"quest_id": "main_06_corruption_source_1",
+		"quest_name": "Corruption Source: The Drowned Heart",
+		"description": "The first source of corruption lies deep within the Drowned Temple. Destroy it!",
+		"quest_type": 0,
+		"biome": 2,
+		"recommended_level": 15,
+		"prerequisites": ["main_05_drowned_temple"],
+		"giver_npc_id": "swamp_dweller",
+		"turn_in_npc_id": "swamp_dweller",
+		"dialogue_start": "main_06_start",
+		"dialogue_complete": "main_06_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_07_oracles_vision",
+		"objectives": [
+			{
+				"type": 1,
+				"target_id": "drowned_guardian",
+				"target_count": 1,
+				"description": "Defeat the Drowned Guardian",
+				"is_optional": false,
+				"location_hint": "Boss room of the Drowned Temple"
+			},
+			{
+				"type": 2,
+				"target_id": "corruption_shard",
+				"target_count": 1,
+				"description": "Collect the Corruption Shard",
+				"is_optional": false,
+				"location_hint": "Drops from the guardian"
+			}
+		],
+		"rewards": {
+			"xp": 500,
+			"gold": 300,
+			"dark_essence": 15,
+			"relic_fragments": 5,
+			"items": [],
+			"item_choices": ["rare_chest_01", "rare_gloves_01"],
+			"skill_points": 1,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "main_07_oracles_vision",
+		"quest_name": "The Oracle's Vision",
+		"description": "With one source destroyed, seek the Oracle in the Ruins. She can reveal the locations of the remaining corruption sources.",
+		"quest_type": 0,
+		"biome": 3,
+		"recommended_level": 18,
+		"prerequisites": ["main_06_corruption_source_1"],
+		"giver_npc_id": "swamp_dweller",
+		"turn_in_npc_id": "ghost_scholar",
+		"dialogue_start": "main_07_start",
+		"dialogue_complete": "main_07_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_08_ancient_ruins",
+		"objectives": [
+			{
+				"type": 4,
+				"target_id": "ruins_oracle_chamber",
+				"target_count": 1,
+				"description": "Find the Oracle's chamber in the Ruins",
+				"is_optional": false,
+				"location_hint": "Ancient Ruins district"
+			},
+			{
+				"type": 5,
+				"target_id": "ghost_scholar",
+				"target_count": 1,
+				"description": "Speak with the Ghost Scholar",
+				"is_optional": false,
+				"location_hint": "Within the Oracle's chambers"
+			}
+		],
+		"rewards": {
+			"xp": 400,
+			"gold": 250,
+			"dark_essence": 12,
+			"relic_fragments": 0,
+			"items": ["lore_oracle_scroll"],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": "ruins"
+		}
+	},
+	{
+		"quest_id": "main_08_ancient_ruins",
+		"quest_name": "Ancient Ruins",
+		"description": "Explore the ancient ruins of Ashenmere's capital. The Oracle's vision leads you to the forgotten library.",
+		"quest_type": 0,
+		"biome": 3,
+		"recommended_level": 20,
+		"prerequisites": ["main_07_oracles_vision"],
+		"giver_npc_id": "ghost_scholar",
+		"turn_in_npc_id": "ghost_scholar",
+		"dialogue_start": "main_08_start",
+		"dialogue_complete": "main_08_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_09_necromancers_bargain",
+		"objectives": [
+			{
+				"type": 9,
+				"target_id": "ruins",
+				"target_count": 5,
+				"description": "Explore 5 areas of the Ancient Ruins",
+				"is_optional": false,
+				"location_hint": "Wander the ruins district"
+			},
+			{
+				"type": 2,
+				"target_id": "ancient_tome",
+				"target_count": 3,
+				"description": "Collect 3 Ancient Tomes",
+				"is_optional": false,
+				"location_hint": "Found in ruined buildings"
+			}
+		],
+		"rewards": {
+			"xp": 500,
+			"gold": 300,
+			"dark_essence": 15,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 1,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "main_09_necromancers_bargain",
+		"quest_name": "The Necromancer's Bargain",
+		"description": "A powerful Necromancer offers an alliance against the corruption. But can the undead be trusted?",
+		"quest_type": 0,
+		"biome": 3,
+		"recommended_level": 22,
+		"prerequisites": ["main_08_ancient_ruins"],
+		"giver_npc_id": "ghost_scholar",
+		"turn_in_npc_id": "ghost_scholar",
+		"dialogue_start": "main_09_start",
+		"dialogue_complete": "main_09_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_10_mountain_pass",
+		"objectives": [
+			{
+				"type": 5,
+				"target_id": "necromancer",
+				"target_count": 1,
+				"description": "Meet the Necromancer",
+				"is_optional": false,
+				"location_hint": "Deep in the catacombs"
+			},
+			{
+				"type": 0,
+				"target_id": "skeleton_warrior",
+				"target_count": 20,
+				"description": "Prove your strength (Kill 20 Undead)",
+				"is_optional": false,
+				"location_hint": "Ruins catacombs"
+			}
+		],
+		"rewards": {
+			"xp": 600,
+			"gold": 400,
+			"dark_essence": 20,
+			"relic_fragments": 5,
+			"items": ["rare_ring_01"],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": "mountains"
+		}
+	},
+	{
+		"quest_id": "main_10_mountain_pass",
+		"quest_name": "Mountain Pass",
+		"description": "The second corruption source lies beyond the mountains. Find a way through the treacherous mountain pass.",
+		"quest_type": 0,
+		"biome": 4,
+		"recommended_level": 25,
+		"prerequisites": ["main_09_necromancers_bargain"],
+		"giver_npc_id": "mountain_sage",
+		"turn_in_npc_id": "mountain_sage",
+		"dialogue_start": "main_10_start",
+		"dialogue_complete": "main_10_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_11_corruption_source_2",
+		"objectives": [
+			{
+				"type": 4,
+				"target_id": "mountain_peak_lookout",
+				"target_count": 1,
+				"description": "Reach the Mountain Peak Lookout",
+				"is_optional": false,
+				"location_hint": "Highest point of the Mountain Pass"
+			},
+			{
+				"type": 0,
+				"target_id": "mountain_golem",
+				"target_count": 8,
+				"description": "Defeat 8 Mountain Golems blocking the path",
+				"is_optional": false,
+				"location_hint": "Along the mountain trail"
+			},
+			{
+				"type": 5,
+				"target_id": "mountain_sage",
+				"target_count": 1,
+				"description": "Speak with the Mountain Sage",
+				"is_optional": false,
+				"location_hint": "Mountain shrine"
+			}
+		],
+		"rewards": {
+			"xp": 700,
+			"gold": 500,
+			"dark_essence": 20,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 1,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "main_11_corruption_source_2",
+		"quest_name": "Corruption Source: The Frozen Heart",
+		"description": "Storm the corrupted mountain fortress and destroy the second source of corruption.",
+		"quest_type": 0,
+		"biome": 4,
+		"recommended_level": 28,
+		"prerequisites": ["main_10_mountain_pass"],
+		"giver_npc_id": "mountain_sage",
+		"turn_in_npc_id": "mountain_sage",
+		"dialogue_start": "main_11_start",
+		"dialogue_complete": "main_11_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_12_descent_into_cold",
+		"objectives": [
+			{
+				"type": 1,
+				"target_id": "frozen_sentinel",
+				"target_count": 1,
+				"description": "Defeat the Frozen Sentinel (World Boss)",
+				"is_optional": false,
+				"location_hint": "Mountain Fortress peak"
+			},
+			{
+				"type": 2,
+				"target_id": "corruption_shard",
+				"target_count": 1,
+				"description": "Collect the second Corruption Shard",
+				"is_optional": false,
+				"location_hint": "Drops from the Sentinel"
+			}
+		],
+		"rewards": {
+			"xp": 1000,
+			"gold": 800,
+			"dark_essence": 30,
+			"relic_fragments": 10,
+			"items": ["epic_weapon_mountain"],
+			"item_choices": [],
+			"skill_points": 1,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "main_12_descent_into_cold",
+		"quest_name": "Descent into Cold",
+		"description": "Beyond the mountains lies the Frozen Wastes. Journey into the bitter cold to find the last corruption source.",
+		"quest_type": 0,
+		"biome": 5,
+		"recommended_level": 30,
+		"prerequisites": ["main_11_corruption_source_2"],
+		"giver_npc_id": "mountain_sage",
+		"turn_in_npc_id": "ice_nomad",
+		"dialogue_start": "main_12_start",
+		"dialogue_complete": "main_12_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_13_frozen_prison",
+		"objectives": [
+			{
+				"type": 4,
+				"target_id": "frozen_wastes_camp",
+				"target_count": 1,
+				"description": "Find the Ice Nomad camp",
+				"is_optional": false,
+				"location_hint": "Frozen Wastes, near the ice caves"
+			},
+			{
+				"type": 10,
+				"target_id": "ice_storm_wave",
+				"target_count": 3,
+				"description": "Survive 3 waves of Ice Storm creatures",
+				"is_optional": false,
+				"location_hint": "Triggered on the frozen plains"
+			}
+		],
+		"rewards": {
+			"xp": 800,
+			"gold": 600,
+			"dark_essence": 25,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": "frozen_wastes"
+		}
+	},
+	{
+		"quest_id": "main_13_frozen_prison",
+		"quest_name": "The Frozen Prison",
+		"description": "The Ice Nomad speaks of an ancient prison sealed in ice, where something terrible was locked away long ago.",
+		"quest_type": 0,
+		"biome": 5,
+		"recommended_level": 33,
+		"prerequisites": ["main_12_descent_into_cold"],
+		"giver_npc_id": "ice_nomad",
+		"turn_in_npc_id": "ice_nomad",
+		"dialogue_start": "main_13_start",
+		"dialogue_complete": "main_13_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_14_corruption_source_3",
+		"objectives": [
+			{
+				"type": 6,
+				"target_id": "frozen_prison",
+				"target_count": 1,
+				"description": "Enter and explore the Frozen Prison dungeon",
+				"is_optional": false,
+				"location_hint": "Beneath the frozen lake"
+			},
+			{
+				"type": 2,
+				"target_id": "prison_key_fragment",
+				"target_count": 3,
+				"description": "Find 3 Prison Key Fragments",
+				"is_optional": false,
+				"location_hint": "Hidden in dungeon rooms"
+			}
+		],
+		"rewards": {
+			"xp": 900,
+			"gold": 700,
+			"dark_essence": 25,
+			"relic_fragments": 5,
+			"items": ["lore_frozen_prison_log"],
+			"item_choices": [],
+			"skill_points": 1,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "main_14_corruption_source_3",
+		"quest_name": "Corruption Source: The Frozen Core",
+		"description": "The final corruption source is sealed within the prison's deepest chamber. Break through and destroy it.",
+		"quest_type": 0,
+		"biome": 5,
+		"recommended_level": 35,
+		"prerequisites": ["main_13_frozen_prison"],
+		"giver_npc_id": "ice_nomad",
+		"turn_in_npc_id": "ice_nomad",
+		"dialogue_start": "main_14_start",
+		"dialogue_complete": "main_14_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_15_into_the_ash",
+		"objectives": [
+			{
+				"type": 1,
+				"target_id": "frozen_warden",
+				"target_count": 1,
+				"description": "Defeat the Frozen Warden",
+				"is_optional": false,
+				"location_hint": "Prison core chamber"
+			},
+			{
+				"type": 2,
+				"target_id": "corruption_shard",
+				"target_count": 1,
+				"description": "Collect the third Corruption Shard",
+				"is_optional": false,
+				"location_hint": "Drops from the Warden"
+			}
+		],
+		"rewards": {
+			"xp": 1200,
+			"gold": 1000,
+			"dark_essence": 35,
+			"relic_fragments": 10,
+			"items": [],
+			"item_choices": ["epic_helmet_01", "epic_boots_01", "epic_cape_01"],
+			"skill_points": 1,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "main_15_into_the_ash",
+		"quest_name": "Into the Ash",
+		"description": "All three corruption shards collected. The path to the Ashlands opens. Journey to the source of the Ashenfall.",
+		"quest_type": 0,
+		"biome": 6,
+		"recommended_level": 38,
+		"prerequisites": ["main_14_corruption_source_3"],
+		"giver_npc_id": "ice_nomad",
+		"turn_in_npc_id": "flame_keeper",
+		"dialogue_start": "main_15_start",
+		"dialogue_complete": "main_15_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_16_forge_of_ruin",
+		"objectives": [
+			{
+				"type": 4,
+				"target_id": "ashlands_entrance",
+				"target_count": 1,
+				"description": "Enter the Ashlands",
+				"is_optional": false,
+				"location_hint": "Southern gate of the Frozen Wastes"
+			},
+			{
+				"type": 5,
+				"target_id": "flame_keeper",
+				"target_count": 1,
+				"description": "Find the Flame Keeper",
+				"is_optional": false,
+				"location_hint": "Ashlands outpost"
+			}
+		],
+		"rewards": {
+			"xp": 1000,
+			"gold": 800,
+			"dark_essence": 30,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": "ashlands"
+		}
+	},
+	{
+		"quest_id": "main_16_forge_of_ruin",
+		"quest_name": "The Forge of Ruin",
+		"description": "The Flame Keeper knows of an ancient forge that can reforge the corruption shards into a weapon against the Void Weaver.",
+		"quest_type": 0,
+		"biome": 6,
+		"recommended_level": 40,
+		"prerequisites": ["main_15_into_the_ash"],
+		"giver_npc_id": "flame_keeper",
+		"turn_in_npc_id": "flame_keeper",
+		"dialogue_start": "main_16_start",
+		"dialogue_complete": "main_16_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_17_plague_lands",
+		"objectives": [
+			{
+				"type": 4,
+				"target_id": "ancient_forge",
+				"target_count": 1,
+				"description": "Find the Ancient Forge",
+				"is_optional": false,
+				"location_hint": "Heart of the Ashlands volcano"
+			},
+			{
+				"type": 8,
+				"target_id": "void_breaker_weapon",
+				"target_count": 1,
+				"description": "Craft the Void Breaker",
+				"is_optional": false,
+				"location_hint": "Use the Ancient Forge"
+			}
+		],
+		"rewards": {
+			"xp": 1500,
+			"gold": 1200,
+			"dark_essence": 40,
+			"relic_fragments": 10,
+			"items": ["legendary_void_breaker"],
+			"item_choices": [],
+			"skill_points": 1,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "main_17_plague_lands",
+		"quest_name": "Plague Lands",
+		"description": "The Void Breaker leads you to the Plague Lands, the darkest corner of the world where the Void Weaver's power is strongest.",
+		"quest_type": 0,
+		"biome": 7,
+		"recommended_level": 43,
+		"prerequisites": ["main_16_forge_of_ruin"],
+		"giver_npc_id": "flame_keeper",
+		"turn_in_npc_id": "plague_doctor",
+		"dialogue_start": "main_17_start",
+		"dialogue_complete": "main_17_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_18_heart_of_corruption",
+		"objectives": [
+			{
+				"type": 4,
+				"target_id": "plague_lands_entrance",
+				"target_count": 1,
+				"description": "Enter the Plague Lands",
+				"is_optional": false,
+				"location_hint": "Eastern border of the Ashlands"
+			},
+			{
+				"type": 0,
+				"target_id": "plague_beast",
+				"target_count": 15,
+				"description": "Defeat 15 Plague Beasts",
+				"is_optional": false,
+				"location_hint": "Throughout the Plague Lands"
+			},
+			{
+				"type": 5,
+				"target_id": "plague_doctor",
+				"target_count": 1,
+				"description": "Find the Plague Doctor",
+				"is_optional": false,
+				"location_hint": "Hidden sanctuary in the Plague Lands"
+			}
+		],
+		"rewards": {
+			"xp": 1500,
+			"gold": 1200,
+			"dark_essence": 40,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": "plague_lands"
+		}
+	},
+	{
+		"quest_id": "main_18_heart_of_corruption",
+		"quest_name": "The Heart of Corruption",
+		"description": "The Plague Doctor has discovered the location of the main corruption source. Destroy it to weaken the Void Weaver.",
+		"quest_type": 0,
+		"biome": 7,
+		"recommended_level": 45,
+		"prerequisites": ["main_17_plague_lands"],
+		"giver_npc_id": "plague_doctor",
+		"turn_in_npc_id": "plague_doctor",
+		"dialogue_start": "main_18_start",
+		"dialogue_complete": "main_18_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_19_ashen_god",
+		"objectives": [
+			{
+				"type": 6,
+				"target_id": "corruption_heart_dungeon",
+				"target_count": 1,
+				"description": "Clear the Corruption Heart dungeon",
+				"is_optional": false,
+				"location_hint": "Center of the Plague Lands"
+			},
+			{
+				"type": 1,
+				"target_id": "corruption_avatar",
+				"target_count": 1,
+				"description": "Destroy the Corruption Avatar",
+				"is_optional": false,
+				"location_hint": "Final room of the dungeon"
+			}
+		],
+		"rewards": {
+			"xp": 2000,
+			"gold": 1500,
+			"dark_essence": 50,
+			"relic_fragments": 10,
+			"items": ["epic_armor_corruption"],
+			"item_choices": [],
+			"skill_points": 1,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "main_19_ashen_god",
+		"quest_name": "The Ashen God",
+		"description": "The corruption is weakened, but the Ashen God has risen from the ruins. Defeat this Raid Boss to reach the Void Weaver.",
+		"quest_type": 0,
+		"biome": 6,
+		"recommended_level": 48,
+		"prerequisites": ["main_18_heart_of_corruption"],
+		"giver_npc_id": "plague_doctor",
+		"turn_in_npc_id": "flame_keeper",
+		"dialogue_start": "main_19_start",
+		"dialogue_complete": "main_19_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "main_20_void_weaver",
+		"objectives": [
+			{
+				"type": 1,
+				"target_id": "ashen_god",
+				"target_count": 1,
+				"description": "Defeat the Ashen God (Raid Boss)",
+				"is_optional": false,
+				"location_hint": "Ashlands Throne"
+			}
+		],
+		"rewards": {
+			"xp": 3000,
+			"gold": 2000,
+			"dark_essence": 75,
+			"relic_fragments": 20,
+			"items": ["legendary_ashen_crown"],
+			"item_choices": [],
+			"skill_points": 2,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "main_20_void_weaver",
+		"quest_name": "Void Weaver",
+		"description": "The final confrontation. The Void Weaver breaks free from its ancient prison. Only the Void Breaker can seal it away forever.",
+		"quest_type": 0,
+		"biome": 7,
+		"recommended_level": 50,
+		"prerequisites": ["main_19_ashen_god"],
+		"giver_npc_id": "flame_keeper",
+		"turn_in_npc_id": "village_elder",
+		"dialogue_start": "main_20_start",
+		"dialogue_complete": "main_20_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 4,
+				"target_id": "void_rift",
+				"target_count": 1,
+				"description": "Enter the Void Rift",
+				"is_optional": false,
+				"location_hint": "Opened by the Ashen God's defeat"
+			},
+			{
+				"type": 1,
+				"target_id": "void_weaver",
+				"target_count": 1,
+				"description": "Defeat the Void Weaver (Final Boss)",
+				"is_optional": false,
+				"location_hint": "Within the Void"
+			}
+		],
+		"rewards": {
+			"xp": 5000,
+			"gold": 3000,
+			"dark_essence": 100,
+			"relic_fragments": 30,
+			"items": ["legendary_void_seal"],
+			"item_choices": [],
+			"skill_points": 3,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": "endgame"
+		}
+	}
+]

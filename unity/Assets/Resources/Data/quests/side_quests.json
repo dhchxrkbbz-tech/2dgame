@@ -1,0 +1,454 @@
+[
+	{
+		"quest_id": "side_meadow_01_lost_sheep",
+		"quest_name": "Lost Sheep",
+		"description": "The farmer's sheep have wandered off into the meadow. Find and return them.",
+		"quest_type": 1,
+		"biome": 0,
+		"recommended_level": 2,
+		"prerequisites": ["main_01_awakening"],
+		"giver_npc_id": "farmer",
+		"turn_in_npc_id": "farmer",
+		"dialogue_start": "side_meadow_01_start",
+		"dialogue_complete": "side_meadow_01_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 4,
+				"target_id": "lost_sheep_1",
+				"target_count": 1,
+				"description": "Find the first lost sheep",
+				"is_optional": false,
+				"location_hint": "Near the river"
+			},
+			{
+				"type": 4,
+				"target_id": "lost_sheep_2",
+				"target_count": 1,
+				"description": "Find the second lost sheep",
+				"is_optional": false,
+				"location_hint": "Behind the old barn"
+			},
+			{
+				"type": 4,
+				"target_id": "lost_sheep_3",
+				"target_count": 1,
+				"description": "Find the third lost sheep",
+				"is_optional": false,
+				"location_hint": "Near the forest edge"
+			}
+		],
+		"rewards": {
+			"xp": 60,
+			"gold": 40,
+			"dark_essence": 0,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 5,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "side_meadow_02_bandit_camp",
+		"quest_name": "Bandit Camp",
+		"description": "Bandits have set up camp near the village road. Clear them out before they cause more trouble.",
+		"quest_type": 1,
+		"biome": 0,
+		"recommended_level": 3,
+		"prerequisites": ["main_01_awakening"],
+		"giver_npc_id": "guard_captain",
+		"turn_in_npc_id": "guard_captain",
+		"dialogue_start": "side_meadow_02_start",
+		"dialogue_complete": "side_meadow_02_complete",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 0,
+				"target_id": "bandit",
+				"target_count": 8,
+				"description": "Kill 8 Bandits",
+				"is_optional": false,
+				"location_hint": "West of the main road"
+			},
+			{
+				"type": 0,
+				"target_id": "bandit_leader",
+				"target_count": 1,
+				"description": "Defeat the Bandit Leader",
+				"is_optional": false,
+				"location_hint": "Center of the bandit camp"
+			}
+		],
+		"rewards": {
+			"xp": 80,
+			"gold": 60,
+			"dark_essence": 0,
+			"relic_fragments": 0,
+			"items": ["uncommon_belt_01"],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 10,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "side_meadow_03_herb_collector",
+		"quest_name": "Herb Collector",
+		"description": "The village healer needs herbs for her medicines. Gather some from the meadow.",
+		"quest_type": 1,
+		"biome": 0,
+		"recommended_level": 2,
+		"prerequisites": ["main_01_awakening"],
+		"giver_npc_id": "village_healer",
+		"turn_in_npc_id": "village_healer",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 3,
+				"target_id": "herb",
+				"target_count": 10,
+				"description": "Gather 10 Healing Herbs",
+				"is_optional": false,
+				"location_hint": "Fields around the village"
+			}
+		],
+		"rewards": {
+			"xp": 50,
+			"gold": 30,
+			"dark_essence": 0,
+			"relic_fragments": 0,
+			"items": ["health_potion_x5"],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {"HERBALISM": 50},
+			"reputation": 5,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "side_meadow_04_wolf_problem",
+		"quest_name": "Wolf Problem",
+		"description": "Rabid wolves are attacking travelers. Help thin their numbers.",
+		"quest_type": 1,
+		"biome": 0,
+		"recommended_level": 4,
+		"prerequisites": ["main_01_awakening"],
+		"giver_npc_id": "guard_captain",
+		"turn_in_npc_id": "guard_captain",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 0,
+				"target_id": "rabid_wolf",
+				"target_count": 5,
+				"description": "Kill 5 Rabid Wolves",
+				"is_optional": false,
+				"location_hint": "Eastern meadow"
+			},
+			{
+				"type": 2,
+				"target_id": "wolf_pelt",
+				"target_count": 3,
+				"description": "Collect 3 Wolf Pelts",
+				"is_optional": true,
+				"location_hint": "Dropped by wolves"
+			}
+		],
+		"rewards": {
+			"xp": 70,
+			"gold": 50,
+			"dark_essence": 0,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 5,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "side_meadow_05_old_well",
+		"quest_name": "The Old Well",
+		"description": "Strange noises come from the old well on the village outskirts. Investigate what lurks below.",
+		"quest_type": 1,
+		"biome": 0,
+		"recommended_level": 5,
+		"prerequisites": ["main_02_first_steps"],
+		"giver_npc_id": "village_elder",
+		"turn_in_npc_id": "village_elder",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 4,
+				"target_id": "old_well",
+				"target_count": 1,
+				"description": "Investigate the Old Well",
+				"is_optional": false,
+				"location_hint": "Village outskirts"
+			},
+			{
+				"type": 6,
+				"target_id": "old_well_cave",
+				"target_count": 1,
+				"description": "Clear the underground cave",
+				"is_optional": false,
+				"location_hint": "Below the well"
+			}
+		],
+		"rewards": {
+			"xp": 100,
+			"gold": 75,
+			"dark_essence": 2,
+			"relic_fragments": 0,
+			"items": ["rare_ring_well"],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 10,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "side_forest_01_spider_infestation",
+		"quest_name": "Spider Infestation",
+		"description": "Giant spider nests are spreading through the Cursed Forest. Destroy the nests before they overrun the area.",
+		"quest_type": 1,
+		"biome": 1,
+		"recommended_level": 8,
+		"prerequisites": ["main_03_corruption_spreads"],
+		"giver_npc_id": "lost_ranger",
+		"turn_in_npc_id": "lost_ranger",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 0,
+				"target_id": "forest_spider",
+				"target_count": 15,
+				"description": "Kill 15 Forest Spiders",
+				"is_optional": false,
+				"location_hint": "Throughout the Cursed Forest"
+			},
+			{
+				"type": 0,
+				"target_id": "spider_nest",
+				"target_count": 3,
+				"description": "Destroy 3 Spider Nests",
+				"is_optional": false,
+				"location_hint": "Three locations in the forest"
+			}
+		],
+		"rewards": {
+			"xp": 200,
+			"gold": 100,
+			"dark_essence": 5,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 10,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "side_forest_02_lost_patrol",
+		"quest_name": "Lost Patrol",
+		"description": "A patrol went missing in the forest days ago. Track down their fate.",
+		"quest_type": 1,
+		"biome": 1,
+		"recommended_level": 10,
+		"prerequisites": ["main_03_corruption_spreads"],
+		"giver_npc_id": "lost_ranger",
+		"turn_in_npc_id": "lost_ranger",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 4,
+				"target_id": "patrol_camp_1",
+				"target_count": 1,
+				"description": "Find the first patrol camp",
+				"is_optional": false,
+				"location_hint": "Northern forest trail"
+			},
+			{
+				"type": 4,
+				"target_id": "patrol_camp_2",
+				"target_count": 1,
+				"description": "Find the last camp (ambush site)",
+				"is_optional": false,
+				"location_hint": "Follow the trail markers"
+			},
+			{
+				"type": 2,
+				"target_id": "patrol_badge",
+				"target_count": 1,
+				"description": "Recover the patrol leader's badge",
+				"is_optional": false,
+				"location_hint": "At the ambush site"
+			}
+		],
+		"rewards": {
+			"xp": 180,
+			"gold": 120,
+			"dark_essence": 5,
+			"relic_fragments": 0,
+			"items": ["uncommon_boots_ranger"],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 15,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "side_forest_03_dark_roots",
+		"quest_name": "Dark Witch's Request",
+		"description": "The Hermit Witch needs Dark Roots for a protective ward against the corruption.",
+		"quest_type": 1,
+		"biome": 1,
+		"recommended_level": 9,
+		"prerequisites": ["main_04_witchs_hollow"],
+		"giver_npc_id": "hermit_witch",
+		"turn_in_npc_id": "hermit_witch",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 3,
+				"target_id": "dark_root",
+				"target_count": 5,
+				"description": "Gather 5 Dark Roots",
+				"is_optional": false,
+				"location_hint": "Near corrupted trees in the forest"
+			}
+		],
+		"rewards": {
+			"xp": 150,
+			"gold": 80,
+			"dark_essence": 8,
+			"relic_fragments": 0,
+			"items": ["anti_corruption_ward"],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {"HERBALISM": 75},
+			"reputation": 10,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "side_forest_04_corrupted_animals",
+		"quest_name": "Corrupted Animals",
+		"description": "The forest's wildlife has been twisted by corruption. Put them out of their misery.",
+		"quest_type": 1,
+		"biome": 1,
+		"recommended_level": 10,
+		"prerequisites": ["main_03_corruption_spreads"],
+		"giver_npc_id": "hermit_witch",
+		"turn_in_npc_id": "hermit_witch",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 0,
+				"target_id": "corrupted_animal",
+				"target_count": 10,
+				"description": "Slay 10 Corrupted Animals",
+				"is_optional": false,
+				"location_hint": "Deep forest glades"
+			}
+		],
+		"rewards": {
+			"xp": 160,
+			"gold": 90,
+			"dark_essence": 6,
+			"relic_fragments": 0,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 10,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "side_forest_05_ancient_tree",
+		"quest_name": "The Ancient Tree",
+		"description": "Legend speaks of an ancient tree deep in the forest that holds forgotten knowledge.",
+		"quest_type": 1,
+		"biome": 1,
+		"recommended_level": 12,
+		"prerequisites": ["main_04_witchs_hollow"],
+		"giver_npc_id": "hermit_witch",
+		"turn_in_npc_id": "hermit_witch",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": false,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 4,
+				"target_id": "ancient_tree",
+				"target_count": 1,
+				"description": "Find the Ancient Tree",
+				"is_optional": false,
+				"location_hint": "Deepest part of the Cursed Forest"
+			},
+			{
+				"type": 2,
+				"target_id": "ancient_tree_sap",
+				"target_count": 1,
+				"description": "Collect the Ancient Tree Sap",
+				"is_optional": false,
+				"location_hint": "From the Ancient Tree"
+			}
+		],
+		"rewards": {
+			"xp": 220,
+			"gold": 150,
+			"dark_essence": 10,
+			"relic_fragments": 2,
+			"items": ["lore_ancient_tree_bark"],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 15,
+			"unlock": ""
+		}
+	}
+]

@@ -1,0 +1,330 @@
+[
+	{
+		"quest_id": "weekly_dungeon_marathon",
+		"quest_name": "Dungeon Marathon",
+		"description": "Complete 10 dungeons this week.",
+		"quest_type": 6,
+		"biome": 0,
+		"recommended_level": 10,
+		"prerequisites": [],
+		"giver_npc_id": "bounty_board",
+		"turn_in_npc_id": "bounty_board",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": true,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 6,
+				"target_id": "any",
+				"target_count": 10,
+				"description": "Complete 10 dungeons",
+				"is_optional": false,
+				"location_hint": "Any dungeon"
+			}
+		],
+		"rewards": {
+			"xp": 500,
+			"gold": 500,
+			"dark_essence": 50,
+			"relic_fragments": 10,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "weekly_boss_trio",
+		"quest_name": "Boss Trio",
+		"description": "Defeat 3 bosses this week.",
+		"quest_type": 6,
+		"biome": 0,
+		"recommended_level": 15,
+		"prerequisites": [],
+		"giver_npc_id": "bounty_board",
+		"turn_in_npc_id": "bounty_board",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": true,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 1,
+				"target_id": "",
+				"target_count": 3,
+				"description": "Defeat 3 bosses",
+				"is_optional": false,
+				"location_hint": "Dungeon or world bosses"
+			}
+		],
+		"rewards": {
+			"xp": 600,
+			"gold": 500,
+			"dark_essence": 50,
+			"relic_fragments": 10,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "weekly_kill_century",
+		"quest_name": "Century of Kills",
+		"description": "Defeat 100 enemies this week.",
+		"quest_type": 6,
+		"biome": 0,
+		"recommended_level": 5,
+		"prerequisites": [],
+		"giver_npc_id": "bounty_board",
+		"turn_in_npc_id": "bounty_board",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": true,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 0,
+				"target_id": "",
+				"target_count": 100,
+				"description": "Defeat 100 enemies",
+				"is_optional": false,
+				"location_hint": "Anywhere"
+			}
+		],
+		"rewards": {
+			"xp": 400,
+			"gold": 500,
+			"dark_essence": 50,
+			"relic_fragments": 10,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "weekly_gold_rush",
+		"quest_name": "Gold Rush",
+		"description": "Accumulate 500 gold this week.",
+		"quest_type": 6,
+		"biome": 0,
+		"recommended_level": 5,
+		"prerequisites": [],
+		"giver_npc_id": "bounty_board",
+		"turn_in_npc_id": "bounty_board",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": true,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 2,
+				"target_id": "gold",
+				"target_count": 500,
+				"description": "Collect 500 gold",
+				"is_optional": false,
+				"location_hint": "Loot, sell, and trade"
+			}
+		],
+		"rewards": {
+			"xp": 300,
+			"gold": 200,
+			"dark_essence": 50,
+			"relic_fragments": 10,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "weekly_master_crafter",
+		"quest_name": "Master Crafter",
+		"description": "Craft 10 items this week.",
+		"quest_type": 6,
+		"biome": 0,
+		"recommended_level": 10,
+		"prerequisites": [],
+		"giver_npc_id": "bounty_board",
+		"turn_in_npc_id": "bounty_board",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": true,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 8,
+				"target_id": "",
+				"target_count": 10,
+				"description": "Craft 10 items",
+				"is_optional": false,
+				"location_hint": "Crafting stations"
+			}
+		],
+		"rewards": {
+			"xp": 400,
+			"gold": 300,
+			"dark_essence": 50,
+			"relic_fragments": 10,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "weekly_secret_rooms",
+		"quest_name": "Secret Seeker",
+		"description": "Find 3 secret rooms in dungeons.",
+		"quest_type": 6,
+		"biome": 0,
+		"recommended_level": 10,
+		"prerequisites": [],
+		"giver_npc_id": "bounty_board",
+		"turn_in_npc_id": "bounty_board",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": true,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 9,
+				"target_id": "secret_room",
+				"target_count": 3,
+				"description": "Find 3 secret rooms",
+				"is_optional": false,
+				"location_hint": "Hidden in dungeons"
+			}
+		],
+		"rewards": {
+			"xp": 400,
+			"gold": 400,
+			"dark_essence": 50,
+			"relic_fragments": 10,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "weekly_mini_bosses",
+		"quest_name": "Mini Boss Hunter",
+		"description": "Defeat all 4 Mini Bosses.",
+		"quest_type": 6,
+		"biome": 0,
+		"recommended_level": 15,
+		"prerequisites": [],
+		"giver_npc_id": "bounty_board",
+		"turn_in_npc_id": "bounty_board",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": true,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 1,
+				"target_id": "shadow_stalker",
+				"target_count": 1,
+				"description": "Defeat Shadow Stalker",
+				"is_optional": false,
+				"location_hint": "Cursed Forest"
+			},
+			{
+				"type": 1,
+				"target_id": "spider_matriarch",
+				"target_count": 1,
+				"description": "Defeat Spider Matriarch",
+				"is_optional": false,
+				"location_hint": "Dark Swamp"
+			},
+			{
+				"type": 1,
+				"target_id": "plague_rat_king",
+				"target_count": 1,
+				"description": "Defeat Plague Rat King",
+				"is_optional": false,
+				"location_hint": "Plague Lands"
+			},
+			{
+				"type": 1,
+				"target_id": "cursed_treant",
+				"target_count": 1,
+				"description": "Defeat Cursed Treant",
+				"is_optional": false,
+				"location_hint": "Ancient Ruins"
+			}
+		],
+		"rewards": {
+			"xp": 800,
+			"gold": 600,
+			"dark_essence": 75,
+			"relic_fragments": 15,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	},
+	{
+		"quest_id": "weekly_raid_dungeon",
+		"quest_name": "Raid Challenge",
+		"description": "Complete a Raid Dungeon.",
+		"quest_type": 6,
+		"biome": 0,
+		"recommended_level": 40,
+		"prerequisites": [],
+		"giver_npc_id": "bounty_board",
+		"turn_in_npc_id": "bounty_board",
+		"dialogue_start": "",
+		"dialogue_complete": "",
+		"is_repeatable": true,
+		"time_limit": 0,
+		"chain_next_quest": "",
+		"objectives": [
+			{
+				"type": 6,
+				"target_id": "raid",
+				"target_count": 1,
+				"description": "Complete a Raid Dungeon",
+				"is_optional": false,
+				"location_hint": "Endgame content"
+			}
+		],
+		"rewards": {
+			"xp": 1000,
+			"gold": 800,
+			"dark_essence": 100,
+			"relic_fragments": 20,
+			"items": [],
+			"item_choices": [],
+			"skill_points": 0,
+			"profession_xp": {},
+			"reputation": 0,
+			"unlock": ""
+		}
+	}
+]

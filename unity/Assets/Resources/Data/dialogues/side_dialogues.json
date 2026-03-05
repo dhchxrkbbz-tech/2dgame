@@ -1,0 +1,157 @@
+[
+	{
+		"dialogue_id": "lost_sheep_start",
+		"speaker_name": "Farmer Hilda",
+		"portrait_id": "farmer",
+		"lines": [
+			{
+				"text": "Oh thank the heavens, a traveling warrior! My sheep have gone missing. The corruption's driven them mad and they've scattered to the fields.",
+				"responses": []
+			},
+			{
+				"text": "Could you round up 5 of them? They're gentle creatures really, just scared. Walk up to them slowly and they should follow you back.",
+				"responses": [
+					{"text": "I'll find your sheep.", "action": "accept_quest", "next_dialogue_id": "", "action_param": "side_lost_sheep", "condition": ""},
+					{"text": "I'm busy right now.", "action": "decline", "next_dialogue_id": "", "action_param": "", "condition": ""}
+				]
+			}
+		]
+	},
+	{
+		"dialogue_id": "lost_sheep_complete",
+		"speaker_name": "Farmer Hilda",
+		"portrait_id": "farmer",
+		"lines": [
+			{
+				"text": "You found them all! Bless you, stranger. Here, take some gold for your trouble. And some healing herbs from my garden.",
+				"responses": [
+					{"text": "Happy to help.", "action": "turn_in", "next_dialogue_id": "", "action_param": "side_lost_sheep", "condition": ""}
+				]
+			}
+		]
+	},
+	{
+		"dialogue_id": "bandit_camp_start",
+		"speaker_name": "Guard Captain",
+		"portrait_id": "guard_captain",
+		"lines": [
+			{
+				"text": "Halt, traveler. You look capable enough. We've got a bandit problem — a camp has formed near the village outskirts.",
+				"responses": []
+			},
+			{
+				"text": "Clear out the camp and bring me their leader's insignia. We'll pay you well for it.",
+				"responses": [
+					{"text": "Point me in the direction.", "action": "accept_quest", "next_dialogue_id": "", "action_param": "side_bandit_camp", "condition": ""},
+					{"text": "Not interested.", "action": "decline", "next_dialogue_id": "", "action_param": "", "condition": ""}
+				]
+			}
+		]
+	},
+	{
+		"dialogue_id": "bandit_camp_complete",
+		"speaker_name": "Guard Captain",
+		"portrait_id": "guard_captain",
+		"lines": [
+			{
+				"text": "You cleaned them out? Impressive. The village owes you a debt. Here's your payment — you've earned it.",
+				"responses": [
+					{"text": "Just doing my part.", "action": "turn_in", "next_dialogue_id": "", "action_param": "side_bandit_camp", "condition": ""}
+				]
+			}
+		]
+	},
+	{
+		"dialogue_id": "herb_collector_start",
+		"speaker_name": "Herbalist Mira",
+		"portrait_id": "herbalist",
+		"lines": [
+			{
+				"text": "Oh! Are you an adventurer? I'm gathering rare herbs for my potions but the meadow has become too dangerous for me.",
+				"responses": []
+			},
+			{
+				"text": "Could you gather 10 Silverleaf herbs? They grow near streams and glowing rocks.",
+				"responses": [
+					{"text": "I'll gather them for you.", "action": "accept_quest", "next_dialogue_id": "", "action_param": "side_herb_collector", "condition": ""},
+					{"text": "Maybe later.", "action": "decline", "next_dialogue_id": "", "action_param": "", "condition": ""}
+				]
+			}
+		]
+	},
+	{
+		"dialogue_id": "herb_collector_complete",
+		"speaker_name": "Herbalist Mira",
+		"portrait_id": "herbalist",
+		"lines": [
+			{
+				"text": "Perfect specimens! With these I can brew healing draughts for the village. Here, take some of my finest potions as thanks.",
+				"responses": [
+					{"text": "Thank you.", "action": "turn_in", "next_dialogue_id": "", "action_param": "side_herb_collector", "condition": ""}
+				]
+			}
+		]
+	},
+	{
+		"dialogue_id": "wolf_problem_start",
+		"speaker_name": "Farmer Brenn",
+		"portrait_id": "farmer",
+		"lines": [
+			{
+				"text": "Wolves! The corruption has made them twice as fierce. They've been attacking our livestock nightly.",
+				"responses": []
+			},
+			{
+				"text": "Kill 8 of them and find their Alpha. Once the Alpha falls, the rest will scatter.",
+				"responses": [
+					{"text": "I'll hunt them down.", "action": "accept_quest", "next_dialogue_id": "", "action_param": "side_wolf_problem", "condition": ""},
+					{"text": "That sounds dangerous.", "action": "decline", "next_dialogue_id": "", "action_param": "", "condition": ""}
+				]
+			}
+		]
+	},
+	{
+		"dialogue_id": "wolf_problem_complete",
+		"speaker_name": "Farmer Brenn",
+		"portrait_id": "farmer",
+		"lines": [
+			{
+				"text": "The Alpha is dead? You're tougher than you look! My livestock can graze in peace again. Take this, you've earned it.",
+				"responses": [
+					{"text": "Glad to help.", "action": "turn_in", "next_dialogue_id": "", "action_param": "side_wolf_problem", "condition": ""}
+				]
+			}
+		]
+	},
+	{
+		"dialogue_id": "spider_infestation_start",
+		"speaker_name": "Woodcutter Garth",
+		"portrait_id": "woodcutter",
+		"lines": [
+			{
+				"text": "The Cursed Forest has always been dangerous, but these spiders... they're enormous now. Corrupted, I tell you.",
+				"responses": []
+			},
+			{
+				"text": "I can't even get to the good timber anymore. Kill 15 of those things and I'll make it worth your while.",
+				"responses": [
+					{"text": "Consider them squashed.", "action": "accept_quest", "next_dialogue_id": "", "action_param": "side_spider_infestation", "condition": ""},
+					{"text": "Spiders? No thanks.", "action": "decline", "next_dialogue_id": "", "action_param": "", "condition": ""}
+				]
+			}
+		]
+	},
+	{
+		"dialogue_id": "spider_infestation_complete",
+		"speaker_name": "Woodcutter Garth",
+		"portrait_id": "woodcutter",
+		"lines": [
+			{
+				"text": "Ha! I can hear the forest breathing easier already. You're a real hero, you know that? Here's some rare wood — finest quality.",
+				"responses": [
+					{"text": "Thanks, Garth.", "action": "turn_in", "next_dialogue_id": "", "action_param": "side_spider_infestation", "condition": ""}
+				]
+			}
+		]
+	}
+]

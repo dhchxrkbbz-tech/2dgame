@@ -1,0 +1,92 @@
+{
+  "normal_gems": [
+    {
+      "gem_id": "ruby",
+      "gem_type": 0,
+      "gem_name": "Ruby",
+      "description": "A crimson gemstone that enhances physical power.",
+      "primary_stat": "Physical Damage",
+      "color": "#E62626",
+      "weapon_stat": "physical_damage",
+      "armor_stat": "max_hp",
+      "accessory_stat": "damage_percent"
+    },
+    {
+      "gem_id": "emerald",
+      "gem_type": 2,
+      "gem_name": "Emerald",
+      "description": "A verdant gemstone that sharpens critical strikes.",
+      "primary_stat": "Critical Chance/Damage",
+      "color": "#1ACC33",
+      "weapon_stat": "crit_chance",
+      "armor_stat": "armor",
+      "accessory_stat": "crit_damage"
+    },
+    {
+      "gem_id": "sapphire",
+      "gem_type": 1,
+      "gem_name": "Sapphire",
+      "description": "A deep blue gemstone that fortifies defenses.",
+      "primary_stat": "Max HP / Armor",
+      "color": "#264DE6",
+      "weapon_stat": "slow_on_hit",
+      "armor_stat": "armor",
+      "accessory_stat": "max_hp"
+    },
+    {
+      "gem_id": "amethyst",
+      "gem_type": 4,
+      "gem_name": "Amethyst",
+      "description": "A violet gemstone that drains life from foes.",
+      "primary_stat": "Lifesteal",
+      "color": "#991AD9",
+      "weapon_stat": "lifesteal",
+      "armor_stat": "hp_regen",
+      "accessory_stat": "heal_effectiveness"
+    },
+    {
+      "gem_id": "topaz",
+      "gem_type": 3,
+      "gem_name": "Topaz",
+      "description": "A golden gemstone that channels elemental forces.",
+      "primary_stat": "Elemental Damage",
+      "color": "#F2CC1A",
+      "weapon_stat": "elemental_damage",
+      "armor_stat": "elemental_resist",
+      "accessory_stat": "gold_find"
+    },
+    {
+      "gem_id": "diamond",
+      "gem_type": 5,
+      "gem_name": "Diamond",
+      "description": "A pristine gemstone that reduces incoming damage.",
+      "primary_stat": "Damage Reduction",
+      "color": "#E6F2FF",
+      "weapon_stat": "all_damage",
+      "armor_stat": "damage_reduction",
+      "accessory_stat": "magic_find"
+    }
+  ],
+  "gem_tiers": [
+    {"tier": 0, "name": "Chipped",  "upgrade_cost": 0,    "upgrade_from": null},
+    {"tier": 1, "name": "Flawed",   "upgrade_cost": 50,   "upgrade_from": 0},
+    {"tier": 2, "name": "Normal",   "upgrade_cost": 200,  "upgrade_from": 1},
+    {"tier": 3, "name": "Flawless", "upgrade_cost": 500,  "upgrade_from": 2},
+    {"tier": 4, "name": "Perfect",  "upgrade_cost": 1500, "upgrade_from": 3},
+    {"tier": 5, "name": "Radiant",  "upgrade_cost": 5000, "upgrade_from": 4, "requires_relic": true}
+  ],
+  "socket_config": {
+    "common":    {"min": 0, "max": 0},
+    "uncommon":  {"min": 0, "max": 1, "chance_1": 0.30},
+    "rare":      {"min": 1, "max": 2, "chance_2": 0.40},
+    "epic":      {"min": 1, "max": 3, "chance_2": 0.50, "chance_3": 0.25},
+    "legendary": {"min": 2, "max": 4, "chance_3": 0.50, "chance_4": 0.30}
+  },
+  "synergies": {
+    "matching_bonus": 0.20,
+    "matching_description": "All sockets same gem type: +20% gem stats",
+    "rainbow_min_types": 3,
+    "rainbow_bonus": 0.05,
+    "rainbow_description": "3+ different gem types: +5% All Stats"
+  }
+}

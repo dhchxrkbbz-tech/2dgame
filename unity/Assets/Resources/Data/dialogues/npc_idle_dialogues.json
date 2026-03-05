@@ -1,0 +1,112 @@
+[
+	{
+		"dialogue_id": "village_elder_idle",
+		"speaker_name": "Village Elder",
+		"portrait_id": "village_elder",
+		"lines": [
+			{
+				"text": "The Ashenfall grows thicker each day. I fear what lies ahead for our village.",
+				"responses": []
+			}
+		]
+	},
+	{
+		"dialogue_id": "village_elder_idle_2",
+		"speaker_name": "Village Elder",
+		"portrait_id": "village_elder",
+		"lines": [
+			{
+				"text": "In my youth, the meadow stretched green and vibrant to the horizon. Now look at it... grey and withered.",
+				"responses": []
+			}
+		]
+	},
+	{
+		"dialogue_id": "hermit_witch_idle",
+		"speaker_name": "Hermit Witch",
+		"portrait_id": "hermit_witch",
+		"lines": [
+			{
+				"text": "Don't touch anything. Half of these ingredients would turn you into a toad. The other half would do worse.",
+				"responses": []
+			}
+		]
+	},
+	{
+		"dialogue_id": "hermit_witch_idle_2",
+		"speaker_name": "Hermit Witch",
+		"portrait_id": "hermit_witch",
+		"lines": [
+			{
+				"text": "The corruption whispers to me at night. It promises power... but I know better than to listen.",
+				"responses": []
+			}
+		]
+	},
+	{
+		"dialogue_id": "guard_captain_idle",
+		"speaker_name": "Guard Captain",
+		"portrait_id": "guard_captain",
+		"lines": [
+			{
+				"text": "Stay sharp out there. The roads aren't safe anymore.",
+				"responses": []
+			}
+		]
+	},
+	{
+		"dialogue_id": "herbalist_idle",
+		"speaker_name": "Herbalist Mira",
+		"portrait_id": "herbalist",
+		"lines": [
+			{
+				"text": "Would you like to browse my wares? I have potions, salves, and remedies for all manner of ailments.",
+				"responses": []
+			}
+		]
+	},
+	{
+		"dialogue_id": "farmer_idle",
+		"speaker_name": "Farmer Hilda",
+		"portrait_id": "farmer",
+		"lines": [
+			{
+				"text": "The sheep are doing better now, thanks to you. Though they still get spooked when the ash falls heavy.",
+				"responses": []
+			}
+		]
+	},
+	{
+		"dialogue_id": "blacksmith_idle",
+		"speaker_name": "Blacksmith Torr",
+		"portrait_id": "blacksmith",
+		"lines": [
+			{
+				"text": "Need something forged? I work with whatever metals you bring me, though the dark iron from the mountains is the finest.",
+				"responses": []
+			}
+		]
+	},
+	{
+		"dialogue_id": "woodcutter_idle",
+		"speaker_name": "Woodcutter Garth",
+		"portrait_id": "woodcutter",
+		"lines": [
+			{
+				"text": "The trees in the Cursed Forest bleed purple sap now. Used to be normal amber. Everything's changing.",
+				"responses": []
+			}
+		]
+	},
+	{
+		"dialogue_id": "wandering_merchant_idle",
+		"speaker_name": "Wandering Merchant",
+		"portrait_id": "merchant",
+		"lines": [
+			{
+				"text": "Rare goods from distant lands! I've traveled through the corruption to bring you the finest wares. Prices are fair, I promise!",
+				"responses": []
+			}
+		]
+	}
+]

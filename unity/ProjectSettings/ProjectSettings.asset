@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!129 &1
+PlayerSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 25
+  productGUID: a2f3b1c4d5e6f7a8b9c0d1e2f3a4b5c6
+  companyName: DefaultCompany
+  productName: Ashenfall
+  defaultScreenWidth: 1280
+  defaultScreenHeight: 720
+  m_ActiveColorSpace: 1
+  m_DefaultIsFullScreen: 0
+  m_RunInBackground: 1
+  m_GraphicsAPIs:
+  - 11
+  m_AutoGraphicsAPI: 1
+  scriptingBackend: {}
+  managedStrippingLevel: {}
+  allowUnsafeCode: 0
+  scriptingRuntimeVersion: 1
+  gcIncremental: 1
+  assemblyVersionValidation: 1
